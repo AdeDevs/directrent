@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user profile information for tenants and agents.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["tenant", "agent"] },
+        "city": { "type": "string" },
+        "country": { "type": "string" },
+        "nin": { "type": "string" },
+        "gender": { "type": "string" },
+        "age": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Review": {
+      "title": "Agent Review",
+      "description": "A review left by a tenant for an agent after a transaction.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "tenantName": { "type": "string" },
+        "agentId": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "listingId": { "type": "string" },
+        "listingTitle": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tenantId", "agentId", "rating", "comment", "listingId", "createdAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Represents a chat between a tenant and an agent regarding a property.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "agentId": { "type": "string" },
+        "listingId": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "tenantName": { "type": "string" },
+        "agentName": { "type": "string" },
+        "listingTitle": { "type": "string" },
+        "listingImage": { "type": "string" },
+        "listingPrice": { "type": "string" },
+        "status": { 
+          "type": "string", 
+          "enum": ["inquiry", "negotiating", "contract_requested", "contract_sent", "paid", "completed"],
+          "default": "inquiry"
+        }
+      },
+      "required": ["tenantId", "agentId", "listingId"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A single message within a conversation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "content": { "type": "string" },
+        "senderId": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "agentId": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "action"], "default": "text" },
+        "actionType": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["content", "senderId", "tenantId", "agentId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Individual user profile documents."
+    },
+    "/conversations/{convId}": {
+      "schema": "Conversation",
+      "description": "Root conversation metadata documents."
+    },
+    "/conversations/{convId}/messages/{msgId}": {
+      "schema": "Message",
+      "description": "Subcollection of messages inside a conversation."
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Public reviews for agents."
+    }
+  }
+}
