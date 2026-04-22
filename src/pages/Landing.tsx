@@ -19,6 +19,7 @@ import ListingCard from '../components/ListingCard';
 import Footer from '../components/Footer';
 import { FEATURED_LISTINGS } from '../data';
 import { useAuth } from '../context/AuthContext';
+import SafeImage from '../components/SafeImage';
 
 const Hero = () => {
   const { setView, user, setAuthMode } = useAuth();
@@ -90,11 +91,11 @@ const Hero = () => {
           <div className="mt-8 flex flex-col sm:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
             <div className="flex -space-x-3">
               {[
-                "https://picsum.photos/seed/tenant1/100/100",
-                "https://picsum.photos/seed/tenant2/100/100",
-                "https://picsum.photos/seed/tenant3/100/100"
+                "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80",
+                "https://images.unsplash.com/photo-1567532939803-f4a1801c8763?auto=format&fit=crop&w=100&h=100&q=80",
+                "https://images.unsplash.com/photo-1531123897727-8f129e16fd3c?auto=format&fit=crop&w=100&h=100&q=80"
               ].map((src, i) => (
-                <img key={i} src={src} alt="Tenant" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm" referrerPolicy="no-referrer" />
+                <SafeImage key={i} src={src} alt="Tenant" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm" />
               ))}
             </div>
             <p className="text-sm text-slate-500 text-center sm:text-left">
@@ -198,12 +199,12 @@ const ProblemSolution = () => (
         <div className="relative">
           <div className="z-10 grid grid-cols-2 gap-4">
             <div className="space-y-4 mt-12">
-              <img src="https://picsum.photos/seed/modernhouse/400/500" className="rounded-2xl shadow-lg border-4 border-white" alt="Modern House" referrerPolicy="no-referrer" />
-              <div className="bg-white p-4 rounded-xl shadow-xl flex items-center gap-3 border border-slate-100"><CheckCircle2 className="w-6 h-6 text-primary-500" /><span className="font-bold text-sm">Verified Agents</span></div>
+              <SafeImage src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=400&h=500&q=80" className="rounded-2xl shadow-lg border-4 border-white" alt="Modern House" />
+              <div className="bg-white p-4 rounded-xl shadow-xl flex items-center gap-3 border border-slate-100"><CheckCircle2 className="w-6 h-6 text-primary-50" /><span className="font-bold text-sm">Verified Agents</span></div>
             </div>
             <div className="space-y-4">
               <div className="bg-primary-600 p-6 rounded-2xl text-white shadow-2xl shadow-primary-300"><p className="text-2xl font-bold mb-1">100%</p><p className="text-xs font-medium uppercase tracking-widest opacity-80">Transparent Fees</p></div>
-              <img src="https://picsum.photos/seed/rentalapart/400/500" className="rounded-2xl shadow-lg border-4 border-white" alt="Rental Apartment" referrerPolicy="no-referrer" />
+              <SafeImage src="https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=400&h=500&q=80" className="rounded-2xl shadow-lg border-4 border-white" alt="Rental Apartment" />
             </div>
           </div>
         </div>
@@ -335,14 +336,14 @@ const Testimonials = () => (
       </div>
       <div className="grid md:grid-cols-3 gap-8">
         {[
-          { name: "Tunde A.", dept: "Lagos", text: "I found a neat self-contain in Yaba the next day. The process was surprisingly smooth compared to what I expected.", avatar: "https://picsum.photos/seed/tunde/100/100" },
-          { name: "Bisi O.", dept: "Ibadan", text: "DirectRent helped me find a landlord listing directly. Saved me nearly 80k in random agent fees!", avatar: "https://picsum.photos/seed/bisi/100/100" },
-          { name: "Sola W.", dept: "Abuja", text: "The verified badge gave me confidence. Moving in next week and I didn't have to chase any shady agents.", avatar: "https://picsum.photos/seed/sola/100/100" }
+          { name: "Tunde A.", dept: "Lagos", text: "I found a neat self-contain in Yaba the next day. The process was surprisingly smooth compared to what I expected.", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80" },
+          { name: "Bisi O.", dept: "Ibadan", text: "DirectRent helped me find a landlord listing directly. Saved me nearly 80k in random agent fees!", avatar: "https://images.unsplash.com/photo-1567532939803-f4a1801c8763?auto=format&fit=crop&w=100&h=100&q=80" },
+          { name: "Sola W.", dept: "Abuja", text: "The verified badge gave me confidence. Moving in next week and I didn't have to chase any shady agents.", avatar: "https://images.unsplash.com/photo-1531123897727-8f129e16fd3c?auto=format&fit=crop&w=100&h=100&q=80" }
         ].map((test, idx) => (
           <div key={idx} className="bg-slate-50 p-8 rounded-2xl border border-slate-100 flex flex-col justify-between">
             <p className="text-slate-600 text-sm italic leading-relaxed mb-8">"{test.text}"</p>
             <div className="flex items-center gap-4">
-              <img src={test.avatar} className="w-10 h-10 rounded-full border-2 border-primary-100" alt={test.name} referrerPolicy="no-referrer" />
+              <SafeImage src={test.avatar} className="w-10 h-10 rounded-full border-2 border-primary-100 avatar" alt={test.name} />
               <div>
                 <h5 className="font-semibold text-slate-900 text-sm">{test.name}</h5>
                 <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{test.dept}</p>

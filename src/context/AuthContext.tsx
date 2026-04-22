@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, UserRole, ViewState, AuthMode, Listing } from '../types';
+import { User, UserRole, ViewState, AuthMode, Listing, AppTab } from '../types';
 import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -21,6 +21,10 @@ interface AuthContextType {
   setCurrentListing: (listing: Listing | null) => void;
   selectedAgentId: string | null;
   setSelectedAgentId: (agentId: string | null) => void;
+  favorites: number[];
+  toggleFavorite: (listingId: number) => Promise<void>;
+  activeTab: AppTab;
+  setActiveTab: (tab: AppTab) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,6 +37,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [preselectedRole, setPreselectedRole] = useState<UserRole>('tenant');
   const [currentListing, setCurrentListing] = useState<Listing | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<number[]>([]);
+  const [activeTab, setActiveTab] = useState<AppTab>('home');
+
+  useEffect(() => {
+    if (!user) {
+      setFavorites([]);
+      return;
+    }
+
+    // Subscribe to favorites subcollection
+    const favsRef = collection(db, 'users', user.id, 'favorites');
+    const unsubscribeFavs = onSnapshot(favsRef, (snapshot) => {
+      const favIds = snapshot.docs.map(doc => parseInt(doc.id));
+      setFavorites(favIds);
+    });
+
+    return () => unsubscribeFavs();
+  }, [user]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -86,9 +108,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await signOut(auth);
       setUser(null);
+      setFavorites([]);
       setView('landing');
     } catch (error) {
       console.error("Error signing out:", error);
+    }
+  };
+
+  const toggleFavorite = async (listingId: number) => {
+    if (!user) {
+      setAuthMode('login');
+      setView('auth');
+      return;
+    }
+
+    const favDocRef = doc(db, 'users', user.id, 'favorites', listingId.toString());
+    
+    try {
+      if (favorites.includes(listingId)) {
+        await deleteDoc(favDocRef);
+      } else {
+        await setDoc(favDocRef, {
+          listingId: listingId.toString(),
+          createdAt: serverTimestamp()
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
     }
   };
 
@@ -110,6 +156,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setCurrentListing,
       selectedAgentId,
       setSelectedAgentId,
+      favorites,
+      toggleFavorite,
+      activeTab,
+      setActiveTab,
     }}>
       {children}
     </AuthContext.Provider>

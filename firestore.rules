@@ -74,6 +74,12 @@ service cloud.firestore {
              data.createdAt == request.time;
     }
 
+    // --- Favorite Validation ---
+    function isValidFavorite(data) {
+      return data.listingId is string &&
+             data.createdAt == request.time;
+    }
+
     // --- Resources ---
 
     // Reviews
@@ -89,6 +95,13 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isValidUser(incoming()) && isEmailVerified();
       allow update: if isOwner(userId) && isValidUser(incoming()) && 
                     incoming().role == existing().role && isEmailVerified(); 
+
+      // Favorites Subcollection
+      match /favorites/{listingId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidFavorite(incoming());
+        allow delete: if isOwner(userId);
+      }
     }
 
     // Conversations

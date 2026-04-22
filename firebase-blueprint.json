@@ -75,12 +75,26 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["content", "senderId", "tenantId", "agentId", "createdAt"]
+    },
+    "Favorite": {
+      "title": "Favorite Listing",
+      "description": "Represents a listing bookmarked by a tenant.",
+      "type": "object",
+      "properties": {
+        "listingId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["listingId", "createdAt"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "Individual user profile documents."
+    },
+    "/users/{userId}/favorites/{listingId}": {
+      "schema": "Favorite",
+      "description": "A subcollection of listings bookmarked by the user."
     },
     "/conversations/{convId}": {
       "schema": "Conversation",

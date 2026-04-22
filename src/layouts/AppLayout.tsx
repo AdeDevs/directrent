@@ -5,32 +5,28 @@ import BottomNav from '../components/BottomNav';
 import HomePage from '../pages/Home';
 import ChatPage from '../pages/Chat';
 import ProfilePage from '../pages/Profile';
+import FavoritesPage from '../pages/Favorites';
 import ListingDetails from '../pages/ListingDetails';
 import AgentProfile from '../pages/AgentProfile';
 import { useAuth } from '../context/AuthContext';
 import { AppTab } from '../types';
 
 const AppLayout = () => {
-  const [activeTab, setActiveTab] = useState<AppTab>('home');
-  const { user, currentListing, setCurrentListing, selectedAgentId, setSelectedAgentId } = useAuth();
+  const { 
+    user, 
+    currentListing, 
+    setCurrentListing, 
+    selectedAgentId, 
+    setSelectedAgentId,
+    activeTab,
+    setActiveTab
+  } = useAuth();
+  
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 relative flex flex-col">
-      {!currentListing && !selectedAgentId && (
-        <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-40 shadow-sm">
-          <div className="max-w-[1600px] mx-auto px-4 md:px-8 h-16 md:h-20 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <HomeIcon className="text-white w-5 h-5" />
-              </div>
-              <span className="font-semibold text-slate-900 tracking-tight">Direct<span className="text-primary-600">Rent</span></span>
-            </div>
-          </div>
-        </header>
-      )}
-
-      <main className={(!currentListing && !selectedAgentId) ? "max-w-[1600px] mx-auto px-4 md:px-8 py-6 pb-28 md:pb-40" : "flex-1"}>
+    <div className="min-h-screen bg-white flex flex-col">
+      <main className={(!currentListing && !selectedAgentId && activeTab !== 'favorites') ? "w-full max-w-full px-0 pb-28 md:pb-40" : "flex-1"}>
         <AnimatePresence mode="wait">
           {selectedAgentId ? (
             <AgentProfile 
@@ -54,6 +50,7 @@ const AppLayout = () => {
               {activeTab === 'home' && <HomePage key="home" />}
               {activeTab === 'chat' && <ChatPage key="chat" />}
               {activeTab === 'profile' && <ProfilePage key="profile" />}
+              {activeTab === 'favorites' && <FavoritesPage key="favorites" />}
             </motion.div>
           )}
         </AnimatePresence>

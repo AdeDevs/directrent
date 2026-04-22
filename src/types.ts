@@ -28,7 +28,7 @@ export interface Listing {
 }
 
 export type ViewState = 'landing' | 'auth' | 'app';
-export type AppTab = 'home' | 'chat' | 'profile';
+export type AppTab = 'home' | 'chat' | 'profile' | 'favorites';
 export type AuthMode = 'login' | 'signup';
 export type UserRole = 'tenant' | 'agent';
 

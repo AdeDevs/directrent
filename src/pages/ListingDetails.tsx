@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ChevronLeft, Heart, MapPin, BadgeCheck, Star, 
-  ShieldCheck, Share, MessageSquare, Home, BedDouble, Bath
+  ShieldCheck, Share, MessageSquare, Home, BedDouble, Bath,
+  Navigation, ExternalLink
 } from 'lucide-react';
 import { Listing } from '../types';
 import ListingCard from '../components/ListingCard';
@@ -10,15 +11,19 @@ import ChatModal from '../components/ChatModal';
 import { FEATURED_LISTINGS } from '../data';
 import { useAuth } from '../context/AuthContext';
 
+import SafeImage from '../components/SafeImage';
+
 interface ListingDetailsProps {
   listing: Listing;
   onBack: () => void;
 }
 
 const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
-  const { setCurrentListing, user, setView, setAuthMode, setSelectedAgentId } = useAuth();
+  const { setCurrentListing, user, setView, setAuthMode, setSelectedAgentId, favorites, toggleFavorite } = useAuth();
   const [activeMedia, setActiveMedia] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
+
+  const isFavorite = favorites.includes(listing.id);
   
   // Recommended listings (exclude current, pick 3)
   const recommended = FEATURED_LISTINGS.filter(l => l.id !== listing.id).slice(0, 3);
@@ -37,30 +42,9 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
     setIsChatOpen(true);
   };
 
-  // Helper deterministic pseudo-random image generator to guarantee unique property photo galleries
-  const ALL_PICS = [
-    "https://picsum.photos/seed/room1/800/600",
-    "https://picsum.photos/seed/room2/800/600",
-    "https://picsum.photos/seed/room3/800/600",
-    "https://picsum.photos/seed/room4/800/600",
-    "https://picsum.photos/seed/room5/800/600",
-    "https://picsum.photos/seed/room6/800/600",
-    "https://picsum.photos/seed/room7/800/600",
-    "https://picsum.photos/seed/room8/800/600",
-    "https://picsum.photos/seed/room9/800/600",
-    "https://picsum.photos/seed/room10/800/600",
-    "https://picsum.photos/seed/room11/800/600",
-    "https://picsum.photos/seed/room12/800/600"
-  ];
-  
-  const pool = ALL_PICS.filter(img => img !== listing.image);
-  
-  const images = listing.images?.length ? listing.images : [
-    listing.image,
-    pool[listing.id % pool.length],
-    pool[(listing.id + 3) % pool.length],
-    pool[(listing.id + 5) % pool.length],
-  ];
+  const images = listing.images && listing.images.length > 0 
+    ? listing.images 
+    : [listing.image];
 
   return (
     <motion.div 
@@ -94,8 +78,14 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
             <button className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
               <Share className="w-4.5 h-4.5" />
             </button>
-            <button className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
-              <Heart className="w-4.5 h-4.5" />
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFavorite(listing.id);
+              }}
+              className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-sm ${isFavorite ? 'bg-red-500 text-white shadow-lg shadow-red-500/40' : 'bg-white/20 text-white hover:bg-white/30'}`}
+            >
+              <Heart className={`w-4.5 h-4.5 ${isFavorite ? 'fill-current' : ''}`} />
             </button>
           </div>
         </div>
@@ -111,7 +101,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
         >
           {images.map((img, idx) => (
             <div key={idx} className="w-full h-full flex-shrink-0 snap-center relative">
-              <img src={img} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <SafeImage src={img} className="w-full h-full object-cover" />
             </div>
           ))}
         </div>
@@ -138,9 +128,21 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                <h1 className="text-2xl md:text-4xl font-bold text-slate-900 leading-tight mb-2 md:mb-3">
                  {listing.title}
                </h1>
-               <div className="flex items-center gap-1.5 text-slate-500">
-                 <MapPin className="w-4 h-4 md:w-5 md:h-5 text-primary-500" />
-                 <span className="text-sm md:text-base font-medium">{listing.location}</span>
+               <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1 cursor-default">
+                 <div className="flex items-center gap-1.5 text-slate-500">
+                   <MapPin className="w-4 h-4 md:w-5 md:h-5 text-primary-500" />
+                   <span className="text-sm md:text-base font-medium">{listing.location}</span>
+                 </div>
+                 <button 
+                  onClick={() => {
+                    const destination = encodeURIComponent(`${listing.location}, ${listing.landmark || ''}, Nigeria`);
+                    window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
+                  }}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white border border-slate-200 hover:border-primary-200 hover:bg-primary-50/30 text-slate-700 hover:text-primary-700 rounded-xl text-[10px] md:text-xs font-bold transition-all cursor-pointer w-fit shadow-sm active:scale-95"
+                >
+                  <Navigation className="w-3 h-3 text-primary-500" />
+                  Get Directions
+                </button>
                </div>
              </div>
              <div className="text-left md:text-right mt-2 md:mt-0">

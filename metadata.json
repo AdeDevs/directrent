@@ -1,6 +1,6 @@
 {
   "name": "DirectRent",
   "description": "A tenant-focused housing platform for Nigeria, connecting tenants directly with verified agents.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["geolocation"],
   "majorCapabilities": []
 }

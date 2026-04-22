@@ -8,7 +8,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 350000,
     location: "Agbowo, UI",
     type: "Self-Contain",
-    image: "https://picsum.photos/seed/apartment1/800/600",
+    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80",
+    images: [
+      "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1554995207-c18c20360a59?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=800&q=80"
+    ],
     verified: true,
     noFee: true,
     beds: 1,
@@ -27,7 +33,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 550000,
     location: "Bodija",
     type: "1 Bedroom Flat",
-    image: "https://picsum.photos/seed/apartment2/800/600",
+    image: "https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg?auto=compress&cs=tinysrgb&w=800",
+    images: [
+      "https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.pexels.com/photos/1571458/pexels-photo-1571458.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.pexels.com/photos/1571468/pexels-photo-1571468.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=800&q=80"
+    ],
     verified: true,
     noFee: false,
     beds: 1,
@@ -46,7 +58,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 180000,
     location: "Akobo",
     type: "Shared",
-    image: "https://picsum.photos/seed/apartment3/800/600",
+    image: "https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=800&q=80",
+    images: [
+      "https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1560185127-6a430ae16cb0?auto=format&fit=crop&w=800&q=80",
+      "https://images.pexels.com/photos/276724/pexels-photo-276724.jpeg?auto=compress&cs=tinysrgb&w=800"
+    ],
     verified: true,
     noFee: true,
     beds: 2,
@@ -65,7 +83,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 750000,
     location: "Jericho",
     type: "1 Bedroom Flat",
-    image: "https://picsum.photos/seed/apartment4/800/600",
+    image: "https://images.pexels.com/photos/276528/pexels-photo-276528.jpeg?auto=compress&cs=tinysrgb&w=800",
+    images: [
+      "https://images.pexels.com/photos/276528/pexels-photo-276528.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.pexels.com/photos/2724749/pexels-photo-2724749.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.unsplash.com/photo-1616047006789-b7af5afb8c20?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1615876234886-fd9a39f65c92?auto=format&fit=crop&w=800&q=80"
+    ],
     verified: true,
     noFee: false,
     beds: 1,
@@ -84,7 +108,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 250000,
     location: "Samonda",
     type: "Self-Contain",
-    image: "https://picsum.photos/seed/apartment5/800/600",
+    image: "https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=800&q=80",
+    images: [
+      "https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1556912170-454612e47573?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1618221195710-dd6b41faeaa6?auto=format&fit=crop&w=800&q=80",
+      "https://images.pexels.com/photos/1571470/pexels-photo-1571470.jpeg?auto=compress&cs=tinysrgb&w=800"
+    ],
     verified: false,
     noFee: true,
     beds: 1,
@@ -103,7 +133,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 600000,
     location: "Oluyole",
     type: "1 Bedroom Flat",
-    image: "https://picsum.photos/seed/apartment6/800/600",
+    image: "https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&cs=tinysrgb&w=800",
+    images: [
+      "https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=800&q=80",
+      "https://images.pexels.com/photos/279719/pexels-photo-279719.jpeg?auto=compress&cs=tinysrgb&w=800"
+    ],
     verified: true,
     noFee: false,
     beds: 1,
@@ -122,7 +158,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 120000,
     location: "Apata",
     type: "Shared",
-    image: "https://picsum.photos/seed/apartment7/800/600",
+    image: "https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?auto=format&fit=crop&w=800&q=80",
+    images: [
+      "https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1560411235-46f90117b3f9?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1616137422495-1e9e46e2aa77?auto=format&fit=crop&w=800&q=80",
+      "https://images.pexels.com/photos/271639/pexels-photo-271639.jpeg?auto=compress&cs=tinysrgb&w=800"
+    ],
     verified: false,
     noFee: true,
     beds: 3,
@@ -141,7 +183,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 450000,
     location: "Ikolaba",
     type: "Self-Contain",
-    image: "https://picsum.photos/seed/apartment8/800/600",
+    image: "https://images.pexels.com/photos/1571453/pexels-photo-1571453.jpeg?auto=compress&cs=tinysrgb&w=800",
+    images: [
+      "https://images.pexels.com/photos/1571453/pexels-photo-1571453.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.unsplash.com/photo-1556020685-ae41abfc936c?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1512918728675-ed5a9ecde9d3?auto=format&fit=crop&w=800&q=80",
+      "https://images.pexels.com/photos/271647/pexels-photo-271647.jpeg?auto=compress&cs=tinysrgb&w=800"
+    ],
     verified: true,
     noFee: true,
     beds: 1,
@@ -160,7 +208,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 400000,
     location: "Ologuneru",
     type: "1 Bedroom Flat",
-    image: "https://picsum.photos/seed/apartment9/800/600",
+    image: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80",
+    images: [
+      "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1616594197247-b695b0902274?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1617103996702-96ff29b1c467?auto=format&fit=crop&w=800&q=80",
+      "https://images.pexels.com/photos/210265/pexels-photo-210265.jpeg?auto=compress&cs=tinysrgb&w=800"
+    ],
     verified: true,
     noFee: false,
     beds: 1,
@@ -179,7 +233,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 150000,
     location: "Under G, Lautech",
     type: "Self-Contain",
-    image: "https://picsum.photos/seed/apartment10/800/600",
+    image: "https://images.pexels.com/photos/279719/pexels-photo-279719.jpeg?auto=compress&cs=tinysrgb&w=800",
+    images: [
+      "https://images.pexels.com/photos/279719/pexels-photo-279719.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.unsplash.com/photo-1513584684374-8bdb74838a0f?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=800&q=80",
+      "https://images.pexels.com/photos/275484/pexels-photo-275484.jpeg?auto=compress&cs=tinysrgb&w=800"
+    ],
     verified: true,
     noFee: true,
     beds: 1,
@@ -199,7 +259,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 280000,
     location: "Adenike, Ogbomoso",
     type: "1 Bedroom Flat",
-    image: "https://picsum.photos/seed/apartment11/800/600",
+    image: "https://images.pexels.com/photos/545012/pexels-photo-545012.jpeg?auto=compress&cs=tinysrgb&w=800",
+    images: [
+      "https://images.pexels.com/photos/545012/pexels-photo-545012.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.unsplash.com/photo-1616046229478-9901c5536a45?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1616047006789-b7af5afb8c20?auto=format&fit=crop&w=800&q=80",
+      "https://images.pexels.com/photos/1571459/pexels-photo-1571459.jpeg?auto=compress&cs=tinysrgb&w=800"
+    ],
     verified: false,
     noFee: false,
     beds: 1,
@@ -218,7 +284,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     priceValue: 80000,
     location: "Stadium Area, Ogbomoso",
     type: "Shared",
-    image: "https://picsum.photos/seed/apartment12/800/600",
+    image: "https://images.pexels.com/photos/271639/pexels-photo-271639.jpeg?auto=compress&cs=tinysrgb&w=800",
+    images: [
+      "https://images.pexels.com/photos/271639/pexels-photo-271639.jpeg?auto=compress&cs=tinysrgb&w=800",
+      "https://images.unsplash.com/photo-1594333120323-8190279193EF?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1615873966183-f25211831c7f?auto=format&fit=crop&w=800&q=80",
+      "https://images.pexels.com/photos/271649/pexels-photo-271649.jpeg?auto=compress&cs=tinysrgb&w=800"
+    ],
     verified: true,
     noFee: true,
     beds: 2,

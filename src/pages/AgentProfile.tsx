@@ -17,6 +17,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { User, Review } from '../types';
+import SafeImage from '../components/SafeImage';
 
 interface AgentProfileProps {
   agentId: string;
@@ -184,11 +185,16 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
             <div className="relative">
               <div className="w-28 h-28 md:w-32 md:h-32 rounded-xl bg-white p-1 shadow-2xl">
                 <div className="w-full h-full rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden">
-                  <img 
-                    src={`https://picsum.photos/seed/${agentId}/400/400`} 
+                  <SafeImage 
+                    src={
+                      agentId === 'agent_kunle' ? "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&h=400&q=80" :
+                      agentId === 'agent_sarah' ? "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&h=400&q=80" :
+                      agentId === 'agent_mike' ? "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&h=400&q=80" :
+                      agentId === 'agent_bose' ? "https://images.unsplash.com/photo-1589156280159-27698a70f29e?auto=format&fit=crop&w=400&h=400&q=80" :
+                      `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&h=400&q=80`
+                    } 
                     alt={agent?.name}
                     className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
                   />
                 </div>
               </div>
@@ -307,63 +313,96 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
         </div>
 
         {/* Reviews Section - Horizontal Real Estate Optimization */}
-        <div className="space-y-6 overflow-hidden">
+        <div className="space-y-6">
           <div className="px-1 flex items-center justify-between">
              <h3 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
                Verified Reviews
                <span className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500">{reviews.length}</span>
              </h3>
+             
+             {/* Desktop Navigation */}
+             <div className="hidden md:flex items-center gap-2">
+               <button 
+                 onClick={() => {
+                   const container = document.getElementById('reviews-carousel');
+                   if (container) container.scrollBy({ left: -400, behavior: 'smooth' });
+                 }}
+                 className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all shadow-sm"
+               >
+                 <ChevronLeft className="w-4 h-4" />
+               </button>
+               <button 
+                 onClick={() => {
+                   const container = document.getElementById('reviews-carousel');
+                   if (container) container.scrollBy({ left: 400, behavior: 'smooth' });
+                 }}
+                 className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all shadow-sm"
+               >
+                 <ChevronLeft className="w-4 h-4 rotate-180" />
+               </button>
+             </div>
           </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-6 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
-            {reviews.map((review) => (
-              <motion.div 
-                key={review.id} 
-                initial={{ opacity: 0, x: 20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                className="flex-none w-[85%] md:w-[400px] bg-white p-6 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all snap-start"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 font-black text-sm">
-                      {review.tenantName.charAt(0)}
+          <div className="relative -mx-4 md:-mx-8 overflow-hidden">
+            <div 
+              id="reviews-carousel"
+              className="flex gap-4 overflow-x-auto pb-6 px-4 md:px-8 snap-x snap-mandatory scrollbar-hide scroll-smooth"
+            >
+              {reviews.length > 0 ? (
+                <>
+                  {reviews.map((review) => (
+                    <div 
+                      key={review.id} 
+                      className="flex-none w-[80%] md:w-[400px] bg-white p-6 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all snap-center md:snap-start"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 font-black text-sm">
+                            {review.tenantName.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900 text-xs md:text-sm">{review.tenantName}</div>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Verified Tenant</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-amber-400">
+                          <Star className="w-3 h-3 fill-current" />
+                          <span className="text-[10px] font-black">{review.rating.toFixed(1)}</span>
+                        </div>
+                      </div>
+                      <p className="text-slate-600 text-xs md:text-sm leading-relaxed mb-6 font-medium line-clamp-3">
+                         "{review.comment}"
+                      </p>
+                      <div className="flex items-center gap-3 pt-4 border-t border-slate-50">
+                        <div className="w-6 h-6 rounded-md bg-primary-50 flex items-center justify-center text-primary-600">
+                          <TrendingUp className="w-3 h-3" />
+                        </div>
+                        <div className="overflow-hidden">
+                          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Rented Through Partner</div>
+                          <div className="text-[10px] md:text-xs font-bold text-slate-900 truncate">
+                            {review.listingTitle}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-bold text-slate-900 text-xs md:text-sm">{review.tenantName}</div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Verified Tenant</div>
-                    </div>
+                  ))}
+                  
+                  {/* End message in scroll */}
+                  <div className="flex-none w-48 flex items-center justify-center snap-center pr-4 md:pr-8">
+                     <div className="text-center space-y-2">
+                       <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 mx-auto">
+                         <Star className="w-4 h-4" />
+                       </div>
+                       <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">End of<br/>Reviews</p>
+                     </div>
                   </div>
-                  <div className="flex items-center gap-1 text-amber-400">
-                    <Star className="w-3 h-3 fill-current" />
-                    <span className="text-[10px] font-black">{review.rating.toFixed(1)}</span>
-                  </div>
+                </>
+              ) : (
+                <div className="flex-none w-full bg-slate-50 rounded-xl p-12 text-center border-2 border-dashed border-slate-200">
+                   <MessageSquare className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+                   <p className="text-slate-400 font-medium">No verified reviews yet.</p>
                 </div>
-                <p className="text-slate-600 text-xs md:text-sm leading-relaxed mb-6 font-medium line-clamp-3">
-                   "{review.comment}"
-                </p>
-                <div className="flex items-center gap-3 pt-4 border-t border-slate-50">
-                  <div className="w-6 h-6 rounded-md bg-primary-50 flex items-center justify-center text-primary-600">
-                    <TrendingUp className="w-3 h-3" />
-                  </div>
-                  <div className="overflow-hidden">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Rented Through Partner</div>
-                    <div className="text-[10px] md:text-xs font-bold text-slate-900 truncate">
-                      {review.listingTitle}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-            
-            {/* End message in scroll */}
-            <div className="flex-none w-48 flex items-center justify-center pr-8">
-               <div className="text-center space-y-2">
-                 <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 mx-auto">
-                   <Star className="w-4 h-4" />
-                 </div>
-                 <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">End of<br/>Reviews</p>
-               </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
 import { MapPin, Heart, ArrowRight, Star, BadgeCheck, ShieldCheck } from 'lucide-react';
 import { Listing } from '../types';
+import { useAuth } from '../context/AuthContext';
+
+import SafeImage from './SafeImage';
 
 interface ListingCardProps {
   listing: Listing;
@@ -11,7 +14,8 @@ interface ListingCardProps {
 }
 
 const ListingCard: React.FC<ListingCardProps> = ({ listing, onViewDetails, hideHeart, hideAgent }) => {
-  const [isFav, setIsFav] = useState(listing.isFavorite);
+  const { favorites, toggleFavorite } = useAuth();
+  const isFav = favorites.includes(listing.id);
 
   return (
     <motion.div 
@@ -19,14 +23,13 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onViewDetails, hideH
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       onClick={onViewDetails}
-      className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-200/40 transition-all duration-300 flex flex-col h-full group cursor-pointer"
+      className="bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-200/40 transition-all duration-300 flex flex-col h-full group cursor-pointer"
     >
       <div className="relative aspect-[4/3] overflow-hidden">
-        <img 
+        <SafeImage 
           src={listing.image} 
           alt={listing.title} 
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-          referrerPolicy="no-referrer"
         />
         <div className="absolute top-3 left-3 flex flex-col items-start gap-2">
           {listing.isRecentlyAdded && (
@@ -42,10 +45,10 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onViewDetails, hideH
         </div>
         {!hideHeart && (
           <button 
-            onClick={(e) => { e.stopPropagation(); setIsFav(!isFav); }}
-            className={`absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all cursor-pointer ${isFav ? 'bg-red-50 text-red-500 shadow-lg shadow-red-200/50' : 'bg-white/30 text-white hover:bg-white hover:text-red-500'}`}
+            onClick={(e) => { e.stopPropagation(); toggleFavorite(listing.id); }}
+            className={`absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all cursor-pointer ${isFav ? 'bg-red-50 text-red-500 shadow-lg shadow-red-200/50' : 'bg-white/30 text-white hover:bg-white hover:text-red-50'}`}
           >
-            <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
+            <Heart className={`w-3.5 h-3.5 transition-colors ${isFav ? 'fill-current text-red-500' : 'text-white'}`} />
           </button>
         )}
       </div>

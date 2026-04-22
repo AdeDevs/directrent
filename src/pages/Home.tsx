@@ -32,14 +32,27 @@ const Home = () => {
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }} 
-      animate={{ opacity: 1, y: 0 }} 
-      exit={{ opacity: 0, y: -10 }} 
-      className="space-y-8"
-    >
-      {/* Search and Advanced Filter Section */}
-      <div className="space-y-6">
+    <div className="min-h-screen bg-white">
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
+        <div className="w-full max-w-full px-3 md:px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+              <Search className="text-white w-4 h-4" />
+            </div>
+            <span className="font-semibold text-slate-900 tracking-tight">Direct<span className="text-primary-600">Rent</span></span>
+          </div>
+        </div>
+      </header>
+
+      <main className="pt-[72px] px-3 md:px-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          exit={{ opacity: 0, y: -10 }} 
+          className="w-full max-w-full space-y-8"
+        >
+          {/* Search and Advanced Filter Section */}
+          <div className="space-y-6">
         <div className="relative group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 group-focus-within:text-primary-500 transition-all" />
           <input 
@@ -47,7 +60,7 @@ const Home = () => {
             placeholder="Search area, landmark, or features (e.g. Solar, Water)..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-3xl py-4 pl-12 pr-4 outline-none focus:border-primary-400 focus:ring-4 focus:ring-primary-50 transition-all text-sm shadow-sm placeholder:text-slate-300"
+            className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-primary-400 focus:ring-4 focus:ring-primary-50 transition-all text-sm shadow-sm placeholder:text-slate-300"
           />
           <button 
             onClick={() => setShowFilters(!showFilters)}
@@ -64,7 +77,7 @@ const Home = () => {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/20 space-y-6 overflow-hidden"
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xl shadow-slate-200/20 space-y-6 overflow-hidden"
             >
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
@@ -123,8 +136,8 @@ const Home = () => {
         </button>
       </div>
 
-      {/* Responsive Grid Layout - 1 col on small phones, 2 on wide/tablets, 3 on desktop, max 4 on ultra-wide */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
+      {/* Responsive Grid Layout - Scaling columns to a maximum of 4 to ensure cards have breathing room */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8 xl:gap-10">
         {filteredListings.length > 0 ? (
           filteredListings.map((listing, i) => (
             <ListingCard 
@@ -134,7 +147,7 @@ const Home = () => {
             />
           ))
         ) : (
-          <div className="col-span-full py-20 bg-white rounded-3xl border-2 border-dashed border-slate-100 text-center space-y-4">
+          <div className="col-span-full py-20 bg-white rounded-2xl border-2 border-dashed border-slate-100 text-center space-y-4">
             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto">
               <Search className="w-10 h-10 text-slate-200" />
             </div>
@@ -152,6 +165,8 @@ const Home = () => {
         )}
       </div>
     </motion.div>
+  </main>
+</div>
   );
 };
 
