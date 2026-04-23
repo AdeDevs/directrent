@@ -1,16 +1,19 @@
-import React, { useMemo } from 'react';
-import { motion } from 'motion/react';
-import { ChevronLeft, Grid, Heart, MapPin, ArrowRight } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { FEATURED_LISTINGS } from '../data';
-import { Listing } from '../types';
-import SafeImage from '../components/SafeImage';
+import React, { useMemo } from "react";
+import { motion } from "motion/react";
+import { ChevronLeft, Grid, Heart, MapPin, ArrowRight } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { FEATURED_LISTINGS } from "../data";
+import { Listing } from "../types";
+import SafeImage from "../components/SafeImage";
 
 const FavoritesPage = () => {
-  const { favorites, setActiveTab, setCurrentListing, toggleFavorite } = useAuth();
+  const { favorites, setActiveTab, setCurrentListing, toggleFavorite } =
+    useAuth();
 
   const savedListings = useMemo(() => {
-    return FEATURED_LISTINGS.filter(listing => favorites.includes(listing.id));
+    return FEATURED_LISTINGS.filter((listing) =>
+      favorites.includes(listing.id)
+    );
   }, [favorites, toggleFavorite]);
 
   return (
@@ -23,23 +26,28 @@ const FavoritesPage = () => {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div className="w-full max-w-full px-3 md:px-4 h-16 flex items-center gap-4">
-          <button 
-            onClick={() => setActiveTab('profile')}
+          <button
+            onClick={() => setActiveTab("profile")}
             className="p-2 hover:bg-slate-50 rounded-full transition-colors group"
           >
             <ChevronLeft className="w-6 h-6 text-slate-600 group-hover:-translate-x-0.5 transition-transform" />
           </button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Saved Properties</h1>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              Saved Properties
+            </h1>
           </div>
-          <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center text-primary-600">
+          {/* <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center text-primary-600">
             <Heart className="w-5 h-5 fill-current" />
-          </div>
+          </div> */}
         </div>
       </header>
 
       {/* Grid Content */}
-      <main className="pt-[72px] px-3 md:px-4 w-full max-w-full pb-20 sm:pb-32">
+      <main
+        className="pt-[72px] px-3 md:px-4 w-full max-w-full pb-20 sm:pb-32"
+        style={{ paddingTop: 20, paddingBottom: 0 }}
+      >
         {savedListings.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
             {savedListings.map((listing) => (
@@ -52,12 +60,12 @@ const FavoritesPage = () => {
                 className="bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm flex flex-col cursor-pointer group hover:shadow-xl hover:shadow-slate-200/40 transition-all duration-300"
               >
                 <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                  <SafeImage 
-                    src={listing.image} 
-                    alt={listing.title} 
+                  <SafeImage
+                    src={listing.image}
+                    alt={listing.title}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                   />
-                  <button 
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleFavorite(listing.id);
@@ -72,7 +80,9 @@ const FavoritesPage = () => {
                     </div>
                   )}
                   <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg border border-white/20 shadow-sm">
-                    <span className="text-[10px] sm:text-xs font-black text-primary-600">{listing.price}</span>
+                    <span className="text-[10px] sm:text-xs font-black text-primary-600">
+                      {listing.price}
+                    </span>
                   </div>
                 </div>
                 <div className="p-4 sm:p-5 flex flex-col gap-2">
@@ -84,7 +94,9 @@ const FavoritesPage = () => {
                     <span className="truncate">{listing.location}</span>
                   </div>
                   <div className="mt-2 pt-3 border-t border-slate-50 flex items-center justify-between">
-                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-300 uppercase tracking-widest group-hover:text-primary-600 transition-all">View Details</span>
+                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-300 uppercase tracking-widest group-hover:text-primary-600 transition-all">
+                      View Details
+                    </span>
                     <ArrowRight className="w-3.5 h-3.5 text-slate-200 group-hover:text-primary-400 group-hover:translate-x-1 transition-all" />
                   </div>
                 </div>
@@ -96,12 +108,15 @@ const FavoritesPage = () => {
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-300 mb-6">
               <Grid className="w-8 h-8" />
             </div>
-            <h2 className="text-lg font-bold text-slate-900 mb-2">No saved properties yet</h2>
+            <h2 className="text-lg font-bold text-slate-900 mb-2">
+              No saved properties yet
+            </h2>
             <p className="text-sm text-slate-500 leading-relaxed max-w-[240px] mx-auto mb-8">
-              Start exploring listings and heart the ones you love to keep them here.
+              Start exploring listings and heart the ones you love to keep them
+              here.
             </p>
-            <button 
-              onClick={() => setActiveTab('home')}
+            <button
+              onClick={() => setActiveTab("home")}
               className="bg-slate-900 text-white px-8 py-3 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-primary-600 transition-all flex items-center gap-2"
             >
               Start Exploring <ArrowRight className="w-4 h-4" />

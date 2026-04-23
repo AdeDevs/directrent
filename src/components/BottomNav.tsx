@@ -17,8 +17,11 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
   ] as const;
 
   return (
-    <nav className="fixed z-50 transition-all bottom-0 left-0 w-full bg-white/90 backdrop-blur-2xl border-t border-slate-200/80 shadow-[0_-8px_32px_rgba(0,0,0,0.06)] px-4 sm:px-8 pt-3 pb-6 md:bottom-6 md:left-1/2 md:-translate-x-1/2 md:w-[480px] md:bg-white/60 md:rounded-[32px] md:border md:border-white/60 md:shadow-[0_8px_32px_rgba(0,0,0,0.08)] md:ring-1 md:ring-slate-900/5 md:px-10 md:py-3.5 overflow-hidden">
-      <div className="flex items-center justify-between max-w-md mx-auto w-full">
+    <nav className="fixed z-50 transition-all bottom-0 left-0 w-full bg-white/90 backdrop-blur-2xl border-t border-slate-200/80 shadow-[0_-8px_32px_rgba(0,0,0,0.06)] px-4 sm:px-8 pt-3 pb-6 md:bottom-6 md:left-1/2 md:-translate-x-1/2 md:w-[480px] md:bg-white/60 md:rounded-[32px] md:border md:border-white/60 md:shadow-[0_8px_32px_rgba(0,0,0,0.08)] md:ring-1 md:ring-slate-900/5 md:px-10 md:py-3.5 overflow-hidden" style={{
+      paddingRight: '0px',
+      paddingLeft: '0px'
+    }}>
+      <div className="flex items-center justify-between max-w-l mx-auto w-full">
         {tabs.map((tab) => (
           <button 
             key={tab.id}
@@ -27,6 +30,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
               activeTab === tab.id ? 'text-primary-600' : 'text-slate-400 hover:text-slate-600'
             }`}
           >
+            
             <div className={`transition-transform duration-300 ${activeTab === tab.id ? 'scale-110 -translate-y-0.5' : 'scale-100'}`}>
               {tab.icon}
             </div>

@@ -44,7 +44,7 @@ const Home = () => {
         </div>
       </header>
 
-      <main className="pt-[72px] px-3 md:px-4">
+      <main className="pt-[72px] px-3 md:px-4" style={{paddingTop: '20px'}}>
         <motion.div 
           initial={{ opacity: 0, y: 10 }} 
           animate={{ opacity: 1, y: 0 }} 
