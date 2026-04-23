@@ -32,6 +32,14 @@ export type AppTab = 'home' | 'chat' | 'profile' | 'favorites';
 export type AuthMode = 'login' | 'signup';
 export type UserRole = 'tenant' | 'agent';
 
+export type VerificationLevel = 'Unverified' | 'Verified' | 'Trusted' | 'Fully Verified';
+
+declare global {
+  interface Window {
+    recaptchaVerifier: any;
+  }
+}
+
 export interface User {
   id: string;
   name: string;
@@ -42,6 +50,10 @@ export interface User {
   gender?: string;
   age?: string;
   country: string;
+  avatarUrl?: string;
+  phoneNumber?: string;
+  phoneVerified?: boolean;
+  verificationLevel?: VerificationLevel;
 }
 
 export type ConversationStatus = 'inquiry' | 'negotiating' | 'contract_requested' | 'contract_sent' | 'paid' | 'completed';

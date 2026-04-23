@@ -3,6 +3,7 @@ import { User, UserRole, ViewState, AuthMode, Listing, AppTab } from '../types';
 import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { isProfileComplete } from '../lib/verification';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -64,8 +65,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (userDoc.exists()) {
             const userData = userDoc.data() as User;
             setUser(userData);
+            
+            // Auto redirect based on new vs returning user profile completeness
+            if (isProfileComplete(userData)) {
+              setActiveTab('home');
+            } else {
+              setActiveTab('profile');
+            }
+
             // Only switch to app view if we are on landing or auth pages
-            setView(prev => (prev === 'landing' || prev === 'auth') ? 'app' : prev);
+            if (sessionStorage.getItem('sms_reset_flow') !== 'active') {
+              setView(prev => (prev === 'landing' || prev === 'auth') ? 'app' : prev);
+            }
           } else {
             setUser(null);
           }
@@ -88,6 +99,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // to update the local state immediately
     if (userData && userData.id) {
        setUser(userData as User);
+       if (isProfileComplete(userData)) {
+         setActiveTab('home');
+       } else {
+         setActiveTab('profile');
+       }
        setView('app');
     }
   };
@@ -95,8 +111,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateProfile = async (updates: Partial<User>) => {
     if (!user) return;
     try {
+      // Use updateDoc to send ONLY the changed fields to Firestore
+      // This is much more efficient than setDoc with the full user object
+      const userRef = doc(db, 'users', user.id);
+      await setDoc(userRef, updates, { merge: true });
+      
+      // Update local state by merging
       const updatedUser = { ...user, ...updates };
-      await setDoc(doc(db, 'users', user.id), updatedUser, { merge: true });
       setUser(updatedUser);
     } catch (error) {
       console.error("Error updating profile:", error);

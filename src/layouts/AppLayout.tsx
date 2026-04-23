@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Home as HomeIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import BottomNav from "../components/BottomNav";
@@ -23,10 +23,17 @@ const AppLayout = () => {
     setActiveTab,
   } = useAuth();
 
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'auto'
+    });
+  }, [activeTab, currentListing, selectedAgentId]);
+
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col transition-colors duration-300">
       <main
         className={
           !currentListing && !selectedAgentId && activeTab !== "favorites"

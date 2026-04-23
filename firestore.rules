@@ -36,21 +36,30 @@ service cloud.firestore {
 
     // --- User Validation ---
     function isValidUser(data) {
-      return data.id == request.auth.uid &&
-             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-             data.email is string && data.email.size() > 0 && data.email.size() <= 100 &&
-             data.role in ['tenant', 'agent'] &&
-             (!('city' in data) || data.city is string) &&
-             (!('country' in data) || data.country is string) &&
-             (!('nin' in data) || (data.nin is string && data.nin.size() <= 20));
+      return (!('id' in data) || data.id == request.auth.uid) &&
+             (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 100)) &&
+             (!('role' in data) || data.role in ['tenant', 'agent']) &&
+             (!('city' in data) || (data.city is string && data.city.size() <= 100)) &&
+             (!('country' in data) || (data.country is string && data.country.size() <= 100)) &&
+             (!('nin' in data) || (data.nin is string && data.nin.size() <= 20)) &&
+             (!('gender' in data) || (data.gender is string && data.gender.size() <= 20)) &&
+             (!('age' in data) || (data.age is string && data.age.size() <= 10)) &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 1100000)) && // ~1MB
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 20)) &&
+             (!('phoneVerified' in data) || data.phoneVerified is bool) &&
+             (!('verificationLevel' in data) || (data.verificationLevel is string && data.verificationLevel in ["Unverified", "Verified", "Trusted", "Fully Verified"])) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
     // --- Conversation Validation ---
     function isValidConversation(data) {
-      return data.tenantId is string && data.agentId is string && data.listingId is string &&
-             data.tenantName is string && data.agentName is string &&
-             (data.status == "inquiry" || data.status == "negotiating" || data.status == "contract_requested" || data.status == "contract_sent" || data.status == "paid" || data.status == "completed") &&
-             (data.tenantId == request.auth.uid || data.agentId == request.auth.uid);
+      return (!('tenantId' in data) || (data.tenantId is string && data.tenantId.size() > 0)) &&
+             (!('agentId' in data) || (data.agentId is string && data.agentId.size() > 0)) &&
+             (!('listingId' in data) || (data.listingId is string && data.listingId.size() > 0)) &&
+             (!('status' in data) || (data.status is string && data.status in ['inquiry', 'negotiating', 'contract_requested', 'contract_sent', 'paid', 'completed'])) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
 
@@ -92,9 +101,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if true; // Allowed to support "No account found" feedback during login
-      allow create: if isOwner(userId) && isValidUser(incoming()) && isEmailVerified();
-      allow update: if isOwner(userId) && isValidUser(incoming()) && 
-                    incoming().role == existing().role && isEmailVerified(); 
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()); 
 
       // Favorites Subcollection
       match /favorites/{listingId} {
@@ -119,11 +127,9 @@ service cloud.firestore {
                     incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt', 'status']) &&
                     incoming().updatedAt == request.time;
       
-      // Messages Subcollection
       match /messages/{msgId} {
-        allow list: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid);
-        // Removed parent get() lookup to avoid race conditions and permissions issues on new threads
-        allow create: if isSignedIn() && isEmailVerified() && isValidMessage(incoming());
+        allow list, get: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid);
+        allow create: if isSignedIn() && (incoming().tenantId == request.auth.uid || incoming().agentId == request.auth.uid) && isValidMessage(incoming());
       }
     }
   }
