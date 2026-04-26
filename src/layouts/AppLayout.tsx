@@ -11,6 +11,8 @@ import AgentProfile from "../pages/AgentProfile";
 import CreateListing from "../pages/CreateListing";
 import MyListings from "../pages/MyListings";
 import NotificationsPage from "../pages/Notifications";
+import FAQPage from "../pages/FAQ";
+import TermsOfUsePage from "../pages/TermsOfUse";
 import { useAuth } from "../context/AuthContext";
 import { AppTab } from "../types";
 
@@ -71,6 +73,8 @@ const AppLayout = () => {
               {activeTab === "create" && <CreateListing key="create" />}
               {activeTab === "mylistings" && <MyListings key="mylistings" />}
               {activeTab === "notifications" && <NotificationsPage key="notifications" />}
+              {activeTab === "terms" && <TermsOfUsePage key="terms" />}
+              {activeTab === "faq" && <FAQPage key="faq" />}
             </motion.div>
           )}
         </AnimatePresence>

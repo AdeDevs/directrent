@@ -48,7 +48,14 @@ const FavoritesPage = () => {
 
   const savedListings = useMemo(() => {
     const allAvailable = [...dbListings, ...FEATURED_LISTINGS];
-    return allAvailable.filter((listing) =>
+    // Deduplicate by ID
+    const seenIds = new Set();
+    const uniqueListings = allAvailable.filter(l => {
+      if (seenIds.has(String(l.id))) return false;
+      seenIds.add(String(l.id));
+      return true;
+    });
+    return uniqueListings.filter((listing) =>
       favorites.includes(listing.id)
     );
   }, [favorites, dbListings]);

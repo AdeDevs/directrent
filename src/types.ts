@@ -27,12 +27,13 @@ export interface Listing {
     avatarUrl?: string;
   };
   isFavorite?: boolean;
+  coordinates?: [number, number];
   createdAt?: any;
   updatedAt?: any;
 }
 
 export type ViewState = 'landing' | 'auth' | 'app';
-export type AppTab = 'home' | 'chat' | 'profile' | 'favorites' | 'create' | 'mylistings' | 'notifications';
+export type AppTab = 'home' | 'chat' | 'profile' | 'favorites' | 'create' | 'mylistings' | 'notifications' | 'terms' | 'faq';
 
 export interface Notification {
   id: string;
@@ -76,6 +77,7 @@ export interface User {
   selfieUrl?: string;
   verificationStatus?: 'none' | 'pending' | 'verified';
   about?: string;
+  theme?: 'light' | 'dark';
 }
 
 export type ConversationStatus = 'inquiry' | 'negotiating' | 'contract_requested' | 'contract_sent' | 'paid' | 'completed';

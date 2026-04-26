@@ -27,7 +27,12 @@ import {
   Moon,
   CreditCard,
   FileText,
-  Trash2
+  Trash2,
+  Upload,
+  Download,
+  FilePlus,
+  Briefcase,
+  Lock
 } from "lucide-react";
 import { 
   RecaptchaVerifier, 
@@ -39,7 +44,7 @@ import {
   EmailAuthProvider
 } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { doc, updateDoc, deleteField } from "firebase/firestore";
+import { doc, updateDoc, deleteField, collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc } from "firebase/firestore";
 import { auth, storage, db } from "../lib/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -55,6 +60,14 @@ import { createNotification } from "../lib/notifications";
 const Profile = () => {
   const { user, logout, updateProfile, favorites, setActiveTab } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const handleToggleTheme = () => {
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    toggleTheme();
+    if (user) {
+      updateProfile({ theme: nextTheme });
+    }
+  };
+
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -162,6 +175,57 @@ const Profile = () => {
   const [isIdentityExpanded, setIsIdentityExpanded] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const [showVault, setShowVault] = useState(false);
+  const [vaultDocs, setVaultDocs] = useState<any[]>([]);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+
+  useEffect(() => {
+    if (!user || !showVault) return;
+    const docsRef = collection(db, 'vault');
+    const q = query(docsRef, where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setVaultDocs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, [user, showVault]);
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setIsUploadingDoc(true);
+    try {
+      const fileName = `vault/${user.id}/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, fileName);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      await addDoc(collection(db, 'vault'), {
+        userId: user.id,
+        name: file.name,
+        url,
+        type: file.type,
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("Doc upload failed:", err);
+      alert("Failed to upload document.");
+    } finally {
+      setIsUploadingDoc(false);
+    }
+  };
+
+  const handleDeleteDoc = async (docId: string, url: string) => {
+    if (!confirm("Are you sure you want to delete this document?")) return;
+    try {
+      await deleteDoc(doc(db, 'vault', docId));
+      if (url.includes("firebasestorage")) {
+        const fileRef = ref(storage, url);
+        await deleteObject(fileRef);
+      }
+    } catch (err) {
+      console.error("Delete doc failed:", err);
+    }
+  };
 
   if (!user) return null;
 
@@ -766,13 +830,30 @@ const Profile = () => {
               <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
             </button>
 
-            <button className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+            <button 
+              onClick={() => setActiveTab('terms')}
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
+            >
               <div className="w-10 h-10 bg-cyan-50 dark:bg-cyan-900/20 rounded-xl flex items-center justify-center text-cyan-500 group-active:scale-95 transition-transform">
                 <FileText className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Terms of Use</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Protect your account now</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Platform rules and guidelines</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
+            </button>
+
+            <button 
+              onClick={() => setShowVault(true)}
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
+            >
+              <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex items-center justify-center text-amber-500 group-active:scale-95 transition-transform">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">DirectRent Vault</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Safe storage for contracts & receipts</p>
               </div>
               <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
             </button>
@@ -798,7 +879,7 @@ const Profile = () => {
             <div 
               onClick={() => {
                 console.log("Toggle row clicked");
-                toggleTheme();
+                handleToggleTheme();
               }}
               className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer"
             >
@@ -854,7 +935,10 @@ const Profile = () => {
               </div>
             </div>
 
-            <button className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+            <button 
+              onClick={() => setActiveTab('faq')}
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
+            >
               <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-500 group-active:scale-95 transition-transform">
                 <HelpCircle className="w-5 h-5" />
               </div>
@@ -1393,7 +1477,143 @@ const Profile = () => {
             </div>
           )}
 
-          {showLogoutConfirm && (
+        <AnimatePresence>
+          {showVault && (
+            <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-500">
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                className="bg-white dark:bg-slate-900 w-full max-w-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] border border-white/10"
+              >
+                <div className="p-5 sm:p-8 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex items-center justify-center text-amber-500">
+                      <ShieldCheck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">DirectRent Vault</h3>
+                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">End-to-End Encrypted Storage</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setShowVault(false)}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-5 sm:p-8 scrollbar-hide">
+                  <div className="space-y-6">
+                    {/* Welcome Banner */}
+                    <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-5 sm:p-6 rounded-2xl sm:rounded-3xl text-white shadow-lg shadow-amber-500/20 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+                        <Lock className="w-24 h-24" />
+                      </div>
+                      <h4 className="text-lg font-black tracking-tight mb-1 relative z-10">Private Documents</h4>
+                      <p className="text-xs text-amber-50 font-medium leading-relaxed max-w-[80%] relative z-10 opacity-90">
+                        Securely store your signed tenancy agreements, rental receipts, and government IDs. Only you can access these files.
+                      </p>
+                    </div>
+
+                    {/* Upload Section */}
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Your Documents ({vaultDocs.length})</h5>
+                      <label 
+                        className={`inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-black cursor-pointer hover:bg-primary-700 transition-all shadow-lg shadow-primary-500/20 ${isUploadingDoc ? 'opacity-50 pointer-events-none' : ''}`}
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{isUploadingDoc ? 'Uploading...' : 'Upload New'}</span>
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          onChange={handleDocUpload}
+                          accept=".pdf,.jpg,.jpeg,.png"
+                        />
+                      </label>
+                    </div>
+
+                    {/* Documents List */}
+                    <div className="space-y-3">
+                      {vaultDocs.length > 0 ? (
+                        vaultDocs.map((doc) => (
+                          <motion.div 
+                            layout
+                            key={doc.id}
+                            className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4 hover:border-amber-200 dark:hover:border-amber-900/50 transition-all group"
+                          >
+                            <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-amber-500 transition-colors shadow-sm">
+                              {doc.type.includes('pdf') ? <FileText className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h6 className="text-sm font-bold text-slate-900 dark:text-white truncate">{doc.name}</h6>
+                              <p className="text-[10px] text-slate-400 font-medium">Added {doc.createdAt?.toDate ? doc.createdAt.toDate().toLocaleDateString() : 'Just now'}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <a 
+                                href={doc.url} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="p-2 hover:bg-white dark:hover:bg-slate-800 text-slate-400 hover:text-primary-600 rounded-lg transition-all shadow-sm"
+                              >
+                                <Download className="w-4 h-4" />
+                              </a>
+                              <button 
+                                onClick={() => handleDeleteDoc(doc.id, doc.url)}
+                                className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 text-slate-300 hover:text-rose-500 rounded-lg transition-all"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </motion.div>
+                        ))
+                      ) : (
+                        <div className="py-12 bg-slate-50/50 dark:bg-slate-800/20 rounded-[2rem] border-2 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center text-center space-y-4">
+                          <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-200 dark:text-slate-700 shadow-sm">
+                            <Lock className="w-8 h-8" />
+                          </div>
+                          <div>
+                            <p className="text-slate-900 dark:text-white font-bold">Your vault is empty</p>
+                            <p className="text-slate-400 dark:text-slate-500 text-[10px] font-medium max-w-[200px] mx-auto mt-1">Upload your rental documents for safe keeping and easy access.</p>
+                          </div>
+                          <label className="px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-black hover:bg-slate-50 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-sm">
+                            Add First Document
+                            <input 
+                              type="file" 
+                              className="hidden" 
+                              onChange={handleDocUpload}
+                              accept=".pdf,.jpg,.jpeg,.png"
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 bg-amber-50/50 dark:bg-amber-900/10 rounded-2xl border border-amber-100/50 dark:border-amber-900/30 flex gap-3 items-start">
+                      <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      <p className="text-[10px] text-amber-800/70 dark:text-amber-400/60 font-medium leading-relaxed italic">
+                        All files in the DirectRent Vault are encrypted. DirectRent agents or staff cannot view these files unless you explicitly share them during a dispute.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5 sm:p-8 bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                  <button 
+                    onClick={() => setShowVault(false)}
+                    className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-xs font-black uppercase tracking-widest hover:opacity-90 transition-all"
+                  >
+                    Close Vault
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {showLogoutConfirm && (
             <div 
               className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
               onClick={() => setShowLogoutConfirm(false)}

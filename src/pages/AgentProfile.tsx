@@ -18,6 +18,8 @@ import {
 } from 'firebase/firestore';
 import { User, Review } from '../types';
 import SafeImage from '../components/SafeImage';
+import { useAuth } from '../context/AuthContext';
+import { addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AgentProfileProps {
   agentId: string;
@@ -59,8 +61,12 @@ const DEFAULT_REVIEWS = [
 ];
 
 const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
+  const { user } = useAuth();
   const [agent, setAgent] = useState<any>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [newReview, setNewReview] = useState({ rating: 5, comment: '', listingTitle: '' });
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [stats, setStats] = useState({
     completedTxns: 0,
     activeListingsCount: 0,
@@ -331,8 +337,8 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                     <p className="text-[13px] text-slate-400 mt-1 leading-relaxed">Regularly audited for service quality and integrity.</p>
                  </div>
               </div>
-           </div>
-        </div>
+            </div>
+          </div>
 
         {/* Reviews Section - Horizontal Real Estate Optimization */}
         <div className="space-y-6">
@@ -342,8 +348,18 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-bold text-slate-500 dark:text-slate-400">{reviews.length}</span>
              </h3>
              
-             {/* Desktop Navigation */}
-             <div className="hidden md:flex items-center gap-2">
+             <div className="flex items-center gap-2">
+               {user?.role === 'tenant' && (
+                 <button 
+                   onClick={() => setShowReviewModal(true)}
+                   className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-black hover:bg-primary-700 transition-all shadow-lg shadow-primary-500/20 mr-2"
+                 >
+                   <Star className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-current" />
+                   Review
+                 </button>
+               )}
+               {/* Desktop Navigation */}
+               <div className="hidden md:flex items-center gap-2">
                <button 
                  onClick={() => {
                    const container = document.getElementById('reviews-carousel');
@@ -363,6 +379,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                  <ChevronLeft className="w-4 h-4 rotate-180" />
                </button>
              </div>
+           </div>
           </div>
 
           <div className="relative -mx-[15px] overflow-hidden">
@@ -429,9 +446,118 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
           </div>
         </div>
 
-        </div>
+        <AnimatePresence>
+          {showReviewModal && (
+            <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                className="bg-white dark:bg-slate-900 w-full max-w-md sm:rounded-3xl shadow-2xl overflow-hidden border border-white/10"
+              >
+                <div className="p-6 sm:p-8 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex items-center justify-center text-amber-500">
+                        <Star className="w-5 h-5 fill-current" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">Rate {agent?.firstName || agent?.name}</h3>
+                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mt-1">Verified Experience Only</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setShowReviewModal(false)}
+                      className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-all"
+                    >
+                      <ChevronLeft className="w-6 h-6 rotate-90" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-6">
+                    {/* Rating Selection */}
+                    <div className="flex flex-col items-center gap-3 py-4">
+                      <div className="flex items-center gap-2">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <button 
+                            key={s}
+                            onClick={() => setNewReview({ ...newReview, rating: s })}
+                            className={`p-2 transition-all hover:scale-110 active:scale-95 ${s <= newReview.rating ? 'text-amber-400' : 'text-slate-200 dark:text-slate-700'}`}
+                          >
+                            <Star className={`w-8 h-8 ${s <= newReview.rating ? 'fill-current' : ''}`} />
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">
+                        {['Poor', 'Fair', 'Good', 'Very Good', 'Excellent'][newReview.rating - 1]}
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-1.5 focus-within:text-primary-500 transition-colors">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">Property Rented</label>
+                        <div className="relative group">
+                          <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary-500" />
+                          <input 
+                            type="text"
+                            placeholder="e.g. 2-Bedroom Flat in Lekki"
+                            value={newReview.listingTitle}
+                            onChange={(e) => setNewReview({ ...newReview, listingTitle: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-slate-800/80 border-0 py-4 pl-12 pr-4 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-primary-500/10 transition-all tracking-tight"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 focus-within:text-emerald-500 transition-colors">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">Your Feedback</label>
+                        <textarea 
+                          placeholder="Describe your experience with this agent. Was the process smooth? Was the agent honest?"
+                          value={newReview.comment}
+                          onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
+                          rows={4}
+                          className="w-full bg-slate-50 dark:bg-slate-800/80 border-0 p-4 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all resize-none shadow-inner"
+                        />
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={async () => {
+                        if (!user || isSubmittingReview) return;
+                        setIsSubmittingReview(true);
+                        try {
+                          await addDoc(collection(db, 'reviews'), {
+                            agentId,
+                            tenantId: user.id,
+                            tenantName: user.firstName ? `${user.firstName} ${user.lastName}` : user.email?.split('@')[0],
+                            rating: newReview.rating,
+                            comment: newReview.comment,
+                            listingTitle: newReview.listingTitle,
+                            createdAt: serverTimestamp()
+                          });
+                          setShowReviewModal(false);
+                          setNewReview({ rating: 5, comment: '', listingTitle: '' });
+                          alert('Review submitted! It will appear after verification.');
+                        } catch (err) {
+                          console.error("Review fail:", err);
+                        } finally {
+                          setIsSubmittingReview(false);
+                        }
+                      }}
+                      disabled={isSubmittingReview || !newReview.comment || !newReview.listingTitle}
+                      className="w-full bg-primary-600 text-white py-4 rounded-2xl text-sm font-black shadow-xl shadow-primary-500/20 hover:bg-primary-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2 active:scale-95"
+                    >
+                      {isSubmittingReview ? <Loader2 className="w-5 h-5 animate-spin" /> : "Submit Verified Review"}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
-    </motion.div>
+    </div>
+  </motion.div>
   );
 };
 

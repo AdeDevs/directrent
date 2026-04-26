@@ -132,9 +132,71 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "priceValue", "location", "type", "image", "agent"]
+    },
+    "Tour": {
+      "title": "Tour Request",
+      "description": "A request by a tenant to view a property.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "listingId": { "type": "string" },
+        "listingTitle": { "type": "string" },
+        "listingImage": { "type": "string" },
+        "agentId": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "completed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["listingId", "agentId", "tenantId", "date", "time", "status"]
+    },
+    "Report": {
+      "title": "Listing Report",
+      "description": "A report filed against a listing for fraud or incorrect info.",
+      "type": "object",
+      "properties": {
+        "listingId": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "reason": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "default": "pending" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["listingId", "reporterId", "reason", "status"]
+    },
+    "Notification": {
+      "title": "User Notification",
+      "description": "A notification for a user about messages, verifications, etc.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["message", "verification", "listing", "system"] },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "type", "read", "createdAt"]
+    },
+    "Analytics": {
+      "title": "Listing Awareness",
+      "description": "Granular events for tracking listing performance.",
+      "type": "object",
+      "properties": {
+        "listingId": { "type": "string" },
+        "type": { "type": "string", "enum": ["view", "save", "inquiry"] },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["listingId", "type", "createdAt"]
     }
   },
   "firestore": {
+    "/analytics/{analyticsId}": {
+      "schema": "Analytics",
+      "description": "Event log for listing insights."
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "Individual user profile documents."
@@ -158,6 +220,18 @@
     "/reviews/{reviewId}": {
       "schema": "Review",
       "description": "Public reviews for agents."
+    },
+    "/tours/{tourId}": {
+      "schema": "Tour",
+      "description": "Scheduled tour requests."
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Listing reports for review."
+    },
+    "/notifications/{notifId}": {
+      "schema": "Notification",
+      "description": "User notifications."
     }
   }
 }

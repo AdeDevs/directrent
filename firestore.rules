@@ -128,7 +128,22 @@ service cloud.firestore {
              (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
+    // --- Analytics Validation ---
+    function isValidAnalytics(data) {
+      return data.listingId is string &&
+             data.type in ['view', 'save', 'inquiry'] &&
+             (data.userId == null || data.userId == request.auth.uid) &&
+             data.createdAt == request.time;
+    }
+
     // --- Resources ---
+
+    // Analytics
+    match /analytics/{analyticsId} {
+      allow list: if isSignedIn(); // Allow counting for stats
+      allow get: if isSignedIn();
+      allow create: if isValidAnalytics(incoming());
+    }
 
     // Listings
     match /listings/{listingId} {
@@ -191,6 +206,20 @@ service cloud.firestore {
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid && 
                     incoming().diff(existing()).affectedKeys().hasOnly(['read']);
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // Tours
+    match /tours/{tourId} {
+      allow list: if isSignedIn(); // Allow counting for stats
+      allow get: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid);
+      allow create: if isSignedIn(); // Add more validation if needed
+      allow update: if isSignedIn() && (existing().tenantId == request.auth.uid || existing().agentId == request.auth.uid);
+    }
+
+    // Reports
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow get, list: if false; // Only admins via console
     }
   }
 }

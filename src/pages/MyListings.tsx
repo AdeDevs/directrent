@@ -120,7 +120,7 @@ export default function MyListings() {
         <section className="grid grid-cols-3 gap-2.5 sm:gap-4">
           {stats.map((stat, i) => (
             <div 
-              key={i} 
+              key={`listing-stat-${i}`} 
               className={`bg-white dark:bg-slate-900 px-3 py-2.5 sm:p-4 rounded-xl sm:rounded-2xl border ${stat.borderColor} shadow-sm transition-all hover:shadow-md flex flex-col items-start gap-1 sm:gap-2.5`}
             >
               <div className={`p-1.5 sm:p-2 rounded-lg ${stat.color} flex-shrink-0 mb-1 sm:mb-0`}>

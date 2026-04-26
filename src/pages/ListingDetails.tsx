@@ -4,7 +4,8 @@ import {
   ArrowLeft, Bookmark, MapPin, BadgeCheck, Star, 
   ShieldCheck, Share2, MessageCircleMore, LayoutGrid, Droplets,
   Navigation, ExternalLink, BarChart3, Eye, Calendar, TrendingUp,
-  Settings, Trash2, Edit3, Video
+  Settings, Trash2, Edit3, Video, Flag, AlertTriangle, X, CheckSquare,
+  Zap, Clock, Bed, Bath, Maximize
 } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Listing } from '../types';
@@ -12,6 +13,8 @@ import ListingCard from '../components/ListingCard';
 import ChatModal from '../components/ChatModal';
 import { FEATURED_LISTINGS } from '../data';
 import { useAuth } from '../context/AuthContext';
+import { addDoc, collection, serverTimestamp, query, where, getCountFromServer } from 'firebase/firestore';
+import { toast } from 'react-hot-toast';
 
 import SafeImage from '../components/SafeImage';
 
@@ -19,6 +22,238 @@ interface ListingDetailsProps {
   listing: Listing;
   onBack: () => void;
 }
+
+const ReportModal = ({ isOpen, onClose, listingId, userId }: { isOpen: boolean, onClose: () => void, listingId: string | number, userId: string }) => {
+  const [reason, setReason] = useState('');
+  const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const reasons = ['Fraud / Scam', 'Fake Photos', 'Incorrect Price', 'Already Rented', 'Other'];
+
+  const handleSubmit = async () => {
+    if (!reason) return;
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'reports'), {
+        listingId,
+        reporterId: userId,
+        reason,
+        description,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        onClose();
+      }, 2000);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'reports');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-100 dark:border-slate-800"
+      >
+        {isSuccess ? (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckSquare className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Report Received</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Thank you for helping keep DirectRent safe. Our admins will review this listing.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-xl flex items-center justify-center">
+                  <Flag className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Report Listing</h3>
+              </div>
+              <button 
+                onClick={onClose}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Reason</label>
+                <div className="grid grid-cols-1 gap-2">
+                  {reasons.map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setReason(r)}
+                      className={`w-full p-3 rounded-xl text-left text-sm font-bold transition-all border-2 ${reason === r ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-500 text-primary-700 dark:text-primary-400' : 'bg-slate-50 dark:bg-slate-800/50 border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Details (Optional)</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Explain why this listing is suspicious..."
+                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent p-4 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 transition-all resize-none h-24"
+                />
+              </div>
+
+              <button
+                disabled={!reason || isSubmitting}
+                onClick={handleSubmit}
+                className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-4 rounded-2xl font-black text-sm shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit Report'}
+              </button>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
+const ScheduleTourModal = ({ isOpen, onClose, listing, userId }: { isOpen: boolean, onClose: () => void, listing: Listing, userId: string }) => {
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!date || !time) return;
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'tours'), {
+        listingId: listing.id,
+        listingTitle: listing.title,
+        listingImage: listing.image,
+        agentId: listing.agent?.id,
+        tenantId: userId,
+        date,
+        time,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        onClose();
+      }, 2000);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'tours');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-100 dark:border-slate-800"
+      >
+        {isSuccess ? (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Calendar className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Tour Requested!</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">The agent will be notified of your request. Check your chats for confirmation.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-xl flex items-center justify-center">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Schedule Tour</h3>
+              </div>
+              <button 
+                onClick={onClose}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Available Date</label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent p-4 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 transition-all font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Preferred Time</label>
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent p-4 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 transition-all font-mono"
+                />
+              </div>
+
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/30 flex gap-3 text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <p className="text-[11px] font-bold leading-relaxed">Safety Tip: Never pay a tour fee before arrival.</p>
+              </div>
+
+              <button
+                disabled={!date || !time || isSubmitting}
+                onClick={handleSubmit}
+                className="w-full bg-primary-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary-500/20 hover:bg-primary-700 active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? 'Requesting...' : 'Confirm Request'}
+              </button>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </div>
+  );
+};
 
 const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
   const { setCurrentListing, user, setView, setAuthMode, setSelectedAgentId, favorites, toggleFavorite, setActiveTab } = useAuth();
@@ -28,8 +263,79 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showTourModal, setShowTourModal] = useState(false);
+  const [realStats, setRealStats] = useState({ views: 0, inquiries: 0, saves: 0 });
 
   const isFavorite = favorites.includes(listing.id);
+  const isAgent = user?.role === 'agent';
+  const isOwnListing = isAgent && listing.agent?.id === user?.id;
+  
+  // Track View on Mount
+  useEffect(() => {
+    const recordView = async () => {
+      // Use a session storage key to prevent over-counting in same session
+      const sessionKey = `viewed_${listing.id}`;
+      if (sessionStorage.getItem(sessionKey)) return;
+
+      try {
+        await addDoc(collection(db, 'analytics'), {
+          listingId: listing.id.toString(),
+          type: 'view',
+          userId: user?.id || null,
+          createdAt: serverTimestamp()
+        });
+        sessionStorage.setItem(sessionKey, 'true');
+      } catch (error) {
+        console.error("Error recording view:", error);
+      }
+    };
+
+    recordView();
+  }, [listing.id, user?.id]);
+
+  // Fetch real stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        if (!user) return;
+
+        // Views from analytics
+        const viewsQuery = query(
+          collection(db, 'analytics'), 
+          where('listingId', '==', listing.id.toString()),
+          where('type', '==', 'view')
+        );
+        const viewsCount = await getCountFromServer(viewsQuery);
+        
+        // Count inquiries (messages + tour requests) from analytics
+        const inquiriesQuery = query(
+          collection(db, 'analytics'), 
+          where('listingId', '==', listing.id.toString()),
+          where('type', '==', 'inquiry')
+        );
+        const inquiriesCount = await getCountFromServer(inquiriesQuery);
+
+        // Saves from analytics
+        const savesQuery = query(
+          collection(db, 'analytics'), 
+          where('listingId', '==', listing.id.toString()),
+          where('type', '==', 'save')
+        );
+        const savesCount = await getCountFromServer(savesQuery);
+        
+        setRealStats({
+          views: viewsCount.data().count,
+          inquiries: inquiriesCount.data().count,
+          saves: savesCount.data().count || favorites.filter(f => f === listing.id).length
+        });
+      } catch (error) {
+        console.warn("Real stats partially unavailable - permissions");
+      }
+    };
+
+    fetchStats();
+  }, [listing.id, favorites, user, isOwnListing]);
   
   // Recommended listings (exclude current, pick 3)
   const recommended = FEATURED_LISTINGS.filter(l => l.id !== listing.id).slice(0, 3);
@@ -39,17 +345,101 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
     window.scrollTo(0, 0);
   }, [listing.id]);
 
-  const isAgent = user?.role === 'agent';
-  const isOwnListing = isAgent && listing.agent?.id === user?.id;
-
-  const handleMessageClick = () => {
+  const handleMessageClick = async () => {
     if (isAgent) return; // Prevent agent-to-agent messaging
     if (!user) {
       setAuthMode('login');
       setView('auth');
       return;
     }
+
+    // Record inquiry analytics
+    try {
+      await addDoc(collection(db, 'analytics'), {
+        listingId: listing.id.toString(),
+        type: 'inquiry',
+        userId: user.id,
+        createdAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.warn("Failed to record inquiry analytic");
+    }
+
     setIsChatOpen(true);
+  };
+
+  const handleReportClick = () => {
+    if (!user) {
+      setAuthMode('login');
+      setView('auth');
+      return;
+    }
+    setShowReportModal(true);
+  };
+
+  const handleTourClick = () => {
+    if (!user) {
+      setAuthMode('login');
+      setView('auth');
+      return;
+    }
+    setShowTourModal(true);
+  };
+
+  const toggleFavoriteWithAnalytics = async (listingId: string) => {
+    if (!user) {
+      setAuthMode('login');
+      setView('auth');
+      return;
+    }
+
+    try {
+      const wasFavorite = favorites.includes(listingId);
+      await toggleFavorite(listingId);
+      
+      // If we just added it, record analytics
+      if (!wasFavorite) {
+        await addDoc(collection(db, 'analytics'), {
+          listingId: listingId.toString(),
+          type: 'save',
+          userId: user.id,
+          createdAt: serverTimestamp()
+        });
+      }
+    } catch (e) {
+      console.error("Error toggling favorite with analytics:", e);
+    }
+  };
+
+  const handleTourRequest = async (data: { date: string; time: string }) => {
+    if (!user) return;
+
+    try {
+      await addDoc(collection(db, 'tours'), {
+        listingId: listing.id,
+        listingTitle: listing.title,
+        listingImage: listing.image,
+        agentId: listing.agent.id,
+        tenantId: user.id,
+        date: data.date,
+        time: data.time,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+      
+      // Record inquiry analytics
+      await addDoc(collection(db, 'analytics'), {
+        listingId: listing.id.toString(),
+        type: 'inquiry',
+        userId: user.id,
+        createdAt: serverTimestamp()
+      });
+
+      toast.success('Tour request sent successfully!');
+      setShowTourModal(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'tours');
+    }
   };
 
   const images = listing.images && listing.images.length > 0 
@@ -145,7 +535,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
             <div className="absolute bottom-0 left-0 right-0 p-8 flex justify-center gap-3 overflow-x-auto scrollbar-none z-50 bg-gradient-to-t from-black/80 to-transparent">
               {images.map((img, i) => (
                 <button 
-                  key={i}
+                  key={`gallery-thumb-${i}`}
                   onClick={() => setGalleryIndex(i)}
                   className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${galleryIndex === i ? 'border-primary-500 scale-110 shadow-lg shadow-primary-500/30' : 'border-transparent opacity-50'}`}
                 >
@@ -172,6 +562,26 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           onClose={() => setIsChatOpen(false)} 
           listing={listing} 
           currentUser={user} 
+        />
+      )}
+
+      {/* Report Modal */}
+      {user && (
+        <ReportModal 
+          isOpen={showReportModal} 
+          onClose={() => setShowReportModal(false)} 
+          listingId={listing.id} 
+          userId={user.id} 
+        />
+      )}
+
+      {/* Schedule Tour Modal */}
+      {user && (
+        <ScheduleTourModal 
+          isOpen={showTourModal} 
+          onClose={() => setShowTourModal(false)} 
+          listing={listing} 
+          userId={user.id} 
         />
       )}
 
@@ -245,6 +655,13 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-3">
+            <button 
+              onClick={handleReportClick}
+              className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-rose-500/80 transition-all cursor-pointer shadow-sm"
+              title="Report Listing"
+            >
+              <Flag className="w-4.5 h-4.5" />
+            </button>
             <button className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
               <Share2 className="w-4.5 h-4.5" />
             </button>
@@ -252,7 +669,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  toggleFavorite(listing.id);
+                  toggleFavoriteWithAnalytics(listing.id);
                 }}
                 className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-sm ${isFavorite ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/40' : 'bg-white/20 text-white hover:bg-white/30'}`}
               >
@@ -273,7 +690,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
         >
           {images.map((img, idx) => (
             <div 
-              key={idx} 
+              key={`carousel-item-${idx}`} 
               className="w-full h-full flex-shrink-0 snap-center relative cursor-zoom-in"
               onClick={() => handleMediaClick(idx)}
             >
@@ -285,7 +702,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
         {/* Pagination Dots */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1.5 rounded-full bg-black/30 backdrop-blur-sm z-20">
            {images.map((_, idx) => (
-             <div key={idx} className={`h-1.5 rounded-full transition-all ${idx === activeMedia ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
+             <div key={`pagination-dot-${idx}`} className={`h-1.5 rounded-full transition-all ${idx === activeMedia ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
            ))}
         </div>
       </div>
@@ -368,15 +785,26 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                   </div>
                 </div>
                 {!isAgent && (
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMessageClick();
-                    }}
-                    className="w-10 h-10 bg-primary-600 text-white rounded-lg shadow-lg shadow-primary-500/20 flex items-center justify-center hover:bg-primary-700 transition-colors cursor-pointer active:scale-95"
-                  >
-                    <MessageCircleMore className="w-4.5 h-4.5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTourClick();
+                      }}
+                      className="h-10 px-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 text-[10px] font-black uppercase tracking-widest"
+                    >
+                      <Calendar className="w-3.5 h-3.5" /> Tour
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMessageClick();
+                      }}
+                      className="w-10 h-10 bg-primary-600 text-white rounded-lg shadow-lg shadow-primary-500/20 flex items-center justify-center hover:bg-primary-700 transition-colors cursor-pointer active:scale-95"
+                    >
+                      <MessageCircleMore className="w-4.5 h-4.5" />
+                    </button>
+                  </div>
                 )}
                 {isOwnListing && (
                   <button 
@@ -395,36 +823,88 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           {/* Property Overview */}
           <div className="py-5 sm:py-6 border-y border-slate-200 dark:border-slate-800 mt-1 sm:mt-2 mb-4 sm:mb-6">
             <div className="flex flex-wrap items-center gap-x-5 sm:gap-x-8 gap-y-4 sm:gap-y-6">
-              <div className="flex items-center gap-2.5 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
-                  <LayoutGrid className="w-4 h-4 sm:w-5 sm:h-5" />
+              {listing.beds && (
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
+                    <Bed className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </div>
+                  <div>
+                    <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Beds</div>
+                    <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wide">{listing.beds} {listing.beds === 1 ? 'Bedroom' : 'Bedrooms'}</div>
+                  </div>
                 </div>
-                <div>
-                   <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Type</div>
-                   <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wide">{listing.type}</div>
+              )}
+
+              {listing.baths && (
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
+                    <Bath className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </div>
+                  <div>
+                    <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Baths</div>
+                    <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wide">{listing.baths} {listing.baths === 1 ? 'Bathroom' : 'Bathrooms'}</div>
+                  </div>
                 </div>
-              </div>
-              
+              )}
+
+              {listing.area && (
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
+                    <Maximize className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </div>
+                  <div>
+                    <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Area</div>
+                    <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wide">{listing.area}</div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-2.5 sm:gap-3">
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-500 dark:text-emerald-400 flex-shrink-0">
                     <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
                      <div className="text-[8px] sm:text-[10px] text-emerald-700/70 dark:text-emerald-400/70 font-bold uppercase tracking-widest leading-none mb-1">Status</div>
-                     <div className="text-[11px] sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 leading-none">Verified</div>
-                  </div>
-              </div>
-
-              <div className="flex items-center gap-2.5 sm:gap-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500 dark:text-blue-400 flex-shrink-0">
-                    <Video className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                     <div className="text-[8px] sm:text-[10px] text-blue-700/70 dark:text-blue-400/70 font-bold uppercase tracking-widest leading-none mb-1">Tour</div>
-                     <div className="text-[11px] sm:text-sm font-bold text-blue-600 dark:text-blue-400 leading-none">Video Available</div>
+                     <div className="text-[11px] sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 leading-none">{listing.verified ? 'Verified' : 'Unverified'}</div>
                   </div>
               </div>
             </div>
+          </div>
+
+          {/* New Insight Tiles Section */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            {[
+              { 
+                icon: <ShieldCheck className="w-4 h-4" />, 
+                label: "Security", 
+                value: listing.amenities.some(a => ['Security', 'Fenced', 'Secured Gate', 'CCTV'].includes(a)) ? "High" : "Standard", 
+                color: "text-emerald-500" 
+              },
+              { 
+                icon: <Droplets className="w-4 h-4" />, 
+                label: "Water", 
+                value: listing.amenities.some(a => ['Water', 'Steady Water', 'Clean Water', 'Borehole'].includes(a)) ? "Constant" : "Periodic", 
+                color: "text-blue-500" 
+              },
+              { 
+                icon: <Zap className="w-4 h-4" />, 
+                label: "Power", 
+                value: listing.amenities.some(a => ['Solar', 'Generator', 'Inverter', 'Prepaid Meter'].includes(a)) ? "Good" : "Reliable", 
+                color: "text-amber-500" 
+              },
+              { 
+                icon: <Clock className="w-4 h-4" />, 
+                label: "Check-in", 
+                value: "Flexible", 
+                color: "text-slate-500" 
+              }
+            ].map((insight, idx) => (
+              <div key={`insight-${idx}`} className="p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col gap-1 shadow-sm">
+                <div className={`${insight.color} mb-1 opacity-70`}>{insight.icon}</div>
+                <div className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">{insight.label}</div>
+                <div className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight">{insight.value}</div>
+              </div>
+            ))}
           </div>
 
           {/* Video Tour Section */}
@@ -457,8 +937,8 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           <div>
             <h2 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white mb-2 sm:mb-4 uppercase tracking-wider">Features</h2>
             <div className="flex flex-wrap gap-2 sm:gap-3">
-              {listing.amenities.map(amenity => (
-                <div key={amenity} className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] sm:text-sm font-bold text-slate-700 dark:text-slate-300 shadow-sm transition-all uppercase tracking-wide">
+              {listing.amenities.map((amenity, idx) => (
+                <div key={`${amenity}-${idx}`} className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] sm:text-sm font-bold text-slate-700 dark:text-slate-300 shadow-sm transition-all uppercase tracking-wide">
                   <BadgeCheck className="w-3.5 h-3.5 text-primary-500" />
                   {amenity}
                 </div>
@@ -519,7 +999,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                         </div>
                         <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Views</span>
                       </div>
-                      <span className="text-base font-black text-slate-900 dark:text-white">1,240</span>
+                      <span className="text-base font-black text-slate-900 dark:text-white">{realStats.views.toLocaleString()}</span>
                     </div>
                     
                     <div className="flex items-center justify-between">
@@ -529,7 +1009,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                         </div>
                         <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Inquiries</span>
                       </div>
-                      <span className="text-base font-black text-slate-900 dark:text-white">24</span>
+                      <span className="text-base font-black text-slate-900 dark:text-white">{realStats.inquiries}</span>
                     </div>
 
                     <div className="flex items-center justify-between">
@@ -539,7 +1019,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                         </div>
                         <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Saves</span>
                       </div>
-                      <span className="text-base font-black text-slate-900 dark:text-white">86</span>
+                      <span className="text-base font-black text-slate-900 dark:text-white">{realStats.saves}</span>
                     </div>
                   </div>
                 </div>
@@ -581,7 +1061,16 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                     </div>
 
                     {!isAgent && (
-                      <div className="flex gap-3 relative z-10 w-full">
+                      <div className="flex flex-col gap-3 relative z-10 w-full">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTourClick();
+                          }}
+                          className="w-full bg-white text-slate-900 h-12 rounded-xl font-black text-sm shadow-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-widest"
+                        >
+                          <Calendar className="w-4 h-4" /> Schedule Tour
+                        </button>
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
@@ -632,12 +1121,12 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden transition-colors duration-300">
                 <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-100 dark:divide-slate-800">
                   {[
-                    { label: "Total Views", value: "1,240", change: "+12%", color: "text-indigo-600 dark:text-indigo-400" },
-                    { label: "Active Interests", value: "348", change: "+5%", color: "text-blue-600 dark:text-blue-400" },
-                    { label: "Phone Clicks", value: "42", change: "+18%", color: "text-emerald-600 dark:text-emerald-400" },
-                    { label: "Inquiries", value: "24", change: "-2%", color: "text-amber-600 dark:text-amber-400" }
+                    {label: "Total Views", value: realStats.views.toLocaleString(), change: "+12%", color: "text-indigo-600 dark:text-indigo-400" },
+                    { label: "Active Interests", value: realStats.saves.toLocaleString(), change: "+5%", color: "text-blue-600 dark:text-blue-400" },
+                    { label: "Interaction Rate", value: realStats.views > 0 ? `${Math.round(((realStats.inquiries + realStats.saves) / realStats.views) * 100)}%` : '0%', change: "+2%", color: "text-emerald-600 dark:text-emerald-400" },
+                    { label: "Total Inquiries", value: realStats.inquiries.toLocaleString(), change: "-2%", color: "text-amber-600 dark:text-amber-400" }
                   ].map((stat, i) => (
-                    <div key={i} className="p-6 sm:p-8 flex flex-col justify-center">
+                    <div key={`stat-${i}`} className="p-6 sm:p-8 flex flex-col justify-center">
                       <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 truncate">
                         {stat.label}
                       </span>

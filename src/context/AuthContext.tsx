@@ -4,6 +4,7 @@ import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, serverTimestamp, deleteField, updateDoc, FieldValue } from 'firebase/firestore';
 import { isProfileComplete } from '../lib/verification';
+import { useTheme } from './ThemeContext';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -31,6 +32,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const { setTheme } = useTheme();
   const [view, setView] = useState<ViewState>('landing');
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,6 +86,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (docSnap.exists()) {
             const userData = { ...docSnap.data(), id: firebaseUser.uid } as User;
             setUser(userData);
+            
+            // Sync theme from user profile
+            if (userData.theme) {
+              setTheme(userData.theme);
+            }
             
             // Auto redirect logic (only run once on login)
             const justLoggedIn = sessionStorage.getItem("just_logged_in") === "true";

@@ -1,20 +1,22 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Search, Settings2, MapPin, FilterX, Home as HomeIcon, Trash2, Bell } from 'lucide-react';
+import { Search, Settings2, MapPin, FilterX, Home as HomeIcon, Trash2, Bell, Map, LayoutGrid, Navigation } from 'lucide-react';
+import { Map as PigeonMap, Marker, ZoomControl } from 'pigeon-maps';
 import ListingCard from '../components/ListingCard';
 import { FEATURED_LISTINGS } from '../data';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, onSnapshot, orderBy, deleteDoc, doc, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, deleteDoc, doc, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Listing, Notification } from '../types';
 import NotificationBadge from '../components/NotificationBadge';
 
 const Home = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
-  const [maxBudget, setMaxBudget] = useState(1500000); // Set to max initially
+  const [maxBudget, setMaxBudget] = useState(1000000000); // Set to max initially
   const [showFilters, setShowFilters] = useState(false);
   const [dbListings, setDbListings] = useState<Listing[]>([]);
+  const [isMapView, setIsMapView] = useState(false);
   const { user, setCurrentListing, setActiveTab } = useAuth();
 
   useEffect(() => {
@@ -44,8 +46,15 @@ const Home = () => {
 
   const filteredListings = useMemo(() => {
     // Merge static listings with DB ones
-    // Filter out duplicates if any (by title + location for static data)
     let baseListings = [...dbListings, ...FEATURED_LISTINGS];
+    
+    // Deduplicate by ID
+    const seenIds = new Set();
+    baseListings = baseListings.filter(l => {
+      if (seenIds.has(String(l.id))) return false;
+      seenIds.add(String(l.id));
+      return true;
+    });
     
     // Sort merged listings by id or date? DB ones are already sorted by date in query
     
@@ -77,7 +86,7 @@ const Home = () => {
   const clearFilters = () => {
     setSearchQuery('');
     setActiveFilter('All');
-    setMaxBudget(1500000);
+    setMaxBudget(1000000000);
   };
 
   const handleDelete = async (listingId: string | number) => {
@@ -89,6 +98,30 @@ const Home = () => {
     }
   };
 
+  const [isSavingSearch, setIsSavingSearch] = useState(false);
+
+  const handleSaveSearch = async () => {
+    if (!user) return;
+    setIsSavingSearch(true);
+    try {
+      await addDoc(collection(db, 'saved_searches'), {
+        userId: user.id,
+        query: searchQuery,
+        type: activeFilter,
+        maxPrice: maxBudget,
+        createdAt: serverTimestamp()
+      });
+      // Trigger a local notification or toast
+      alert('Search alert saved! We will notify you when matching properties are posted.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'saved_searches');
+    } finally {
+      setIsSavingSearch(false);
+    }
+  };
+
+  const showSaveSearch = !isAgent && (searchQuery || activeFilter !== 'All' || maxBudget < 1000000000);
+
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-300">
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
@@ -99,13 +132,22 @@ const Home = () => {
             </div>
             <span className="text-sm sm:text-base font-display font-bold text-slate-900 dark:text-white tracking-tight">Direct<span className="text-primary-600">Rent</span></span>
           </div>
-          <button 
-            onClick={() => setActiveTab('notifications')}
-            className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group"
-          >
-            <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 transition-colors" />
-            <NotificationBadge />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsMapView(!isMapView)}
+              className={`p-2 rounded-full transition-all flex items-center justify-center ${isMapView ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+              title={isMapView ? "Switch to Grid View" : "Switch to Map View"}
+            >
+              {isMapView ? <LayoutGrid className="w-5 h-5" /> : <Map className="w-5 h-5" />}
+            </button>
+            <button 
+              onClick={() => setActiveTab('notifications')}
+              className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group"
+            >
+              <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 transition-colors" />
+              <NotificationBadge />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -152,7 +194,7 @@ const Home = () => {
               <div className="flex flex-col gap-3 sm:gap-4">
                 <div className="flex items-center justify-between">
                   <label className="text-[9px] sm:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Property Type</label>
-                  {(searchQuery || activeFilter !== 'All' || maxBudget < 1500000) && (
+                  {(searchQuery || activeFilter !== 'All' || maxBudget < 1000000000) && (
                     <button onClick={clearFilters} className="text-[9px] sm:text-[10px] font-bold text-rose-500 uppercase tracking-widest flex items-center gap-1 hover:text-rose-600 transition-colors cursor-pointer">
                       <FilterX className="w-3 h-3" /> Reset
                     </button>
@@ -180,18 +222,18 @@ const Home = () => {
                 </div>
                 <input 
                   type="range" 
-                  min="50000" 
-                  max="1500000" 
-                  step="50000"
+                  min="0" 
+                  max="1000000000" 
+                  step="500000"
                   value={maxBudget}
                   onChange={(e) => setMaxBudget(parseInt(e.target.value))}
                   className="w-full h-1.5 sm:h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary-600"
                 />
                 <div className="flex justify-between text-[8px] sm:text-[9px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-wider px-1">
-                  <span>₦50k</span>
-                  <span>₦500k</span>
-                  <span>₦1M</span>
-                  <span>₦1.5M+</span>
+                  <span>₦0</span>
+                  <span>₦5M</span>
+                  <span>₦500M</span>
+                  <span>₦1B+</span>
                 </div>
               </div>
             </motion.div>
@@ -203,49 +245,105 @@ const Home = () => {
         <h1 className="text-base sm:text-xl font-display font-bold text-slate-900 dark:text-white tracking-tight">
           {isAgent ? 'Your Listings' : 'Available Listings'}
         </h1>
-        {filteredListings.length > 0 && (
-          <button onClick={clearFilters} className="text-[9px] sm:text-[10px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-widest hover:underline transition-all cursor-pointer">
-            Show all
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {showSaveSearch && (
+            <button 
+              onClick={handleSaveSearch}
+              disabled={isSavingSearch}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 rounded-lg text-[10px] font-black uppercase tracking-widest border border-primary-100 dark:border-primary-800/50 hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Bell className="w-3 h-3" /> {isSavingSearch ? 'Saving...' : 'Save Alert'}
+            </button>
+          )}
+          {filteredListings.length > 0 && (
+            <button onClick={clearFilters} className="text-[9px] sm:text-[10px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-widest hover:underline transition-all cursor-pointer">
+              Show all
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Responsive Grid Layout - Scaling columns to a maximum of 4 to ensure cards have breathing room */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-4 sm:gap-6 lg:gap-8">
-        {filteredListings.length > 0 ? (
-          filteredListings.map((listing, i) => (
-            <ListingCard 
-              key={`${listing.id}-${i}`} 
-              listing={listing} 
-              onViewDetails={() => setCurrentListing(listing)}
-              isAgentView={isAgent}
-              onEdit={() => {
-                setCurrentListing(listing);
-                setActiveTab('create');
-              }}
-              onDelete={() => handleDelete(listing.id)}
-            />
-          ))
-        ) : (
-          <div className="col-span-full py-20 bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800 text-center space-y-4">
-            <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto">
-              {isAgent ? <HomeIcon className="w-10 h-10 text-slate-200 dark:text-slate-700" /> : <Search className="w-10 h-10 text-slate-200 dark:text-slate-700" />}
-            </div>
-            <div>
-              <p className="text-slate-900 dark:text-white font-bold">{isAgent ? "You have no listings yet" : "No matches found"}</p>
-              <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">
-                {isAgent ? "Start by posting your first property to find tenants" : "Try adjusting your budget or search terms"}
-              </p>
-            </div>
-            <button 
-              onClick={isAgent ? () => setActiveTab('create') : clearFilters}
-              className="px-6 py-2.5 bg-primary-600 text-white rounded-xl text-xs font-bold hover:bg-primary-700 transition-all shadow-lg shadow-primary-500/20"
+      {/* Responsive Grid Layout / Map View */}
+      <AnimatePresence mode="wait">
+        {isMapView ? (
+          <motion.div 
+            key="map-view"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="w-full h-[600px] rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl relative"
+          >
+            <PigeonMap 
+              defaultCenter={[6.5244, 3.3792]} // Lagos center
+              defaultZoom={11}
+              boxClassname="pigeon-filters"
             >
-              {isAgent ? "Post a Listing" : "Clear all filters"}
-            </button>
+              <ZoomControl />
+              {filteredListings.map(listing => (
+                <Marker 
+                  // @ts-ignore
+                  key={listing.id} 
+                  width={50}
+                  anchor={[6.5244 + (Math.random() - 0.5) * 0.1, 3.3792 + (Math.random() - 0.5) * 0.1]} // Random offset around Lagos for demo
+                  onClick={() => setCurrentListing(listing)}
+                >
+                  <div className="group relative">
+                    <div className="bg-primary-600 text-white px-2 py-1 rounded-lg text-[10px] font-black shadow-lg shadow-primary-500/40 transform -translate-y-full mb-1 flex items-center gap-1 group-hover:scale-110 transition-transform">
+                      ₦{listing.priceValue >= 1000000 ? `${(listing.priceValue / 1000000).toFixed(1)}M` : `${(listing.priceValue / 1000).toFixed(0)}k`}
+                    </div>
+                    <div className="w-4 h-4 bg-primary-600 border-2 border-white dark:border-slate-900 rounded-full shadow-lg m-auto" />
+                  </div>
+                </Marker>
+              ))}
+            </PigeonMap>
+            <div className="absolute top-4 left-4 right-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-lg flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary-50 dark:bg-primary-900/20 rounded-xl flex items-center justify-center text-primary-600">
+                <Navigation className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">Discover Area</h4>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Viewing {filteredListings.length} matching properties in this area.</p>
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-4 sm:gap-6 lg:gap-8">
+            {filteredListings.length > 0 ? (
+              filteredListings.map((listing, i) => (
+                <ListingCard 
+                  key={`${listing.id}-${i}`} 
+                  listing={listing} 
+                  onViewDetails={() => setCurrentListing(listing)}
+                  isAgentView={isAgent}
+                  onEdit={() => {
+                    setCurrentListing(listing);
+                    setActiveTab('create');
+                  }}
+                  onDelete={() => handleDelete(listing.id)}
+                />
+              ))
+            ) : (
+              <div className="col-span-full py-20 bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800 text-center space-y-4">
+                <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto">
+                  {isAgent ? <HomeIcon className="w-10 h-10 text-slate-200 dark:text-slate-700" /> : <Search className="w-10 h-10 text-slate-200 dark:text-slate-700" />}
+                </div>
+                <div>
+                  <p className="text-slate-900 dark:text-white font-bold">{isAgent ? "You have no listings yet" : "No matches found"}</p>
+                  <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">
+                    {isAgent ? "Start by posting your first property to find tenants" : "Try adjusting your budget or search terms"}
+                  </p>
+                </div>
+                <button 
+                  onClick={isAgent ? () => setActiveTab('create') : clearFilters}
+                  className="px-6 py-2.5 bg-primary-600 text-white rounded-xl text-xs font-bold hover:bg-primary-700 transition-all shadow-lg shadow-primary-500/20"
+                >
+                  {isAgent ? "Post a Listing" : "Clear all filters"}
+                </button>
+              </div>
+            )}
           </div>
         )}
-      </div>
+      </AnimatePresence>
     </motion.div>
   </main>
 </div>
