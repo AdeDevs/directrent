@@ -22,8 +22,8 @@ interface AuthContextType {
   setCurrentListing: (listing: Listing | null) => void;
   selectedAgentId: string | null;
   setSelectedAgentId: (agentId: string | null) => void;
-  favorites: number[];
-  toggleFavorite: (listingId: number) => Promise<void>;
+  favorites: (string | number)[];
+  toggleFavorite: (listingId: string | number) => Promise<void>;
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
 }
@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [preselectedRole, setPreselectedRole] = useState<UserRole>('tenant');
   const [currentListing, setCurrentListing] = useState<Listing | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [favorites, setFavorites] = useState<number[]>([]);
+  const [favorites, setFavorites] = useState<(string | number)[]>([]);
   const [activeTab, setActiveTabState] = useState<AppTab>(() => {
     const saved = localStorage.getItem('last_active_tab') as AppTab;
     return (saved && ['home', 'chat', 'profile', 'favorites', 'create', 'mylistings'].includes(saved)) ? saved : 'home';
@@ -58,7 +58,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Subscribe to favorites subcollection
     const favsRef = collection(db, 'users', user.id, 'favorites');
     const unsubscribeFavs = onSnapshot(favsRef, (snapshot) => {
-      const favIds = snapshot.docs.map(doc => parseInt(doc.id));
+      const favIds = snapshot.docs.map(doc => {
+        // If it's a numeric string, convert to number to match mock data IDs
+        return /^\d+$/.test(doc.id) ? parseInt(doc.id) : doc.id;
+      });
       setFavorites(favIds);
     });
 
@@ -169,7 +172,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const toggleFavorite = async (listingId: number) => {
+  const toggleFavorite = async (listingId: string | number) => {
     if (!user) {
       setAuthMode('login');
       setView('auth');

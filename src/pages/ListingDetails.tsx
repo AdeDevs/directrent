@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowLeft, Bookmark, MapPin, BadgeCheck, Star, 
-  ShieldCheck, Share2, MessageCircleMore, LayoutGrid, Bed, Droplets,
+  ShieldCheck, Share2, MessageCircleMore, LayoutGrid, Droplets,
   Navigation, ExternalLink, BarChart3, Eye, Calendar, TrendingUp,
-  Settings, Trash2, Edit3
+  Settings, Trash2, Edit3, Video
 } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Listing } from '../types';
@@ -24,6 +24,8 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
   const { setCurrentListing, user, setView, setAuthMode, setSelectedAgentId, favorites, toggleFavorite, setActiveTab } = useAuth();
   const [activeMedia, setActiveMedia] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -54,6 +56,11 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
     ? listing.images 
     : [listing.image];
 
+  const handleMediaClick = (index: number) => {
+    setGalleryIndex(index);
+    setIsGalleryOpen(true);
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.98 }}
@@ -62,6 +69,102 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       transition={{ duration: 0.3, ease: "easeOut" }}
       className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col w-full transition-colors duration-300"
     >
+      {/* Fullscreen Gallery Modal */}
+      <AnimatePresence>
+        {isGalleryOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] bg-black flex flex-col items-center justify-center"
+          >
+            {/* Top Bar */}
+            <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
+              <div className="text-white/70 font-bold text-sm tracking-widest uppercase">
+                {galleryIndex + 1} / {images.length + (listing.video ? 1 : 0)}
+              </div>
+              <button 
+                onClick={() => setIsGalleryOpen(false)}
+                className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer backdrop-blur-xl border border-white/10"
+              >
+                <ArrowLeft className="w-6 h-6 rotate-90 sm:rotate-0" />
+              </button>
+            </div>
+
+            {/* Media Content */}
+            <div className="w-full h-full relative group">
+              <AnimatePresence mode="wait">
+                <motion.div 
+                  key={galleryIndex}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.05 }}
+                  transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                  className="w-full h-full flex items-center justify-center p-4 sm:p-20"
+                >
+                  {galleryIndex < images.length ? (
+                    <img 
+                      src={images[galleryIndex]} 
+                      className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" 
+                      alt="" 
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-full h-full max-w-5xl aspect-video flex items-center justify-center">
+                      <video 
+                        src={listing.video} 
+                        className="w-full max-h-full rounded-2xl shadow-2xl border border-white/10" 
+                        controls 
+                        autoPlay
+                      />
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+
+              {/* Navigation Arrows */}
+              <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-4 sm:px-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <button 
+                  onClick={() => setGalleryIndex(prev => Math.max(0, prev - 1))}
+                  disabled={galleryIndex === 0}
+                  className="w-14 h-14 rounded-full bg-black/50 text-white flex items-center justify-center backdrop-blur-md border border-white/10 transition-all hover:scale-110 disabled:opacity-0 pointer-events-auto cursor-pointer"
+                >
+                  <ArrowLeft className="w-8 h-8" />
+                </button>
+                <button 
+                  onClick={() => setGalleryIndex(prev => Math.min(images.length + (listing.video ? 0 : -1), prev + 1))}
+                  disabled={galleryIndex === images.length + (listing.video ? 0 : -1)}
+                  className="w-14 h-14 rounded-full bg-black/50 text-white flex items-center justify-center backdrop-blur-md border border-white/10 transition-all hover:scale-110 disabled:opacity-0 pointer-events-auto cursor-pointer"
+                >
+                  <ArrowLeft className="w-8 h-8 rotate-180" />
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Strip */}
+            <div className="absolute bottom-0 left-0 right-0 p-8 flex justify-center gap-3 overflow-x-auto scrollbar-none z-50 bg-gradient-to-t from-black/80 to-transparent">
+              {images.map((img, i) => (
+                <button 
+                  key={i}
+                  onClick={() => setGalleryIndex(i)}
+                  className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${galleryIndex === i ? 'border-primary-500 scale-110 shadow-lg shadow-primary-500/30' : 'border-transparent opacity-50'}`}
+                >
+                  <SafeImage src={img} className="w-full h-full object-cover" />
+                </button>
+              ))}
+              {listing.video && (
+                <button 
+                  onClick={() => setGalleryIndex(images.length)}
+                  className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 bg-slate-800 flex items-center justify-center ${galleryIndex === images.length ? 'border-primary-500 scale-110' : 'border-transparent opacity-50'}`}
+                >
+                  <Video className="w-6 h-6 text-white" />
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Chat Modal Integration */}
       {user && (
         <ChatModal 
@@ -145,15 +248,17 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
             <button className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
               <Share2 className="w-4.5 h-4.5" />
             </button>
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleFavorite(listing.id);
-              }}
-              className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-sm ${isFavorite ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/40' : 'bg-white/20 text-white hover:bg-white/30'}`}
-            >
-              <Bookmark className={`w-4.5 h-4.5 ${isFavorite ? 'fill-current text-white' : ''}`} />
-            </button>
+            {!isAgent && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFavorite(listing.id);
+                }}
+                className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-sm ${isFavorite ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/40' : 'bg-white/20 text-white hover:bg-white/30'}`}
+              >
+                <Bookmark className={`w-4.5 h-4.5 ${isFavorite ? 'fill-current text-white' : ''}`} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -167,7 +272,11 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           }}
         >
           {images.map((img, idx) => (
-            <div key={idx} className="w-full h-full flex-shrink-0 snap-center relative">
+            <div 
+              key={idx} 
+              className="w-full h-full flex-shrink-0 snap-center relative cursor-zoom-in"
+              onClick={() => handleMediaClick(idx)}
+            >
               <SafeImage src={img} className="w-full h-full object-cover" />
             </div>
           ))}
@@ -296,30 +405,6 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                 </div>
               </div>
               
-              {listing.beds && (
-                <div className="flex items-center gap-2.5 sm:gap-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
-                    <Bed className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                     <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Beds</div>
-                     <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none">{listing.beds} Bed</div>
-                  </div>
-                </div>
-              )}
-
-              {listing.baths && (
-                <div className="flex items-center gap-2.5 sm:gap-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
-                    <Droplets className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                     <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Baths</div>
-                     <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none">{listing.baths} Bath</div>
-                  </div>
-                </div>
-              )}
-
               <div className="flex items-center gap-2.5 sm:gap-3">
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-500 dark:text-emerald-400 flex-shrink-0">
                     <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -329,8 +414,36 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                      <div className="text-[11px] sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 leading-none">Verified</div>
                   </div>
               </div>
+
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500 dark:text-blue-400 flex-shrink-0">
+                    <Video className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </div>
+                  <div>
+                     <div className="text-[8px] sm:text-[10px] text-blue-700/70 dark:text-blue-400/70 font-bold uppercase tracking-widest leading-none mb-1">Tour</div>
+                     <div className="text-[11px] sm:text-sm font-bold text-blue-600 dark:text-blue-400 leading-none">Video Available</div>
+                  </div>
+              </div>
             </div>
           </div>
+
+          {/* Video Tour Section */}
+          {listing.video && (
+            <div className="space-y-4">
+              <h2 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">Video Tour</h2>
+              <div 
+                onClick={() => handleMediaClick(images.length)}
+                className="group relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 cursor-pointer"
+              >
+                <video src={listing.video} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-primary-600/90 text-white flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+                    <Video className="w-8 h-8 fill-current" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Description */}
           <div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { 
   Building2, 
@@ -8,21 +8,31 @@ import {
   X, 
   Check,
   Info,
-  Home as HomeIcon,
-  Bed,
-  Bath,
-  Maximize2,
   Navigation,
   ArrowLeft,
-  Zap
+  Video,
+  Upload,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { GoogleGenAI } from "@google/genai";
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { createNotification } from '../lib/notifications';
+import { compressImage } from '../lib/storage';
 
-const PROPERTY_TYPES = ["Self-Contain", "1 Bedroom Flat", "Shared"];
+const SUGGESTED_PROPERTY_TYPES = [
+  "Self-Contain", 
+  "1 Bedroom Flat", 
+  "2 Bedroom Flat", 
+  "3 Bedroom Flat", 
+  "Duplex",
+  "Penthouse",
+  "Shared Apartment",
+  "Office Space",
+  "Shop"
+];
+
 const AMENITIES_LIST = [
   "Running Water", 
   "Security", 
@@ -36,18 +46,21 @@ const AMENITIES_LIST = [
   "Gym"
 ];
 
-const SUGGESTED_IMAGES = [
-  "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80",
-  "https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg?auto=compress&cs=tinysrgb&w=800",
-  "https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=800&q=80",
-  "https://images.pexels.com/photos/276528/pexels-photo-276528.jpeg?auto=compress&cs=tinysrgb&w=800",
-  "https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=800&q=80"
-];
+const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80";
 
 export default function CreateListing() {
   const { user, setActiveTab, currentListing, setCurrentListing } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingImages, setPendingImages] = useState<(File | string)[]>(
+    currentListing?.images || []
+  );
+  const [pendingVideo, setPendingVideo] = useState<File | string | null>(
+    currentListing?.video || null
+  );
+
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const isEditMode = !!currentListing && currentListing.agent?.id === user?.id;
 
@@ -55,15 +68,27 @@ export default function CreateListing() {
     title: currentListing?.title || '',
     priceValue: currentListing?.priceValue ? currentListing.priceValue.toLocaleString() : '',
     location: currentListing?.location || '',
-    type: currentListing?.type || 'Self-Contain',
+    type: currentListing?.type || '',
     landmark: currentListing?.landmark || '',
     description: currentListing?.description || '',
-    beds: currentListing?.beds?.toString() || '1',
-    baths: currentListing?.baths?.toString() || '1',
-    area: currentListing?.area?.replace(' SQM', '') || '',
-    image: currentListing?.image || SUGGESTED_IMAGES[0],
+    images: currentListing?.images || [] as string[],
+    video: currentListing?.video || '',
     amenities: currentListing?.amenities || [] as string[]
   });
+
+  const capitalize = (str: string) => {
+    return str.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleBlur = (field: string) => {
+    if (typeof (formData as any)[field] === 'string') {
+      setFormData(prev => ({ ...prev, [field]: capitalize((prev as any)[field]) }));
+    }
+  };
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, '');
@@ -71,39 +96,41 @@ export default function CreateListing() {
     setFormData(prev => ({ ...prev, priceValue: formattedValue }));
   };
 
-  const generateImage = async () => {
-    if (!formData.title) return;
-    setIsGenerating(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: [{
-          parts: [{
-            text: `A high-quality, professional real estate photograph of a ${formData.type} in ${formData.location || 'Nigeria'}. Title: ${formData.title}. The image should look like it's from a premium property listing site. Architectural photography style.`,
-          }],
-        }],
-        config: {
-          imageConfig: {
-            aspectRatio: "4:3",
-          },
-        },
-      });
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const fileList = Array.from(files) as File[];
+      const newImagePreviews = fileList.map(file => URL.createObjectURL(file));
+      
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, ...newImagePreviews].slice(0, 10) 
+      }));
 
-      if (response.candidates?.[0]?.content?.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-            const base64Data = part.inlineData.data;
-            const imageUrl = `data:image/png;base64,${base64Data}`;
-            setFormData(prev => ({ ...prev, image: imageUrl }));
-            break;
-          }
-        }
-      }
-    } catch (error) {
-      console.error("AI Generation error:", error);
-    } finally {
-      setIsGenerating(false);
+      setPendingImages(prev => [...prev, ...fileList].slice(0, 10));
+    }
+  };
+
+  const removeImage = (index: number) => {
+    // If it was a blob URL, revoke it
+    if (formData.images[index].startsWith('blob:')) {
+      URL.revokeObjectURL(formData.images[index]);
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+
+    setPendingImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file instanceof File) {
+      const preview = URL.createObjectURL(file);
+      setFormData(prev => ({ ...prev, video: preview }));
+      setPendingVideo(file);
     }
   };
 
@@ -116,13 +143,72 @@ export default function CreateListing() {
     }));
   };
 
+  const validateForm = () => {
+    if (!formData.title) return "Property title is required";
+    if (!formData.priceValue) return "Price is required";
+    if (!formData.type) return "Property type is required";
+    if (!formData.location) return "Location is required";
+    if (!formData.landmark) return "Nearest landmark is required";
+    if (!formData.description) return "Description is required";
+    if (formData.images.length < 3) return "Minimum of 3 property images required";
+    if (!formData.video) return "A property video is required";
+    return null;
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     if (!user) return;
+
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       const listingId = isEditMode && currentListing ? currentListing.id : `listing_${Date.now()}`;
+      
+      // 1. Upload Images
+      const uploadedImageUrls: string[] = [];
+      for (let i = 0; i < pendingImages.length; i++) {
+        const item = pendingImages[i];
+        if (item instanceof File) {
+          try {
+            const compressed = await compressImage(item);
+            const fileName = `listings/${listingId}/image_${i}_${Date.now()}.jpg`;
+            const storageRef = ref(storage, fileName);
+            const snapshot = await uploadBytes(storageRef, compressed);
+            const url = await getDownloadURL(snapshot.ref);
+            uploadedImageUrls.push(url);
+          } catch (uploadErr) {
+            console.error("Image upload failed:", uploadErr);
+            // Fallback to original preview URL if upload fails (though it won't be permanent)
+            uploadedImageUrls.push(formData.images[i]);
+          }
+        } else {
+          uploadedImageUrls.push(item);
+        }
+      }
+
+      // 2. Upload Video
+      let finalVideoUrl = "";
+      if (pendingVideo instanceof File) {
+        try {
+          const fileName = `listings/${listingId}/video_${Date.now()}.mp4`;
+          const storageRef = ref(storage, fileName);
+          const snapshot = await uploadBytes(storageRef, pendingVideo);
+          finalVideoUrl = await getDownloadURL(snapshot.ref);
+        } catch (uploadErr) {
+          console.error("Video upload failed:", uploadErr);
+          finalVideoUrl = formData.video;
+        }
+      } else if (typeof pendingVideo === 'string') {
+        finalVideoUrl = pendingVideo;
+      }
+
       const rawPrice = formData.priceValue.replace(/\D/g, '');
       const priceNum = parseInt(rawPrice) || 0;
       
@@ -132,16 +218,14 @@ export default function CreateListing() {
         priceValue: priceNum,
         location: formData.location,
         type: formData.type,
-        image: formData.image,
-        images: [formData.image],
+        image: uploadedImageUrls[0] || DEFAULT_IMAGE,
+        images: uploadedImageUrls,
+        video: finalVideoUrl,
         landmark: formData.landmark,
         description: formData.description,
-        beds: parseInt(formData.beds),
-        baths: parseInt(formData.baths),
-        area: formData.area ? `${formData.area} SQM` : '45 SQM',
         amenities: formData.amenities,
         verified: user.verificationLevel === 'verified',
-        isApproved: true, // Default to true so user see their work immediately
+        isApproved: true,
         noFee: true,
         agent: {
           id: user.id,
@@ -160,7 +244,6 @@ export default function CreateListing() {
         await setDoc(doc(db, 'listings', listingId), listingData);
       }
 
-      // Trigger notification
       await createNotification(
         user.id,
         isEditMode ? "Listing Updated" : "Listing Published",
@@ -199,65 +282,107 @@ export default function CreateListing() {
       </header>
 
       <main className="w-full px-[15px] pt-4 pb-[110px] space-y-8 lg:space-y-12">
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 rounded-2xl p-4 flex items-center gap-3 text-rose-600 dark:text-rose-400"
+          >
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <p className="text-sm font-bold">{error}</p>
+          </motion.div>
+        )}
+
         <form onSubmit={handleCreate} className="space-y-8">
-          {/* Cover Image Selector */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                <Camera className="w-3 h-3" /> Property Cover Image
-              </label>
-              <button
-                type="button"
-                disabled={isGenerating || !formData.title}
-                onClick={generateImage}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${isGenerating ? 'bg-slate-100 text-slate-400' : formData.title ? 'bg-primary-50 text-primary-600 hover:bg-primary-100' : 'bg-slate-50 text-slate-300 cursor-not-allowed'}`}
-              >
-                {isGenerating ? (
-                  <>
-                    <div className="w-3 h-3 border-2 border-primary-600/30 border-t-primary-600 rounded-full animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-3 h-3" />
-                    Generate with AI
-                  </>
-                )}
-              </button>
-            </div>
-            
-            <div className="relative group">
-              <div className="aspect-[4/3] w-full rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-slate-200/50 dark:border-white/5 relative">
-                <img 
-                  src={formData.image} 
-                  alt="Listing" 
-                  className="w-full h-full object-cover" 
-                  referrerPolicy="no-referrer" 
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+          {/* Media Section */}
+          <section className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pl-1">
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                  <Camera className="w-3 h-3" /> Property Photos (Min 3)
+                </label>
+                <span className="text-[10px] font-bold text-slate-500">{formData.images.length}/10</span>
               </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {formData.images.map((url, idx) => (
+                  <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden group">
+                    <img src={url} alt={`Listing ${idx}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(idx)}
+                      className="absolute top-2 right-2 p-1.5 bg-black/50 backdrop-blur-md text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    {idx === 0 && (
+                      <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-primary-600 text-[8px] font-black text-white rounded uppercase tracking-wider">
+                        Cover
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                {formData.images.length < 10 && (
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="aspect-square rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-primary-600 hover:border-primary-600 transition-all bg-white dark:bg-slate-900 group"
+                  >
+                    <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Add Photo</span>
+                  </button>
+                )}
+              </div>
+              <input 
+                ref={imageInputRef}
+                type="file" 
+                multiple 
+                accept="image/*" 
+                className="hidden" 
+                onChange={handleImageUpload} 
+              />
             </div>
 
-            <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-none">
-              {SUGGESTED_IMAGES.map((url, idx) => (
+            <div className="space-y-4">
+              <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2 pl-1">
+                <Video className="w-3 h-3" /> Property Video Tour (Required)
+              </label>
+              
+              {formData.video ? (
+                <div className="relative aspect-video rounded-3xl overflow-hidden bg-slate-900">
+                  <video src={formData.video} className="w-full h-full object-cover" controls />
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, video: '' }))}
+                    className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md text-white rounded-full hover:bg-rose-600 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
                 <button
-                  key={idx}
                   type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, image: url }))}
-                  className={`relative flex-shrink-0 w-32 h-32 rounded-2xl overflow-hidden border-2 transition-all ${formData.image === url ? 'border-primary-600 scale-95 shadow-lg' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                  onClick={() => videoInputRef.current?.click()}
+                  className="w-full aspect-video rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center gap-3 text-slate-400 hover:text-primary-600 hover:border-primary-600 transition-all bg-white dark:bg-slate-900 group"
                 >
-                  <img src={url} alt="Option" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  {formData.image === url && (
-                    <div className="absolute inset-0 bg-primary-600/20 flex items-center justify-center">
-                      <div className="bg-primary-600 text-white rounded-full p-1">
-                        <Check className="w-4 h-4" />
-                      </div>
-                    </div>
-                  )}
+                  <div className="w-12 h-12 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary-50 transition-colors">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] font-black uppercase tracking-widest">Upload Property Video</p>
+                    <p className="text-[9px] text-slate-400 mt-1">MP4, MOV up to 50MB</p>
+                  </div>
                 </button>
-              ))}
+              )}
+              <input 
+                ref={videoInputRef}
+                type="file" 
+                accept="video/*" 
+                className="hidden" 
+                onChange={handleVideoUpload} 
+              />
             </div>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">Select one of our preset high-quality property images for now.</p>
           </section>
 
           {/* Basic Info */}
@@ -273,7 +398,8 @@ export default function CreateListing() {
                     type="text" 
                     placeholder="e.g. Luxury Studio Apartment"
                     value={formData.title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    onBlur={() => handleBlur('title')}
                     className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
                   />
                 </div>
@@ -291,20 +417,27 @@ export default function CreateListing() {
                       placeholder="350,000"
                       value={formData.priceValue}
                       onChange={handlePriceChange}
-                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                      disabled={isEditMode}
+                      className={`w-full border border-slate-100 dark:border-white/5 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium outline-none transition-all dark:text-white ${isEditMode ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-800/50 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500'}`}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Property Type</label>
-                  <select 
-                    value={formData.type}
-                    onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
-                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl py-4 px-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white appearance-none"
-                  >
-                    {PROPERTY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                  <div className="relative">
+                    <input 
+                      list="property-types"
+                      placeholder="e.g. 1 Bedroom Flat"
+                      value={formData.type}
+                      onChange={(e) => handleInputChange('type', e.target.value)}
+                      onBlur={() => handleBlur('type')}
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl py-4 px-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                    />
+                    <datalist id="property-types">
+                      {SUGGESTED_PROPERTY_TYPES.map(t => <option key={t} value={t} />)}
+                    </datalist>
+                  </div>
                 </div>
               </div>
             </div>
@@ -314,7 +447,23 @@ export default function CreateListing() {
           <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Location / Area</label>
+                <div className="flex items-center justify-between pr-1">
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Location / Area</label>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(async (pos) => {
+                          const { latitude, longitude } = pos.coords;
+                          handleInputChange('location', `Pinned Location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`);
+                        });
+                      }
+                    }}
+                    className="text-[9px] font-black text-primary-600 uppercase tracking-tighter hover:underline"
+                  >
+                    Current Location
+                  </button>
+                </div>
                 <div className="relative">
                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                   <input 
@@ -322,7 +471,8 @@ export default function CreateListing() {
                     type="text" 
                     placeholder="e.g. Bodija, Ibadan"
                     value={formData.location}
-                    onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                    onChange={(e) => handleInputChange('location', e.target.value)}
+                    onBlur={() => handleBlur('location')}
                     className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
                   />
                 </div>
@@ -333,51 +483,13 @@ export default function CreateListing() {
                 <div className="relative">
                   <Navigation className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                   <input 
+                    required
                     type="text" 
                     placeholder="e.g. Near UI Gate"
                     value={formData.landmark}
-                    onChange={(e) => setFormData(prev => ({ ...prev, landmark: e.target.value }))}
+                    onChange={(e) => handleInputChange('landmark', e.target.value)}
+                    onBlur={() => handleBlur('landmark')}
                     className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Beds</label>
-                <div className="relative">
-                  <Bed className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
-                  <input 
-                    type="number"
-                    value={formData.beds}
-                    onChange={(e) => setFormData(prev => ({ ...prev, beds: e.target.value }))}
-                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-xl py-3 pl-8 pr-2 text-xs font-medium focus:border-primary-500 outline-none transition-all dark:text-white"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Baths</label>
-                <div className="relative">
-                  <Bath className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
-                  <input 
-                    type="number"
-                    value={formData.baths}
-                    onChange={(e) => setFormData(prev => ({ ...prev, baths: e.target.value }))}
-                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-xl py-3 pl-8 pr-2 text-xs font-medium focus:border-primary-500 outline-none transition-all dark:text-white"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Area (SQM)</label>
-                <div className="relative">
-                  <Maximize2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
-                  <input 
-                    type="number"
-                    placeholder="45"
-                    value={formData.area}
-                    onChange={(e) => setFormData(prev => ({ ...prev, area: e.target.value }))}
-                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-xl py-3 pl-8 pr-2 text-xs font-medium focus:border-primary-500 outline-none transition-all dark:text-white"
                   />
                 </div>
               </div>
@@ -387,14 +499,17 @@ export default function CreateListing() {
           {/* Amenities selection */}
           <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Key Amenities</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {AMENITIES_LIST.map(amenity => (
                 <button
                   key={amenity}
                   type="button"
                   onClick={() => toggleAmenity(amenity)}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all border ${formData.amenities.includes(amenity) ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-white/5 hover:border-slate-300'}`}
+                  className={`flex items-center gap-2 px-3 py-3 rounded-2xl text-[10px] font-bold transition-all border ${formData.amenities.includes(amenity) ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-white/5 hover:border-slate-300'}`}
                 >
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${formData.amenities.includes(amenity) ? 'border-white bg-white text-primary-600' : 'border-slate-200 dark:border-slate-700'}`}>
+                    {formData.amenities.includes(amenity) && <Check className="w-2.5 h-2.5" />}
+                  </div>
                   {amenity}
                 </button>
               ))}
@@ -405,10 +520,11 @@ export default function CreateListing() {
           <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Property Description</label>
             <textarea 
-              rows={4}
-              placeholder="Tell tenants what makes this place special..."
+              required
+              rows={6}
+              placeholder="Provide a detailed description of the apartment. Mention specific features, condition, electricity, water situation etc..."
               value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              onChange={(e) => handleInputChange('description', e.target.value)}
               className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white resize-none"
             />
           </section>
@@ -431,7 +547,7 @@ export default function CreateListing() {
               )}
             </button>
             <p className="text-center mt-4 text-[10px] text-slate-400 dark:text-slate-500 flex items-center justify-center gap-2">
-              <Info className="w-3 h-3" /> By publishing, you agree to property listing terms.
+              <Info className="w-3 h-3" /> All fields are required to ensure transparency for tenants.
             </p>
           </div>
         </form>

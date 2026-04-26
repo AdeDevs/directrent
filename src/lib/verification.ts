@@ -17,7 +17,7 @@ export function calculateVerificationLevel(user: Partial<User>): VerificationLev
 
   // Tenants just get 'none' or 'verified' if they completed basic info?
   // Let's stick to the prompt's focus on agents.
-  if (user.phoneVerified && user.nin && (user.firstName || user.name)) return 'verified';
+  if (user.phoneVerified && user.nin && (user.firstName || user.lastName)) return 'verified';
 
   return 'none';
 }

@@ -10,9 +10,7 @@ const InboxBadge = () => {
   useEffect(() => {
     if (!user) return;
     
-    // We want the sum of all unreadCount_tenant if user is tenant, or unreadCount_agent if user is agent
-    // Since Firestore doesn't support sum aggregation easily in a simple onSnapshot across many docs without reading all of them,
-    // we'll just listen to the collection where unread count > 0.
+    // We want the count of conversations where user has unread messages
     const fieldToFilter = user.role === 'tenant' ? 'unreadCount_tenant' : 'unreadCount_agent';
     const q = query(
       collection(db, "conversations"),
@@ -21,11 +19,7 @@ const InboxBadge = () => {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        let total = 0;
-        snapshot.docs.forEach(doc => {
-            total += (doc.data()[fieldToFilter] || 0);
-        });
-        setUnreadCount(total);
+        setUnreadCount(snapshot.size);
     }, (error) => {
         console.error("Inbox badge error:", error);
     });

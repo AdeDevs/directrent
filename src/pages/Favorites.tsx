@@ -13,7 +13,21 @@ const FavoritesPage = () => {
   const { user, favorites, setActiveTab, setCurrentListing, toggleFavorite } =
     useAuth();
 
-  const [activeChatListingIds, setActiveChatListingIds] = useState<number[]>([]);
+  const [activeChatListingIds, setActiveChatListingIds] = useState<(string | number)[]>([]);
+  const [dbListings, setDbListings] = useState<Listing[]>([]);
+
+  useEffect(() => {
+    const listingsRef = collection(db, 'listings');
+    const unsubscribe = onSnapshot(listingsRef, (snapshot) => {
+      const fetched = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Listing));
+      setDbListings(fetched);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -22,7 +36,10 @@ const FavoritesPage = () => {
     const q = query(conversationsRef, where(fieldToFilter, "==", user.id));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const listingIds = snapshot.docs.map((doc) => parseInt(doc.data().listingId));
+      const listingIds = snapshot.docs.map((doc) => {
+        const id = doc.data().listingId;
+        return /^\d+$/.test(id) ? parseInt(id) : id;
+      });
       setActiveChatListingIds(Array.from(new Set(listingIds)));
     });
 
@@ -30,10 +47,11 @@ const FavoritesPage = () => {
   }, [user]);
 
   const savedListings = useMemo(() => {
-    return FEATURED_LISTINGS.filter((listing) =>
+    const allAvailable = [...dbListings, ...FEATURED_LISTINGS];
+    return allAvailable.filter((listing) =>
       favorites.includes(listing.id)
     );
-  }, [favorites, toggleFavorite]);
+  }, [favorites, dbListings]);
 
   return (
     <motion.div

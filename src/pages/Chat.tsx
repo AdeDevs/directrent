@@ -71,7 +71,7 @@ const ConversationAvatar = ({
 
   return (
     <div className="relative shrink-0 mt-0.5">
-      <div className="w-13 h-13 sm:w-16 sm:h-16 rounded-full bg-primary-50 dark:bg-primary-900/10 overflow-hidden border border-slate-100 dark:border-slate-800 shadow-inner group-hover:scale-105 transition-transform duration-300 flex items-center justify-center">
+      <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-primary-50 dark:bg-primary-900/10 overflow-hidden border border-slate-100 dark:border-slate-800 shadow-inner group-hover:scale-105 transition-transform duration-300 flex items-center justify-center">
         {avatarUrl ? (
           <img
             src={avatarUrl}
@@ -86,7 +86,7 @@ const ConversationAvatar = ({
         )}
       </div>
       {/* Property Image - Small Overlay */}
-      <div className="absolute -bottom-1 -right-1 w-6.5 h-6.5 sm:w-8 sm:h-8 rounded-lg bg-white dark:bg-slate-900 border-[3px] sm:border-4 border-white dark:border-slate-900 shadow-lg overflow-hidden">
+      <div className="absolute -bottom-1 -right-1 w-5.5 h-5.5 sm:w-7 sm:h-7 rounded-lg bg-white dark:bg-slate-900 border-[2px] sm:border-[3px] border-white dark:border-slate-900 shadow-lg overflow-hidden">
         <img 
           src={listingImage} 
           className="w-full h-full object-cover opacity-80"
@@ -123,7 +123,7 @@ const ConversationRow = ({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       onClick={onClick}
-      className="group relative bg-white dark:bg-slate-900 flex items-start gap-4 p-3.5 sm:p-5 rounded-lg sm:rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-primary-500/5 dark:hover:shadow-black/30 hover:border-primary-100 dark:hover:border-primary-900 transition-all cursor-pointer active:scale-[0.99] w-full max-w-full overflow-hidden"
+      className="group relative bg-white dark:bg-slate-900 flex items-start gap-3 sm:gap-4 p-2.5 sm:p-3.5 rounded-lg sm:rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-primary-500/5 dark:hover:shadow-black/30 hover:border-primary-100 dark:hover:border-primary-900 transition-all cursor-pointer active:scale-[0.99] w-full max-w-full overflow-hidden"
     >
       <ConversationAvatar 
         userId={participantId}
@@ -132,7 +132,7 @@ const ConversationRow = ({
         listingImage={conv.listingImage}
       />
 
-      <div className="flex-1 min-w-0 flex flex-col gap-1">
+      <div className="flex-1 min-w-0 flex flex-col gap-1 pr-6 sm:pr-8">
         <div className="flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <h4 className="font-display font-bold text-slate-900 dark:text-white text-base sm:text-lg truncate tracking-tight min-w-0 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
@@ -148,8 +148,8 @@ const ConversationRow = ({
         </div>
 
         {unreadCount ? (
-          <div className="absolute top-2 right-2 flex flex-col items-center gap-1.5">
-            <div className="bg-primary-600 text-white text-[10px] sm:text-[11px] font-black px-1.5 py-0.5 rounded-full shadow-lg shadow-primary-500/20 ring-2 ring-white dark:ring-slate-900 animate-in fade-in zoom-in duration-300">
+          <div className="absolute top-1/2 -translate-y-1/2 right-3 sm:right-4 flex items-center justify-center pointer-events-none">
+            <div className="min-w-[20px] h-[20px] px-1 flex items-center justify-center bg-primary-600 text-white text-[11px] font-bold rounded-full shadow-sm animate-in fade-in zoom-in duration-300">
                {unreadCount}
             </div>
           </div>
@@ -177,10 +177,6 @@ const ConversationRow = ({
             ? conv.lastMessage.substring(0, 70) + "..."
             : conv.lastMessage}
         </p>
-      </div>
-
-      <div className="shrink-0 text-slate-200 dark:text-slate-800 group-hover:text-primary-400 dark:group-hover:text-primary-500 transition-all hidden sm:block translate-x-4 group-hover:translate-x-0 opacity-0 group-hover:opacity-100">
-        <ChevronRight className="w-6 h-6" />
       </div>
     </motion.div>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, Smile, FileText, CreditCard, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, Smile, FileText, CreditCard, ChevronRight, CheckCircle2, ArrowRight } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { 
   collection, 
@@ -507,34 +507,47 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
                   </button>
                 </div>
                 
-                <div className="flex items-center gap-1 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <AnimatePresence mode="wait">
-                    {newMessage.trim() === '' && !isSending ? (
+                    {newMessage.trim() === "" && !isSending ? (
                       <motion.button 
                         key="mic"
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.8, opacity: 0 }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
                         type="button"
-                        className="hidden sm:flex w-11 h-11 rounded-xl items-center justify-center text-slate-400 dark:text-slate-600 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+                        className="w-11 h-11 flex items-center justify-center text-slate-400 dark:text-slate-600 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all rounded-xl"
                       >
                         <Mic className="w-5 h-5" />
                       </motion.button>
                     ) : (
                       <motion.button 
-                        key="send"
+                        key="send-button"
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.8, opacity: 0 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                         type="submit"
                         disabled={!newMessage.trim() || isSending}
-                        className={`w-10 h-10 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center transition-all ${
+                        className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all relative overflow-hidden shadow-lg ${
                           newMessage.trim() && !isSending 
-                            ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/40' 
+                            ? 'bg-primary-600 text-white shadow-primary-500/20 active:shadow-none' 
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-700'
                         }`}
                       >
-                        {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 -rotate-12 translate-x-0.5" />}
+                        {isSending ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <ArrowRight 
+                            className={`w-5 h-5 transition-all duration-300 ${newMessage.trim() ? 'stroke-[3px]' : 'opacity-40'}`} 
+                          />
+                        )}
+                        {newMessage.trim() && !isSending && (
+                          <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 -translate-x-full group-hover/send:translate-x-full transition-transform duration-1000 pointer-events-none" />
+                        )}
                       </motion.button>
                     )}
                   </AnimatePresence>

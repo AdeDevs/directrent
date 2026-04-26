@@ -29,6 +29,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
   const { user, favorites, toggleFavorite } = useAuth();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const isFav = favorites.includes(listing.id);
+  const isAgent = user?.role === 'agent';
 
   return (
     <>
@@ -75,7 +76,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
             </span>
           )}
         </div>
-        {!hideHeart && !isAgentView && (
+        {!hideHeart && !isAgentView && !isAgent && (
           <button 
             onClick={(e) => { e.stopPropagation(); toggleFavorite(listing.id); }}
             className={`absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all cursor-pointer active:scale-90 ${isFav ? 'bg-primary-50 dark:bg-primary-900/40 text-primary-600 shadow-lg shadow-primary-200/50 dark:shadow-none' : 'bg-white/30 dark:bg-slate-800/30 text-white hover:bg-white dark:hover:bg-slate-800 hover:text-primary-600 transition-colors'}`}

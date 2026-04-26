@@ -45,6 +45,8 @@ service cloud.firestore {
              (!('nin' in data) || (data.nin is string)) &&
              (!('city' in data) || (data.city is string)) &&
              (!('about' in data) || (data.about is string)) &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string)) &&
+             (!('phoneVerified' in data) || (data.phoneVerified is bool)) &&
              (!('verificationLevel' in data) || (data.verificationLevel is string)) &&
              (!('avatarUrl' in data) || (data.avatarUrl == null || data.avatarUrl is string)) &&
              (!('verificationStatus' in data) || (data.verificationStatus is string)) &&
@@ -56,9 +58,15 @@ service cloud.firestore {
       return (!('tenantId' in data) || (data.tenantId is string && data.tenantId.size() > 0)) &&
              (!('agentId' in data) || (data.agentId is string && data.agentId.size() > 0)) &&
              (!('listingId' in data) || (data.listingId is string && data.listingId.size() > 0)) &&
+             (!('tenantName' in data) || (data.tenantName is string)) &&
+             (!('agentName' in data) || (data.agentName is string)) &&
+             (!('listingTitle' in data) || (data.listingTitle is string)) &&
+             (!('listingImage' in data) || (data.listingImage is string)) &&
+             (!('listingPrice' in data) || (data.listingPrice is string)) &&
              (!('status' in data) || (data.status is string && data.status in ['inquiry', 'negotiating', 'contract_requested', 'contract_sent', 'paid', 'completed'])) &&
              (!('unreadCount_tenant' in data) || data.unreadCount_tenant is number) &&
              (!('unreadCount_agent' in data) || data.unreadCount_agent is number) &&
+             (!('lastMessage' in data) || data.lastMessage is string) &&
              (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
@@ -104,9 +112,11 @@ service cloud.firestore {
       return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.priceValue is number && data.priceValue > 0 &&
              data.location is string && data.location.size() > 0 &&
-             data.type is string && data.type in ["Self-Contain", "1 Bedroom Flat", "Shared"] &&
+             data.type is string &&
              data.image is string &&
              data.agent.id == request.auth.uid &&
+             (!('images' in data) || data.images is list) &&
+             (!('video' in data) || (data.video == null || data.video is string)) &&
              (!('beds' in data) || data.beds is number) &&
              (!('baths' in data) || data.baths is number) &&
              (!('amenities' in data) || data.amenities is list) &&
