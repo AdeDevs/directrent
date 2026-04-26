@@ -63,7 +63,9 @@
           "type": "string", 
           "enum": ["inquiry", "negotiating", "contract_requested", "contract_sent", "paid", "completed"],
           "default": "inquiry"
-        }
+        },
+        "unreadCount_tenant": { "type": "number", "default": 0 },
+        "unreadCount_agent": { "type": "number", "default": 0 }
       },
       "required": ["tenantId", "agentId", "listingId"]
     },
@@ -92,6 +94,44 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["listingId", "createdAt"]
+    },
+    "Listing": {
+      "title": "Property Listing",
+      "description": "Represents a property listed by an agent for rent.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "price": { "type": "string" },
+        "priceValue": { "type": "number" },
+        "location": { "type": "string" },
+        "type": { "type": "string", "enum": ["Self-Contain", "1 Bedroom Flat", "Shared"] },
+        "image": { "type": "string" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "verified": { "type": "boolean" },
+        "isApproved": { "type": "boolean" },
+        "noFee": { "type": "boolean" },
+        "beds": { "type": "number" },
+        "baths": { "type": "number" },
+        "area": { "type": "string" },
+        "amenities": { "type": "array", "items": { "type": "string" } },
+        "landmark": { "type": "string" },
+        "description": { "type": "string" },
+        "isRecentlyAdded": { "type": "boolean" },
+        "slotsLeft": { "type": "number" },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "rating": { "type": "number" },
+            "isVerified": { "type": "boolean" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "priceValue", "location", "type", "image", "agent"]
     }
   },
   "firestore": {
@@ -102,6 +142,10 @@
     "/users/{userId}/favorites/{listingId}": {
       "schema": "Favorite",
       "description": "A subcollection of listings bookmarked by the user."
+    },
+    "/listings/{listingId}": {
+      "schema": "Listing",
+      "description": "Public property listings."
     },
     "/conversations/{convId}": {
       "schema": "Conversation",

@@ -1,5 +1,5 @@
 export interface Listing {
-  id: number;
+  id: string | number;
   title: string;
   price: string;
   priceValue: number;
@@ -7,6 +7,7 @@ export interface Listing {
   type: string;
   image: string;
   verified: boolean;
+  isApproved?: boolean;
   noFee: boolean;
   beds?: number;
   baths?: number;
@@ -23,16 +24,31 @@ export interface Listing {
     name: string;
     rating: number;
     isVerified: boolean;
+    avatarUrl?: string;
   };
   isFavorite?: boolean;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export type ViewState = 'landing' | 'auth' | 'app';
-export type AppTab = 'home' | 'chat' | 'profile' | 'favorites';
+export type AppTab = 'home' | 'chat' | 'profile' | 'favorites' | 'create' | 'mylistings' | 'notifications';
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'message' | 'verification' | 'listing' | 'system';
+  read: boolean;
+  createdAt: any;
+  link?: string;
+  relatedId?: string;
+}
 export type AuthMode = 'login' | 'signup';
 export type UserRole = 'tenant' | 'agent';
 
-export type VerificationLevel = 'Unverified' | 'Verified' | 'Trusted' | 'Fully Verified';
+export type VerificationLevel = 'none' | 'verified';
 
 declare global {
   interface Window {
@@ -42,11 +58,12 @@ declare global {
 
 export interface User {
   id: string;
-  name: string;
-  role: UserRole;
+  firstName: string;
+  lastName: string;
   email: string;
   nin: string;
   city: string;
+  role: UserRole;
   gender?: string;
   age?: string;
   country: string;
@@ -54,6 +71,11 @@ export interface User {
   phoneNumber?: string;
   phoneVerified?: boolean;
   verificationLevel?: VerificationLevel;
+  govtIdUrl?: string;
+  govtIdType?: 'NIN Slip' | 'National ID Card' | 'Drivers License' | 'Passport';
+  selfieUrl?: string;
+  verificationStatus?: 'none' | 'pending' | 'verified';
+  about?: string;
 }
 
 export type ConversationStatus = 'inquiry' | 'negotiating' | 'contract_requested' | 'contract_sent' | 'paid' | 'completed';

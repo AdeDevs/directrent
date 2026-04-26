@@ -36,20 +36,18 @@ service cloud.firestore {
 
     // --- User Validation ---
     function isValidUser(data) {
-      return (!('id' in data) || data.id == request.auth.uid) &&
-             (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
-             (!('email' in data) || (data.email is string && data.email.size() <= 100)) &&
+      return (!('firstName' in data) || (data.firstName is string)) &&
+             (!('lastName' in data) || (data.lastName is string)) &&
+             (!('email' in data) || (data.email is string)) &&
              (!('role' in data) || data.role in ['tenant', 'agent']) &&
-             (!('city' in data) || (data.city is string && data.city.size() <= 100)) &&
-             (!('country' in data) || (data.country is string && data.country.size() <= 100)) &&
-             (!('nin' in data) || (data.nin is string && data.nin.size() <= 20)) &&
-             (!('gender' in data) || (data.gender is string && data.gender.size() <= 20)) &&
-             (!('age' in data) || (data.age is string && data.age.size() <= 10)) &&
-             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 1100000)) && // ~1MB
-             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 20)) &&
-             (!('phoneVerified' in data) || data.phoneVerified is bool) &&
-             (!('verificationLevel' in data) || (data.verificationLevel is string && data.verificationLevel in ["Unverified", "Verified", "Trusted", "Fully Verified"])) &&
-             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('gender' in data) || (data.gender is string)) &&
+             (!('age' in data) || (data.age is string)) &&
+             (!('nin' in data) || (data.nin is string)) &&
+             (!('city' in data) || (data.city is string)) &&
+             (!('about' in data) || (data.about is string)) &&
+             (!('verificationLevel' in data) || (data.verificationLevel is string)) &&
+             (!('avatarUrl' in data) || (data.avatarUrl == null || data.avatarUrl is string)) &&
+             (!('verificationStatus' in data) || (data.verificationStatus is string)) &&
              (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
@@ -59,6 +57,8 @@ service cloud.firestore {
              (!('agentId' in data) || (data.agentId is string && data.agentId.size() > 0)) &&
              (!('listingId' in data) || (data.listingId is string && data.listingId.size() > 0)) &&
              (!('status' in data) || (data.status is string && data.status in ['inquiry', 'negotiating', 'contract_requested', 'contract_sent', 'paid', 'completed'])) &&
+             (!('unreadCount_tenant' in data) || data.unreadCount_tenant is number) &&
+             (!('unreadCount_agent' in data) || data.unreadCount_agent is number) &&
              (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
@@ -89,7 +89,44 @@ service cloud.firestore {
              data.createdAt == request.time;
     }
 
+    // --- Notification Validation ---
+    function isValidNotification(data) {
+      return data.userId is string &&
+             data.title is string && data.title.size() <= 200 &&
+             data.message is string && data.message.size() <= 1000 &&
+             data.type in ['message', 'verification', 'listing', 'system'] &&
+             data.read is bool &&
+             data.createdAt == request.time;
+    }
+
+    // --- Listing Validation ---
+    function isValidListing(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.priceValue is number && data.priceValue > 0 &&
+             data.location is string && data.location.size() > 0 &&
+             data.type is string && data.type in ["Self-Contain", "1 Bedroom Flat", "Shared"] &&
+             data.image is string &&
+             data.agent.id == request.auth.uid &&
+             (!('beds' in data) || data.beds is number) &&
+             (!('baths' in data) || data.baths is number) &&
+             (!('amenities' in data) || data.amenities is list) &&
+             (!('landmark' in data) || data.landmark is string) &&
+             (!('description' in data) || data.description is string) &&
+             (!('verified' in data) || data.verified is bool) &&
+             (!('isApproved' in data) || data.isApproved is bool) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
     // --- Resources ---
+
+    // Listings
+    match /listings/{listingId} {
+      allow list, get: if true;
+      allow create: if isSignedIn() && isEmailVerified() && isValidListing(incoming()) && isValidId(listingId);
+      allow update: if isSignedIn() && isEmailVerified() && existing().agent.id == request.auth.uid && isValidListing(incoming());
+      allow delete: if isSignedIn() && existing().agent.id == request.auth.uid;
+    }
 
     // Reviews
     match /reviews/{reviewId} {
@@ -100,16 +137,19 @@ service cloud.firestore {
     }
     match /users/{userId} {
       allow get: if isSignedIn();
-      allow list: if true; // Allowed to support "No account found" feedback during login
+      allow list: if true; 
       allow create: if isOwner(userId) && isValidUser(incoming());
       allow update: if isOwner(userId) && isValidUser(incoming()); 
-
-      // Favorites Subcollection
+      
       match /favorites/{listingId} {
         allow list, get: if isOwner(userId);
         allow create: if isOwner(userId) && isValidFavorite(incoming());
         allow delete: if isOwner(userId);
       }
+    }
+
+    match /test/connection {
+      allow read: if true;
     }
 
     // Conversations
@@ -124,13 +164,23 @@ service cloud.firestore {
       );
       allow create: if isSignedIn() && isEmailVerified() && isValidConversation(incoming()) && incoming().tenantId == request.auth.uid;
       allow update: if isSignedIn() && isEmailVerified() && (existing().tenantId == request.auth.uid || existing().agentId == request.auth.uid) &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt', 'status']) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt', 'status', 'unreadCount_tenant', 'unreadCount_agent']) &&
                     incoming().updatedAt == request.time;
       
       match /messages/{msgId} {
         allow list, get: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid);
         allow create: if isSignedIn() && (incoming().tenantId == request.auth.uid || incoming().agentId == request.auth.uid) && isValidMessage(incoming());
       }
+    }
+
+    // Notifications
+    match /notifications/{notifId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidNotification(incoming());
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
   }
 }

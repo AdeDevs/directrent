@@ -3,7 +3,7 @@ import { Home, X, Users, Handshake, Eye, EyeOff, Loader2, AlertCircle, CheckCirc
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, User } from '../types';
-import { auth, db } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
@@ -11,7 +11,11 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   updatePassword,
-  ConfirmationResult
+  ConfirmationResult,
+  PhoneAuthProvider,
+  linkWithCredential,
+  signInWithCredential,
+  EmailAuthProvider
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
@@ -32,25 +36,44 @@ const Auth = () => {
   const [otpCode, setOtpCode] = useState('');
   const [newResetPassword, setNewResetPassword] = useState('');
   const [confirmationObj, setConfirmationObj] = useState<ConfirmationResult | null>(null);
+  const [resendTimer, setResendTimer] = useState(0);
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Cleanup recaptcha if it exists when switching out of reset mode
-    if (!isResetMode) {
+    let interval: any;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  useEffect(() => {
+    // Cleanup recaptcha if it exists when switching out of reset mode or unmounting
+    return () => {
       if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
         window.recaptchaVerifier = null;
       }
-    }
+    };
   }, [isResetMode]);
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
+    phoneNumber: '',
     nin: '',
     city: '',
     password: '',
     confirmPassword: ''
   });
+
+  const [verificationId, setVerificationId] = useState<string | null>(null);
+  const [isPhoneVerifying, setIsPhoneVerifying] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
 
   const nigerianCities = [
     "Lagos", "Abuja", "Ibadan", "Port Harcourt", "Kano", "Ogbomoso", 
@@ -66,11 +89,16 @@ const Auth = () => {
     
     if (name === 'nin') {
       value = value.replace(/\D/g, ''); 
-    } else if (name === 'name') {
+    } else if (name === 'firstName' || name === 'lastName') {
+      value = value.replace(/[^a-zA-Z\s]/g, '');
       value = capitalize(value);
+    } else if (name === 'phoneNumber') {
+      value = value.replace(/\D/g, '');
     }
 
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    if (name === 'phoneNumber') setPhoneVerified(false);
     
     // Clear field-specific error AND the global form error when user types
     if (errors[name] || errors.form) {
@@ -111,8 +139,17 @@ const Auth = () => {
     if (!formData.password) newErrors.password = 'Password is required';
 
     if (authMode === 'signup') {
-      if (!formData.name) newErrors.name = 'Full name is required';
+      if (!formData.firstName) newErrors.firstName = 'First name is required';
+      if (!formData.lastName) newErrors.lastName = 'Last name is required';
       if (!formData.city) newErrors.city = 'Please select a city';
+      
+      if (!formData.phoneNumber) {
+        newErrors.phoneNumber = 'Phone number is required';
+      } else if (formData.phoneNumber.length < 10) {
+        newErrors.phoneNumber = 'Invalid phone number';
+      } else if (role === 'agent' && !phoneVerified) {
+        newErrors.phoneNumber = 'Please verify your phone number first';
+      }
       
       if (!formData.nin) {
         newErrors.nin = 'NIN is required';
@@ -157,9 +194,12 @@ const Auth = () => {
     }
 
     return !!(
-      formData.name && 
+      formData.firstName && 
+      formData.lastName && 
       emailValid && 
       formData.city && 
+      formData.phoneNumber && formData.phoneNumber.length >= 10 &&
+      (role === 'tenant' || phoneVerified) &&
       formData.nin && ninRegex.test(formData.nin) &&
       passwordValid &&
       formData.password === formData.confirmPassword
@@ -213,11 +253,94 @@ const Auth = () => {
     }
   };
 
+  const sendSignupOTP = async () => {
+    if (!formData.phoneNumber || formData.phoneNumber.length < 10) {
+      setErrors({ phoneNumber: 'Enter a valid phone number' });
+      return;
+    }
+    setIsLoading(true);
+    setErrors({});
+    try {
+      const cleanPhone = formData.phoneNumber.replace(/^0/, '');
+      const formattedPhone = `+234${cleanPhone}`;
+
+      // Reset recaptcha if it exists
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
+      }
+
+      // Small delay to ensure DOM element is ready
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Use the dedicated container ID
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container-signup', {
+        size: 'normal',
+        callback: () => {
+          // reCAPTCHA solved
+        },
+        'expired-callback': () => {
+          setErrors({ phoneNumber: 'reCAPTCHA expired. Please verify again.' });
+          if (window.recaptchaVerifier) {
+            try {
+              window.recaptchaVerifier.clear();
+            } catch (e) {}
+            window.recaptchaVerifier = null;
+          }
+        }
+      });
+
+      const result = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
+      setConfirmationObj(result);
+      setIsPhoneVerifying(true);
+      setResendTimer(60);
+    } catch (error: any) {
+      console.error("Signup SMS Error details:", error);
+      let message = 'Failed to send verification SMS. Please try again.';
+      
+      if (error.code === 'auth/invalid-app-credential') {
+        message = 'Invalid app credential. This usually happens in preview environments. Please ensure your Firebase Console has authorized this domain or add your number as a Test Number in Firebase Auth.';
+      } else if (error.code === 'auth/too-many-requests') {
+        message = 'Too many requests. Please try again later or use a different number.';
+      } else if (error.message?.includes('recaptcha')) {
+        message = 'reCAPTCHA verification failed. Please try again.';
+      }
+      
+      setErrors({ phoneNumber: `${message} (${error.code || 'error'})` });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifySignupOTP = async () => {
+    if (!confirmationObj || !otpCode) return;
+    setIsLoading(true);
+    try {
+      await confirmationObj.confirm(otpCode);
+      setPhoneVerified(true);
+      setIsPhoneVerifying(false);
+      setOtpCode('');
+      setErrors({});
+    } catch (err: any) {
+      setErrors({ form: 'Invalid verification code.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;
     
     setErrors({});
+
+    if (authMode === 'signup' && role === 'agent' && !phoneVerified) {
+      if (isPhoneVerifying) {
+        return verifySignupOTP();
+      }
+      return sendSignupOTP();
+    }
     
     if (isResetMode && resetMethod === 'sms') {
       if (smsStep === 'otp') {
@@ -266,7 +389,14 @@ const Auth = () => {
         }
         setIsLoading(true);
         try {
-          const formattedPhone = resetPhone.startsWith('+234') ? resetPhone : `+234${resetPhone.replace(/^0/, '')}`;
+          const cleanPhone = resetPhone.replace(/\D/g, '').replace(/^0/, '');
+          if (!cleanPhone || cleanPhone.length < 10) {
+            setErrors({ phone: 'Please enter a valid 10-digit phone number' });
+            setIsLoading(false);
+            return;
+          }
+
+          const formattedPhone = `+234${cleanPhone}`;
           const usersRef = collection(db, 'users');
           const q = query(usersRef, where("phoneNumber", "==", formattedPhone));
           const querySnapshot = await getDocs(q);
@@ -277,26 +407,61 @@ const Auth = () => {
             return;
           }
           
-          if (!window.recaptchaVerifier) {
+          // Re-initialize to avoid stale container issues
+          if (window.recaptchaVerifier) {
+            try {
+              window.recaptchaVerifier.clear();
+            } catch (e) {}
+            window.recaptchaVerifier = null;
+          }
+          
+          // Small delay to ensure DOM is ready
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          if (recaptchaContainerRef.current) {
             window.recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
-              size: 'invisible'
+              size: 'normal',
+              callback: () => {},
+              'expired-callback': () => {
+                setErrors({ phone: 'reCAPTCHA expired. Please verify again.' });
+                if (window.recaptchaVerifier) {
+                  try {
+                    window.recaptchaVerifier.clear();
+                  } catch (e) {}
+                  window.recaptchaVerifier = null;
+                }
+              }
             });
           }
+          
+          if (!window.recaptchaVerifier) throw new Error("Verification container not ready");
+          
+          await window.recaptchaVerifier.render();
           
           sessionStorage.setItem('sms_reset_flow', 'active');
           const result = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
           setConfirmationObj(result);
           setSmsStep('otp');
+          setResendTimer(60);
           setErrors({});
         } catch (error: any) {
-          if (error.code === 'auth/invalid-phone-number') {
-            setErrors({ phone: 'Invalid phone number format.' });
-          } else {
-            console.error("SMS Error:", error);
-            setErrors({ form: 'Failed to send reset SMS. Please check your connection and try again.' });
+          console.error("SMS Reset Error details:", error);
+          let message = 'Failed to send reset SMS. Please check your connection.';
+          
+          if (error.code === 'auth/invalid-app-credential') {
+            message = 'Invalid app credential. This usually happens in preview environments. Please ensure your Firebase Console has authorized this domain or add your number as a Test Number in Firebase Auth.';
+          } else if (error.code === 'auth/too-many-requests') {
+            message = 'Too many requests. Please try again later or use a different number.';
+          } else if (error.code === 'auth/invalid-phone-number') {
+            message = 'Invalid phone number format.';
           }
+          
+          setErrors({ form: `${message} (${error.code || 'error'})` });
+
           if (window.recaptchaVerifier) {
-            window.recaptchaVerifier.clear();
+            try {
+              window.recaptchaVerifier.clear();
+            } catch (e) {}
             window.recaptchaVerifier = null;
           }
         } finally {
@@ -308,25 +473,58 @@ const Auth = () => {
 
     if (validate()) {
       setIsLoading(true);
+      sessionStorage.setItem('just_logged_in', 'true');
       
       try {
         if (authMode === 'signup') {
           // Firebase Signup
-          const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-          const uid = userCredential.user.uid;
+          let user;
+          
+          if (role === 'agent' && auth.currentUser && phoneVerified) {
+            // Agent case: They have a phone user session from OTP verification.
+            // Link that existing UID with the new Email/Password credential.
+            const emailCred = EmailAuthProvider.credential(formData.email, formData.password);
+            try {
+              const res = await linkWithCredential(auth.currentUser, emailCred);
+              user = res.user;
+            } catch (err: any) {
+              // If linking fails (e.g. email already in use), we need to report it correctly
+              if (err.code === 'auth/email-already-in-use') {
+                setErrors({ email: 'This email is already registered.' });
+                setIsLoading(false);
+                return;
+              }
+              throw err;
+            }
+          } else {
+            // Tenant or standard signup: Create new email user
+            const res = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+            user = res.user;
+          }
+
+          const uid = user.uid;
           
           const userProfile: User = {
             id: uid,
-            name: formData.name,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
             email: formData.email,
+            phoneNumber: `+234${formData.phoneNumber.replace(/^0/, '')}`,
+            phoneVerified: role === 'agent' ? phoneVerified : false,
+            verificationLevel: 'none',
             nin: formData.nin,
             city: formData.city,
             role: role,
-            country: 'Nigeria'
+            country: 'Nigeria',
+            verificationStatus: 'none'
           };
           
           // Store profile in Firestore
-          await setDoc(doc(db, 'users', uid), userProfile);
+          try {
+            await setDoc(doc(db, 'users', uid), userProfile);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.WRITE, `users/${uid}`);
+          }
           
           // Context will pick up onAuthStateChanged and move to App
         } else {
@@ -505,10 +703,76 @@ const Auth = () => {
 
           {authMode === 'signup' && (
             <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">First Name</label>
+                  <input name="firstName" value={formData.firstName} onChange={handleChange} type="text" placeholder="John" className={getInputClass('firstName')} />
+                  <ErrorMsg name="firstName" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Last Name</label>
+                  <input name="lastName" value={formData.lastName} onChange={handleChange} type="text" placeholder="Doe" className={getInputClass('lastName')} />
+                  <ErrorMsg name="lastName" />
+                </div>
+              </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Full Name</label>
-                <input name="name" value={formData.name} onChange={handleChange} type="text" placeholder="John Doe" className={getInputClass('name')} />
-                <ErrorMsg name="name" />
+                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Phone Number</label>
+                <div className={`relative flex items-center bg-slate-50 dark:bg-slate-900 border rounded-xl overflow-hidden transition-all ${errors.phoneNumber ? 'border-red-500 bg-red-50/10' : 'border-slate-100 dark:border-slate-800 focus-within:border-primary-300 dark:focus-within:border-primary-700'}`}>
+                  <div className="px-3 py-3 bg-slate-100 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 tracking-tight">
+                    +234
+                  </div>
+                  <input 
+                    name="phoneNumber" 
+                    value={formData.phoneNumber} 
+                    onChange={handleChange} 
+                    type="tel" 
+                    placeholder="801 234 5678" 
+                    maxLength={11}
+                    disabled={isPhoneVerifying || phoneVerified}
+                    className="w-full bg-transparent px-3 py-3 text-sm outline-none text-slate-900 dark:text-white placeholder-slate-400" 
+                  />
+                  {phoneVerified && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                  )}
+                </div>
+                <div id="recaptcha-container-signup" ref={recaptchaContainerRef} className="mt-2" />
+                <ErrorMsg name="phoneNumber" />
+                
+                {isPhoneVerifying && !phoneVerified && (
+                  <div className="mt-4 p-4 bg-primary-50 dark:bg-primary-900/10 border border-primary-100 dark:border-primary-900/30 rounded-xl space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-widest">Verify SMS Code</span>
+                      <button type="button" onClick={() => setIsPhoneVerifying(false)} className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase">Cancel</button>
+                    </div>
+                    <input 
+                      type="text" 
+                      maxLength={6}
+                      placeholder="Enter 6-digit code" 
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      className="w-full bg-white dark:bg-slate-900 border border-primary-200 dark:border-primary-800 px-4 py-2 rounded-lg text-sm text-center font-mono tracking-[0.2em] outline-none focus:border-primary-500 dark:text-white"
+                    />
+                    <div className="flex justify-between items-center px-1">
+                      <button
+                        type="button"
+                        onClick={sendSignupOTP}
+                        disabled={resendTimer > 0 || isLoading}
+                        className="text-[10px] font-bold text-primary-600 disabled:text-slate-400"
+                      >
+                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={verifySignupOTP}
+                        className="text-[10px] font-bold bg-primary-600 text-white px-3 py-1.5 rounded-lg active:scale-95 transition-transform"
+                      >
+                        Verify Code
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -605,6 +869,16 @@ const Auth = () => {
                         }}
                         className={`w-full bg-slate-50 dark:bg-slate-900 border-2 px-4 py-4 rounded-xl outline-none transition-all text-2xl text-center font-black tracking-[0.5em] font-mono text-slate-900 dark:text-white ${errors.form ? 'border-red-500 dark:border-red-900 bg-red-50/10' : 'border-slate-200 dark:border-slate-800 focus:border-primary-500 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary-500/10'}`}
                       />
+                      <div className="flex justify-center mt-2">
+                        <button
+                          type="button"
+                          onClick={(e) => handleSubmit(e)}
+                          disabled={resendTimer > 0 || isLoading}
+                          className="text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline disabled:text-slate-400 disabled:no-underline transition-all"
+                        >
+                          {resendTimer > 0 ? `Resend code in ${resendTimer}s` : "Didn't receive code? Resend"}
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -739,7 +1013,11 @@ const Auth = () => {
                     : (authMode === 'login' ? 'Signing In...' : 'Creating Account...')) 
                 : (isResetMode 
                     ? (smsStep === 'otp' ? 'Verify OTP' : (smsStep === 'new-password' ? 'Set New Password' : (resetMethod === 'email' ? 'Send Reset Link' : 'Send OTP')))
-                    : (authMode === 'login' ? 'Sign In' : 'Create Account'))}
+                    : (authMode === 'login' 
+                        ? 'Sign In' 
+                        : (role === 'agent' && !phoneVerified 
+                            ? (isPhoneVerifying ? 'Verify OTP Code' : 'Verify Phone') 
+                            : 'Create Account')))}
             </button>
           )}
 

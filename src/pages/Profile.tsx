@@ -7,23 +7,27 @@ import {
   Bell,
   Shield,
   HelpCircle,
-  User as UserIcon,
+  CircleUserRound,
   CheckCircle2,
-  Lock,
+  KeyRound,
   ChevronRight,
   Loader2,
   Heart,
   ArrowRight,
   Camera,
-  Phone,
-  ShieldCheck,
   Smartphone,
+  ShieldCheck,
+  Fingerprint,
   XCircle,
+  X,
   AlertCircle,
   Eye,
   EyeOff,
   Sun,
   Moon,
+  CreditCard,
+  FileText,
+  Trash2
 } from "lucide-react";
 import { 
   RecaptchaVerifier, 
@@ -34,7 +38,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider
 } from "firebase/auth";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { doc, updateDoc, deleteField } from "firebase/firestore";
 import { auth, storage, db } from "../lib/firebase";
 import { useAuth } from "../context/AuthContext";
@@ -43,6 +47,9 @@ import { FEATURED_LISTINGS } from "../data";
 import { Listing } from "../types";
 import VerificationBadge from "../components/VerificationBadge";
 import { calculateVerificationLevel, isProfileComplete as checkProfileComplete } from "../lib/verification";
+import KYCVerification from "../components/KYCVerification";
+import NotificationBadge from "../components/NotificationBadge";
+import { createNotification } from "../lib/notifications";
 
 // Compact card for Interests section to reduce weight and fit viewport better
 const Profile = () => {
@@ -52,6 +59,7 @@ const Profile = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeletePhotoConfirm, setShowDeletePhotoConfirm] = useState(false);
   const [successMessage, setSuccessMessage] = useState("Profile updated successfully!");
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,6 +71,7 @@ const Profile = () => {
   const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
   const [phoneError, setPhoneError] = useState("");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -76,6 +85,16 @@ const Profile = () => {
   const NIGERIAN_PHONE_LENGTH = 10;
 
   useEffect(() => {
+    let interval: any;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  useEffect(() => {
     // Cleanup verifier on unmount
     return () => {
       if (window.recaptchaVerifier) {
@@ -86,12 +105,27 @@ const Profile = () => {
   }, []);
 
   const initRecaptcha = () => {
-    if (!window.recaptchaVerifier && recaptchaRef.current) {
+    if (window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier.clear();
+      } catch (e) {}
+    }
+    
+    if (recaptchaRef.current) {
       try {
         window.recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaRef.current, {
-          size: 'invisible',
+          size: 'normal',
           callback: () => {
             // re-captcha solved
+          },
+          'expired-callback': () => {
+            // Response expired. Ask user to solve reCAPTCHA again.
+            if (window.recaptchaVerifier) {
+              try {
+                window.recaptchaVerifier.clear();
+              } catch (e) {}
+              window.recaptchaVerifier = undefined;
+            }
           }
         });
       } catch (err) {
@@ -101,22 +135,26 @@ const Profile = () => {
   };
 
   const [profileData, setProfileData] = useState({
-    name: user?.name || "",
+    firstName: user?.firstName || "",
+    lastName: user?.lastName || "",
     gender: user?.gender || "",
     age: user?.age || "",
     nin: user?.nin || "",
     city: user?.city || "",
+    about: user?.about || "",
   });
 
   // Sync profile data with user changes when not editing
   useEffect(() => {
     if (!isEditing && user) {
       setProfileData({
-        name: user.name || "",
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
         gender: user.gender || "",
         age: user.age || "",
         nin: user.nin || "",
         city: user.city || "",
+        about: user.about || "",
       });
     }
   }, [user, isEditing]);
@@ -135,7 +173,41 @@ const Profile = () => {
   };
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setProfileData((prev) => ({ ...prev, name: capitalize(e.target.value) }));
+    const { name, value } = e.target;
+    setProfileData((prev) => ({ 
+      ...prev, 
+      [name]: capitalize(value.replace(/[^a-zA-Z\s]/g, "")) 
+    }));
+  };
+
+  const handleAvatarDelete = async () => {
+    if (!user.avatarUrl) return;
+    
+    setIsLoading(true);
+    try {
+      // Try to delete from Storage if it's a firebase storage URL
+      if (user.avatarUrl.includes("firebasestorage.googleapis.com")) {
+        try {
+          const photoRef = ref(storage, user.avatarUrl);
+          await deleteObject(photoRef);
+        } catch (storageErr) {
+          console.error("Storage delete failed (might already be gone):", storageErr);
+          // Continue with Firestore update even if storage delete fails
+        }
+      }
+      
+      await updateProfile({ avatarUrl: deleteField() });
+      setPreviewUrl(null);
+      setSelectedFile(null);
+      setSuccessMessage("Photo deleted successfully");
+      setShowSuccess(true);
+      setShowDeletePhotoConfirm(false);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      console.error("Delete photo profile update failed:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAvatarClick = () => {
@@ -148,48 +220,60 @@ const Profile = () => {
         reject(new Error("Image compression timed out (15s)"));
       }, 15000);
 
-      const objectUrl = URL.createObjectURL(file);
-      const img = new Image();
-      
-      img.onload = () => {
-        clearTimeout(timeout);
-        URL.revokeObjectURL(objectUrl);
-        
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 300;
-        const MAX_HEIGHT = 300;
-        let width = img.width;
-        let height = img.height;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          clearTimeout(timeout);
+          
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 300;
+          const MAX_HEIGHT = 300;
+          let width = img.width;
+          let height = img.height;
 
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
           }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
 
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error("Canvas toBlob failed"));
-        }, 'image/jpeg', 0.7);
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error("Canvas context failed"));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Canvas toBlob failed"));
+          }, 'image/jpeg', 0.7);
+        };
+
+        img.onerror = () => {
+          clearTimeout(timeout);
+          console.error("Image interpretation failed (onerror)");
+          reject(new Error("Image load failed (onerror)"));
+        };
+
+        img.src = e.target?.result as string;
       };
 
-      img.onerror = () => {
+      reader.onerror = (err) => {
         clearTimeout(timeout);
-        URL.revokeObjectURL(objectUrl);
-        reject(new Error("Image load failed"));
+        console.error("FileReader error:", err);
+        reject(new Error("File read failed"));
       };
 
-      img.src = objectUrl;
+      reader.readAsDataURL(file);
     });
   };
 
@@ -221,7 +305,10 @@ const Profile = () => {
   };
 
   const handleSendOTP = async () => {
-    if (!phone || phone.length !== NIGERIAN_PHONE_LENGTH) {
+    // Remove leading zero if present
+    const cleanPhone = phone.startsWith('0') ? phone.slice(1) : phone;
+    
+    if (!cleanPhone || cleanPhone.length !== NIGERIAN_PHONE_LENGTH) {
       setPhoneError(`Please enter a valid ${NIGERIAN_PHONE_LENGTH}-digit phone number`);
       return;
     }
@@ -230,14 +317,18 @@ const Profile = () => {
       setIsVerifyingPhone(true);
       setPhoneError("");
       
-      if (!window.recaptchaVerifier) {
-        initRecaptcha();
-      }
+      // Give the DOM a tiny bit of time to ensure container is ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Always re-init to avoid stale containers
+      initRecaptcha();
       
       const appVerifier = window.recaptchaVerifier;
-      await appVerifier.render(); // Explicit render for invisible
+      if (!appVerifier) throw new Error("Recaptcha container not found");
       
-      const fullPhone = `+234${phone}`;
+      const widgetId = await appVerifier.render(); 
+      
+      const fullPhone = `+234${cleanPhone}`;
       
       let result;
       if (auth.currentUser) {
@@ -247,6 +338,7 @@ const Profile = () => {
       }
       
       setVerificationId(result);
+      setResendTimer(60); // 60 seconds timer
       setSuccessMessage("OTP sent to your phone");
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
@@ -288,6 +380,16 @@ const Profile = () => {
           phoneVerified: true,
           verificationLevel: calculateVerificationLevel({ ...user, phoneVerified: true, phoneNumber: fullPhone })
         });
+
+        // Trigger notification
+        await createNotification(
+          user.id,
+          "Identity Verified",
+          "Your phone number has been successfully verified. Your trust score has increased!",
+          "verification",
+          "profile"
+        );
+
         setVerificationId(null);
         setShowPhoneInput(false);
         setSuccessMessage("Phone verified successfully!");
@@ -366,7 +468,7 @@ const Profile = () => {
     console.log("Starting profile update...");
 
     try {
-      let finalAvatarUrl = user.avatarUrl;
+      let finalAvatarUrl = user.avatarUrl || null;
 
       // 1. Handle Avatar Upload if selected
       if (selectedFile) {
@@ -422,7 +524,7 @@ const Profile = () => {
             errorMsg = "Permission denied. Please ensure 'Firebase Storage' is enabled in your Firebase Console and rules are set to public for development.";
           }
           
-          if (!finalAvatarUrl.startsWith('data:')) {
+          if (!finalAvatarUrl || !finalAvatarUrl.startsWith('data:')) {
             alert(`Storage Error: ${errorMsg}. Your profile changes will be saved, but the photo might not update. Please verify Storage is enabled in your Firebase Console.`);
           }
         }
@@ -433,8 +535,8 @@ const Profile = () => {
       console.log("Updating Firestore document...");
       const updatedData: any = {
         ...profileData,
-        avatarUrl: finalAvatarUrl,
-        verificationLevel: calculateVerificationLevel({ ...user || {}, ...profileData, avatarUrl: finalAvatarUrl })
+        avatarUrl: finalAvatarUrl || null,
+        verificationLevel: calculateVerificationLevel({ ...user || {}, ...profileData, avatarUrl: finalAvatarUrl || null })
       };
 
       // 3. Update Firestore using explicit updateDoc + deleteField cleanup
@@ -495,6 +597,7 @@ const Profile = () => {
       label: "Notifications",
       color: "text-blue-500",
       description: "Alerts and updates",
+      action: () => setActiveTab("notifications"),
     },
     {
       icon: <Shield className="w-5 h-5" />,
@@ -524,16 +627,23 @@ const Profile = () => {
   const currentLevel = calculateVerificationLevel(user);
 
   return (
-    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-24 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-[110px] transition-colors duration-300">
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
-        <div className="w-full max-w-full px-4 h-16 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+        <div className="w-full max-w-full px-2 h-16 flex items-center justify-between">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight ml-2">
             Profile
           </h1>
+          <button 
+            onClick={() => setActiveTab('notifications')}
+            className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group mr-1"
+          >
+            <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 transition-colors" />
+            <NotificationBadge />
+          </button>
         </div>
       </header>
 
-      <main className="w-full pt-6 px-4 space-y-6">
+      <main className="w-full pt-4 px-[15px] space-y-8 lg:space-y-12">
         {showSuccess && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -558,13 +668,13 @@ const Profile = () => {
             {user.avatarUrl ? (
               <img
                 src={user.avatarUrl}
-                alt={user.name}
+                alt={`${user.firstName} ${user.lastName}`}
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
             ) : (
               <div className="w-full h-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 text-xl font-black">
-                {user.name ? user.name.charAt(0) : user.email.charAt(0)}
+                {user.firstName ? user.firstName.charAt(0) : user.email.charAt(0)}
               </div>
             )}
             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -574,7 +684,7 @@ const Profile = () => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight truncate">
-                {user.name || "Guest User"}
+                {user.firstName ? `${user.firstName} ${user.lastName}` : "Guest User"}
               </h2>
               <VerificationBadge level={currentLevel} showText={false} />
             </div>
@@ -590,6 +700,16 @@ const Profile = () => {
           </button>
         </section>
 
+        {/* Bio Section */}
+        {user.about && (
+          <section className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
+            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2">About</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed italic">
+              {user.about.replace(/(^|[.!?]\s+)([a-z])/g, (m, p1, p2) => p1 + p2.toUpperCase())}
+            </p>
+          </section>
+        )}
+
         {/* General Settings */}
         <section className="space-y-4">
           <h3 className="text-lg font-bold text-slate-400 dark:text-slate-500 pl-2">General</h3>
@@ -599,7 +719,7 @@ const Profile = () => {
               className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
             >
               <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-500 group-active:scale-95 transition-transform">
-                <UserIcon className="w-5 h-5" />
+                <CircleUserRound className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Edit Profile</p>
@@ -608,13 +728,17 @@ const Profile = () => {
               <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
             </button>
 
+            {user.role === 'agent' && (
+              <KYCVerification />
+            )}
+
             {!user.phoneVerified && (
                <button 
                 onClick={() => setShowPhoneInput(true)}
                 className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
               >
                 <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/20 rounded-xl flex items-center justify-center text-orange-500 group-active:scale-95 transition-transform">
-                  <Smartphone className="w-5 h-5" />
+                  <Fingerprint className="w-5 h-5" />
                 </div>
                 <div className="flex-1 text-left">
                   <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Verify Identity</p>
@@ -633,7 +757,7 @@ const Profile = () => {
               className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
             >
               <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-500 group-active:scale-95 transition-transform">
-                <Lock className="w-5 h-5" />
+                <KeyRound className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Change Password</p>
@@ -644,7 +768,7 @@ const Profile = () => {
 
             <button className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
               <div className="w-10 h-10 bg-cyan-50 dark:bg-cyan-900/20 rounded-xl flex items-center justify-center text-cyan-500 group-active:scale-95 transition-transform">
-                <ShieldCheck className="w-5 h-5" />
+                <FileText className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Terms of Use</p>
@@ -655,7 +779,7 @@ const Profile = () => {
 
             <button className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
               <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-500 group-active:scale-95 transition-transform">
-                <Smartphone className="w-5 h-5" />
+                <CreditCard className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Add Card</p>
@@ -770,68 +894,68 @@ const Profile = () => {
                 initial={{ opacity: 0, scale: 0.95, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl overflow-hidden w-full max-w-sm border border-slate-200 dark:border-slate-800"
+                className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-[2rem] shadow-2xl overflow-hidden w-full max-w-sm border border-slate-200 dark:border-slate-800"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="p-8 space-y-8">
+                <div className="p-4 sm:p-8 space-y-4 sm:space-y-8">
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col">
-                      <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Security</h3>
-                      <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Verification</p>
+                      <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">Security</h3>
+                      <p className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Verification</p>
                     </div>
                     <button 
                       onClick={() => setShowPhoneInput(false)} 
                       className="text-slate-400 hover:text-rose-500 bg-slate-50 hover:bg-rose-50 dark:bg-slate-800/50 dark:hover:bg-rose-900/20 p-2 rounded-full transition-all"
                     >
-                      <XCircle className="w-6 h-6" />
+                      <XCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                     </button>
                   </div>
 
                   {!verificationId ? (
-                    <div className="space-y-8">
+                    <div className="space-y-4 sm:space-y-8">
                       <div className="text-center space-y-3">
-                         <div className="mx-auto w-16 h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-full flex items-center justify-center mb-2 ring-8 ring-blue-50/50 dark:ring-blue-900/10">
-                           <Smartphone className="w-8 h-8" />
+                         <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-full flex items-center justify-center mb-1 sm:mb-2 ring-4 sm:ring-8 ring-blue-50/50 dark:ring-blue-900/10">
+                           <Smartphone className="w-6 h-6 sm:w-8 sm:h-8" />
                          </div>
-                         <h4 className="text-lg font-bold text-slate-900 dark:text-white">Verify Phone Number</h4>
-                         <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">We'll send a code to verify your phone number to secure your account and build trust.</p>
+                         <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Verify Phone Number</h4>
+                         <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">We'll send a code to verify your phone number to secure your account and build trust.</p>
                       </div>
                       
                       <div className="space-y-2 focus-within:text-primary-600 dark:focus-within:text-primary-400">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 transition-colors ml-1">
+                        <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 transition-colors ml-1">
                           Mobile Number
                         </label>
-                        <div className="relative flex items-center bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-slate-100 dark:border-slate-800 focus-within:border-primary-500/30 focus-within:bg-white dark:focus-within:bg-slate-900 focus-within:ring-4 focus-within:ring-primary-500/10 transition-all overflow-hidden group">
-                          <div className="flex items-center gap-2 px-4 py-4 bg-slate-100/60 dark:bg-slate-800/80 border-r border-slate-200 dark:border-slate-700/50">
-                            <span className="text-xl leading-none">🇳🇬</span>
-                            <span className="text-sm font-bold text-slate-600 dark:text-slate-300 tracking-tight">+234</span>
+                        <div className="relative flex items-center bg-slate-50 dark:bg-slate-800/50 rounded-xl sm:rounded-2xl border-2 border-slate-100 dark:border-slate-800 focus-within:border-primary-500/30 focus-within:bg-white dark:focus-within:bg-slate-900 focus-within:ring-4 focus-within:ring-primary-500/10 transition-all overflow-hidden group">
+                          <div className="flex items-center gap-2 px-3 sm:px-4 py-3 sm:py-4 bg-slate-100/60 dark:bg-slate-800/80 border-r border-slate-200 dark:border-slate-700/50">
+                            <span className="text-lg sm:text-xl leading-none">🇳🇬</span>
+                            <span className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 tracking-tight">+234</span>
                           </div>
                           <input 
                             type="tel"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                             placeholder="803 000 0000"
-                            className="w-full bg-transparent border-0 px-4 py-4 text-base font-bold text-slate-900 dark:text-white outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 tracking-wide"
+                            className="w-full bg-transparent border-0 px-3 sm:px-4 py-3 sm:py-4 text-sm sm:text-base font-bold text-slate-900 dark:text-white outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 tracking-wide"
                           />
                         </div>
                         {phoneError && (
                           <motion.div 
                             initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
-                            className="flex items-start gap-2 text-rose-500 mt-2 bg-rose-50 dark:bg-rose-900/20 p-3 rounded-xl border border-rose-100 dark:border-rose-900/50"
+                            className="flex items-start gap-1.5 sm:gap-2 text-rose-500 mt-2 bg-rose-50 dark:bg-rose-900/20 p-2 sm:p-3 rounded-lg sm:rounded-xl border border-rose-100 dark:border-rose-900/50"
                           >
-                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                            <p className="text-[11px] font-bold leading-snug">{phoneError}</p>
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <p className="text-[10px] sm:text-[11px] font-bold leading-snug">{phoneError}</p>
                           </motion.div>
                         )}
                       </div>
                       <button 
                         onClick={handleSendOTP} 
                         disabled={isVerifyingPhone || phone.length !== NIGERIAN_PHONE_LENGTH} 
-                        className="w-full bg-primary-600 text-white py-4 rounded-2xl text-sm font-black shadow-xl shadow-primary-500/20 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 transition-all flex items-center justify-center gap-2"
+                        className="w-full bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-xl shadow-primary-500/20 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 transition-all flex items-center justify-center gap-2"
                       >
                         {isVerifyingPhone ? (
                           <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                             <span>Sending...</span>
                           </>
                         ) : (
@@ -843,15 +967,15 @@ const Profile = () => {
                       </button>
                     </div>
                   ) : (
-                    <div className="space-y-8">
+                    <div className="space-y-4 sm:space-y-8">
                       <div className="text-center space-y-3">
-                         <div className="mx-auto w-16 h-16 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-full flex items-center justify-center mb-2 ring-8 ring-emerald-50/50 dark:ring-emerald-900/10">
-                           <ShieldCheck className="w-8 h-8" />
+                         <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-full flex items-center justify-center mb-1 sm:mb-2 ring-4 sm:ring-8 ring-emerald-50/50 dark:ring-emerald-900/10">
+                           <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8" />
                          </div>
-                         <h4 className="text-lg font-bold text-slate-900 dark:text-white">Enter OTP Code</h4>
-                         <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                         <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Enter OTP Code</h4>
+                         <p className="text-[11px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                            We've sent a 6-digit code to <br/>
-                           <span className="font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md ml-1 inline-block mt-1 tracking-wider">+234 {phone}</span>
+                           <span className="font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 sm:py-1 rounded-md ml-1 inline-block mt-1 tracking-wider text-[10px] sm:text-xs">+234 {phone}</span>
                          </p>
                       </div>
                       
@@ -861,34 +985,45 @@ const Profile = () => {
                           maxLength={6}
                           value={otp}
                           onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                          className="w-full bg-slate-50 dark:bg-slate-800/80 border-2 border-slate-200 dark:border-slate-700 p-4 text-center text-3xl font-black tracking-[0.6em] rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 dark:text-white transition-all font-mono"
+                          className="w-full bg-slate-50 dark:bg-slate-800/80 border-2 border-slate-200 dark:border-slate-700 p-3 sm:p-4 text-center text-2xl sm:text-3xl font-black tracking-[0.4em] sm:tracking-[0.6em] rounded-xl sm:rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 dark:text-white transition-all font-mono"
                           placeholder="------"
                         />
                         {phoneError && (
                           <motion.div 
                             initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
-                            className="flex items-start gap-2 text-rose-500 mt-2 bg-rose-50 dark:bg-rose-900/20 p-3 rounded-xl border border-rose-100 dark:border-rose-900/50"
+                            className="flex items-start gap-1.5 sm:gap-2 text-rose-500 mt-2 bg-rose-50 dark:bg-rose-900/20 p-2 sm:p-3 rounded-lg sm:rounded-xl border border-rose-100 dark:border-rose-900/50"
                           >
-                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                            <p className="text-[11px] font-bold leading-snug">{phoneError}</p>
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <p className="text-[10px] sm:text-[11px] font-bold leading-snug">{phoneError}</p>
                           </motion.div>
                         )}
+                        
+                        <div className="flex justify-center mt-2 sm:mt-4">
+                          <button
+                            type="button"
+                            onClick={handleSendOTP}
+                            disabled={resendTimer > 0 || isVerifyingPhone}
+                            className="text-[10px] sm:text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline disabled:text-slate-400 disabled:no-underline transition-all"
+                          >
+                            {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Didn't receive code? Resend"}
+                          </button>
+                        </div>
                       </div>
                       
                       <button 
                         onClick={handleVerifyOTP} 
                         disabled={isVerifyingPhone || otp.length < 6} 
-                        className="w-full bg-primary-600 text-white py-4 rounded-2xl text-sm font-black shadow-xl shadow-primary-500/20 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 transition-all flex items-center justify-center gap-2"
+                        className="w-full bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-xl shadow-primary-500/20 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 transition-all flex items-center justify-center gap-2"
                       >
                         {isVerifyingPhone ? (
                           <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                             <span>Verifying...</span>
                           </>
                         ) : (
                           <>
                             <span>Confirm & Verify</span>
-                            <CheckCircle2 className="w-4 h-4" />
+                            <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                           </>
                         )}
                       </button>
@@ -915,29 +1050,29 @@ const Profile = () => {
                 }}
               >
                 <div 
-                  className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden border border-white/10"
+                  className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden border border-white/10"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="p-8 space-y-8">
-                    <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-6">
-                      <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">Edit Profile</h3>
-                      <button 
-                        onClick={() => {
-                          setIsEditing(false);
-                          cleanupPreview();
-                        }}
-                        className="text-rose-500 hover:text-rose-600 p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-all"
-                      >
-                        <XCircle className="w-8 h-8" />
-                      </button>
-                    </div>
+                  <div className="p-4 sm:p-8 space-y-4 sm:space-y-8">
+                      <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-3 sm:pb-6">
+                        <h3 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white tracking-tighter">Edit Profile</h3>
+                        <button 
+                          onClick={() => {
+                            setIsEditing(false);
+                            cleanupPreview();
+                          }}
+                          className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all"
+                        >
+                          <X className="w-6 h-6 sm:w-8 sm:h-8" />
+                        </button>
+                      </div>
 
-                    <div className="space-y-10 py-4 max-h-[70vh] overflow-y-auto px-1 scrollbar-hide">
+                    <div className="space-y-6 sm:space-y-10 py-2 sm:py-4 max-h-[70vh] overflow-y-auto px-1 scrollbar-hide">
                       {/* Avatar Management in Edit Form */}
-                      <div className="flex flex-col items-center gap-4">
+                      <div className="flex flex-col items-center gap-2 sm:gap-4">
                          <div 
                           onClick={handleAvatarClick}
-                          className="w-32 h-32 rounded-3xl bg-slate-50 dark:bg-slate-800 border-4 border-white dark:border-slate-700 shadow-xl flex flex-col items-center justify-center cursor-pointer overflow-hidden relative group transition-transform active:scale-95"
+                          className="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl bg-slate-50 dark:bg-slate-800 border-4 border-white dark:border-slate-700 shadow-xl flex flex-col items-center justify-center cursor-pointer overflow-hidden relative group transition-transform active:scale-95"
                          >
                             {previewUrl || user.avatarUrl ? (
                               <img 
@@ -946,71 +1081,101 @@ const Profile = () => {
                                 className="w-full h-full object-cover" 
                               />
                             ) : (
-                              <UserIcon className="w-12 h-12 text-slate-300 dark:text-slate-700" />
+                              <CircleUserRound className="w-10 h-10 sm:w-12 sm:h-12 text-slate-300 dark:text-slate-700" />
                             )}
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all text-white gap-1 backdrop-blur-[2px]">
-                               <Camera className="w-6 h-6" />
-                               <span className="text-[10px] font-black uppercase tracking-widest">Change</span>
+                               <Camera className="w-5 h-5 sm:w-6 sm:h-6" />
+                               <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Change</span>
                             </div>
                          </div>
-                         <button 
-                          onClick={handleAvatarClick}
-                          className="text-primary-600 dark:text-primary-400 text-xs font-bold hover:underline"
-                        >
-                           Edit Profile Photo
-                         </button>
+                         <div className="flex items-center gap-4">
+                           <button 
+                            onClick={handleAvatarClick}
+                            className="text-primary-600 dark:text-primary-400 text-[10px] sm:text-xs font-bold hover:underline"
+                           >
+                             Change Photo
+                           </button>
+                           {user.avatarUrl && (
+                             <button 
+                              onClick={() => setShowDeletePhotoConfirm(true)}
+                              className="text-rose-500 text-[10px] sm:text-xs font-bold hover:underline"
+                             >
+                               Delete Photo
+                             </button>
+                           )}
+                         </div>
                          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
                       </div>
 
-                      <div className="space-y-8">
-                        <div className="space-y-6">
-                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 border-l-2 border-primary-500 pl-3">General Information</h4>
-                          <div className="grid grid-cols-1 gap-6">
-                            <div className="space-y-2">
-                              <label className="text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Resident City</label>
+                      <div className="space-y-6 sm:space-y-8">
+                        <div className="space-y-4 sm:space-y-6">
+                          <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 border-l-2 border-primary-500 pl-3">General Information</h4>
+                          <div className="grid grid-cols-1 gap-4 sm:gap-6">
+                            <div className="space-y-1.5 sm:space-y-2">
+                              <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Resident City</label>
                               <div className="relative group">
-                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
-                                <input
-                                  type="text"
+                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
+                                <select
                                   value={profileData.city}
                                   onChange={(e) => setProfileData((prev) => ({ ...prev, city: e.target.value }))}
-                                  placeholder="Eg. Lagos"
-                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-4 pl-12 pr-6 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
-                                />
+                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all appearance-none"
+                                >
+                                  <option value="">Select City</option>
+                                  {["Lagos", "Abuja", "Ibadan", "Port Harcourt", "Kano", "Ogbomoso", "Enugu", "Ilorin", "Abeokuta", "Kaduna", "Owerri", "Benin City"].map(city => (
+                                    <option key={city} value={city}>{city}</option>
+                                  ))}
+                                </select>
                               </div>
                             </div>
 
-                            <div className="space-y-2">
-                              <label className="text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Full Identity Name</label>
-                              <div className="relative group">
-                                <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
-                                <input
-                                  type="text"
-                                  value={profileData.name}
-                                  onChange={handleNameChange}
-                                  placeholder="Full name as on ID"
-                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-4 pl-12 pr-6 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
-                                />
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1.5 sm:space-y-2">
+                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">First Name</label>
+                                <div className="relative group">
+                                  <CircleUserRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
+                                  <input
+                                    name="firstName"
+                                    type="text"
+                                    value={profileData.firstName}
+                                    onChange={handleNameChange}
+                                    placeholder="First Name"
+                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1.5 sm:space-y-2">
+                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Last Name</label>
+                                <div className="relative group">
+                                  <CircleUserRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
+                                  <input
+                                    name="lastName"
+                                    type="text"
+                                    value={profileData.lastName}
+                                    onChange={handleNameChange}
+                                    placeholder="Last Name"
+                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
+                                  />
+                                </div>
                               </div>
                             </div>
                             
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <label className="text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Current Age</label>
+                            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                              <div className="space-y-1.5 sm:space-y-2">
+                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Current Age</label>
                                 <input
                                   type="number"
                                   value={profileData.age}
                                   onChange={(e) => setProfileData((prev) => ({ ...prev, age: e.target.value }))}
                                   placeholder="Age"
-                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-4 px-6 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
+                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
                                 />
                               </div>
-                              <div className="space-y-2">
-                                <label className="text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Gender</label>
+                              <div className="space-y-1.5 sm:space-y-2">
+                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Gender</label>
                                 <select
                                   value={profileData.gender}
                                   onChange={(e) => setProfileData((prev) => ({ ...prev, gender: e.target.value }))}
-                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-4 px-6 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all appearance-none"
+                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all appearance-none"
                                 >
                                   <option value="">Select Gender</option>
                                   <option value="Male">Male</option>
@@ -1018,61 +1183,73 @@ const Profile = () => {
                                 </select>
                               </div>
                             </div>
+
+                            {user.role === 'agent' && (
+                              <div className="space-y-1.5 sm:space-y-2">
+                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">About Me / Professional Bio</label>
+                                <textarea
+                                  value={profileData.about}
+                                  onChange={(e) => setProfileData((prev) => ({ ...prev, about: e.target.value }))}
+                                  placeholder="Tell tenants about your experience, specialty areas, and commitment to service..."
+                                  rows={4}
+                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all resize-none"
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
 
-                        <div className="space-y-6 pt-4">
-                           <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 border-l-2 border-primary-500 pl-3">Identity & Account</h4>
-                           <div className="grid grid-cols-1 gap-6">
-                            <div className="space-y-2">
-                              <label className="text-xs font-black text-slate-400 dark:text-slate-500 tracking-tight ml-1">Account Email (Permanent)</label>
+                        <div className="space-y-4 sm:space-y-6 pt-2 sm:pt-4">
+                           <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 border-l-2 border-primary-500 pl-3">Identity & Account</h4>
+                           <div className="grid grid-cols-1 gap-4 sm:gap-6">
+                            <div className="space-y-1.5 sm:space-y-2">
+                              <label className="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 tracking-tight ml-1">Account Email (Permanent)</label>
                               <div className="relative group grayscale">
-                                <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
+                                <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-300 dark:text-slate-700" />
                                 <input
                                   type="email"
                                   value={user.email || ""}
                                   disabled
-                                  className="w-full bg-slate-100/50 dark:bg-slate-800/40 border-2 border-transparent py-4 pl-12 pr-6 rounded-2xl text-sm font-bold text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                                  className="w-full bg-slate-100/50 dark:bg-slate-800/40 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-600 cursor-not-allowed"
                                 />
-                                <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 dark:text-slate-700" />
+                                <KeyRound className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300 dark:text-slate-700" />
                               </div>
                             </div>
 
-                            <div className="space-y-2">
-                              <label className="text-xs font-black text-slate-400 dark:text-slate-500 tracking-tight ml-1">Phone Number</label>
+                            <div className="space-y-1.5 sm:space-y-2">
+                              <label className="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 tracking-tight ml-1">Phone Number</label>
                               <div className="relative group grayscale">
-                                <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
+                                <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-300 dark:text-slate-700" />
                                 <input
                                   type="text"
                                   value={user.phoneNumber || "Not set"}
                                   disabled
-                                  className="w-full bg-slate-100/50 dark:bg-slate-800/40 border-2 border-transparent py-4 pl-12 pr-6 rounded-2xl text-sm font-bold text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                                  className="w-full bg-slate-100/50 dark:bg-slate-800/40 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-600 cursor-not-allowed"
                                 />
                                 {user.phoneVerified ? (
-                                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800">
-                                    <CheckCircle2 className="w-3 h-3" />
-                                    OTP Verified
+                                  <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 bg-emerald-500 text-white rounded-full shadow-lg shadow-emerald-500/20">
+                                    <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                   </div>
                                 ) : (
-                                  <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 dark:text-slate-700" />
+                                  <KeyRound className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300 dark:text-slate-700" />
                                 )}
                               </div>
                             </div>
 
-                            <div className="space-y-2">
-                              <label className="text-xs font-black text-slate-400 dark:text-slate-500 tracking-tight ml-1">NIN (Verified ID - Permanent)</label>
+                            <div className="space-y-1.5 sm:space-y-2">
+                              <label className="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 tracking-tight ml-1">NIN (Verified ID - Permanent)</label>
                               <div className="relative group grayscale">
-                                <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-700" />
+                                <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-300 dark:text-slate-700" />
                                 <input
                                   type="text"
-                                  value={profileData.nin ? `NIN-****-****-${profileData.nin.slice(-4)}` : "Verified Identity"}
+                                  value={profileData.nin ? `****-****-${profileData.nin.slice(-4)}` : "Verified Identity"}
                                   disabled
                                   placeholder="NIN Verified"
-                                  className="w-full bg-slate-100/50 dark:bg-slate-800/40 border-2 border-transparent py-4 pl-12 pr-6 rounded-2xl text-sm font-bold text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                                  className="w-full bg-slate-100/50 dark:bg-slate-800/40 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-600 cursor-not-allowed"
                                 />
-                                <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 dark:text-slate-700" />
+                                <KeyRound className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300 dark:text-slate-700" />
                               </div>
-                              <p className="text-[9px] text-slate-400 dark:text-slate-600 font-bold ml-1 italic opacity-60">Verified identity documents cannot be changed by the user.</p>
+                              <p className="text-[8px] sm:text-[9px] text-slate-400 dark:text-slate-600 font-bold ml-1 italic opacity-60">Verified identity documents cannot be changed.</p>
                             </div>
                            </div>
                         </div>
@@ -1080,28 +1257,28 @@ const Profile = () => {
                     </div>
                   </div>
 
-                  <div className="p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
+                  <div className="p-4 sm:p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 sm:gap-4">
                     <button
                       onClick={() => {
                         setIsEditing(false);
                         cleanupPreview();
                       }}
-                      className="flex-1 py-4 text-rose-500 text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-2xl transition-all"
+                      className="flex-1 py-3 sm:py-4 text-rose-500 text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl sm:rounded-2xl transition-all"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleSave}
                       disabled={isLoading || isUploading}
-                      className="flex-[2] bg-primary-600 text-white py-4 rounded-2xl text-sm font-black shadow-xl shadow-primary-500/30 hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                      className="flex-[2] bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-xl shadow-primary-500/30 hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
                     >
                       {isLoading ? (
                         <>
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          <span>{isUploading ? "Uploading Avatar..." : "Saving Profile..."}</span>
+                          <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                          <span>{isUploading ? "Uploading..." : "Saving..."}</span>
                         </>
                       ) : (
-                        "Save Identity Changes"
+                        "Save"
                       )}
                     </button>
                   </div>
@@ -1123,90 +1300,90 @@ const Profile = () => {
                 onClick={() => setIsChangingPassword(false)}
               >
                 <div 
-                  className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-white/10"
+                  className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-sm shadow-2xl overflow-hidden border border-white/10"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="p-8 space-y-6">
+                  <div className="p-4 sm:p-8 space-y-4 sm:space-y-6">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">Password Update</h3>
+                      <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tighter">Password Update</h3>
                       <button 
                         onClick={() => setIsChangingPassword(false)}
                         className="text-rose-500 hover:text-rose-600 p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-all"
                       >
-                        <XCircle className="w-6 h-6" />
+                        <XCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                       </button>
                     </div>
 
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Current Password</label>
+                    <div className="space-y-3 sm:space-y-4">
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Current Password</label>
                         <div className="relative group">
-                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary-500" />
+                          <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
                           <input
                             type={showPassword ? "text" : "password"}
                             value={passwordData.currentPassword}
                             onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                            className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 p-4 pl-12 pr-12 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20"
+                            className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
                             placeholder="••••••••"
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
                           >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            {showPassword ? <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                           </button>
                         </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">New Password</label>
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">New Password</label>
                         <div className="relative group">
-                          <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary-500" />
+                          <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
                           <input
                             type={showPassword ? "text" : "password"}
                             value={passwordData.newPassword}
                             onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
-                            className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 p-4 pl-12 pr-12 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20"
+                            className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
                             placeholder="New password"
                           />
                         </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Confirm New Password</label>
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Confirm New Password</label>
                         <div className="relative group">
-                          <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary-500" />
+                          <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
                           <input
                             type={showPassword ? "text" : "password"}
                             value={passwordData.confirmPassword}
                             onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                            className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 p-4 pl-12 pr-12 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20"
-                            placeholder="Repeat new password"
+                            className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
+                            placeholder="Repeat password"
                           />
                         </div>
                       </div>
 
                       {passwordError && (
-                        <div className="p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400">
-                          <AlertCircle className="w-4 h-4 shrink-0" />
-                          <span className="text-[10px] font-bold">{passwordError}</span>
+                        <div className="p-2 sm:p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-lg sm:rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span className="text-[9px] sm:text-[10px] font-bold">{passwordError}</span>
                         </div>
                       )}
 
-                      <div className="flex gap-3 pt-4">
+                      <div className="flex gap-2.5 sm:gap-3 pt-2.5 sm:pt-4">
                         <button
                           onClick={() => setIsChangingPassword(false)}
-                          className="flex-1 py-4 text-rose-500 text-xs font-black uppercase hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-2xl transition-all"
+                          className="flex-1 py-3 sm:py-4 text-rose-500 text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl sm:rounded-2xl transition-all"
                         >
                           Cancel
                         </button>
                         <button
                           onClick={handleUpdatePassword}
                           disabled={isLoading}
-                          className="flex-[2] bg-primary-600 text-white py-4 rounded-2xl text-sm font-black shadow-lg shadow-primary-500/30 hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                          className="flex-[2] bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-lg shadow-primary-500/30 hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
                         >
-                          {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Update Password"}
+                          {isLoading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : "Update"}
                         </button>
                       </div>
                     </div>
@@ -1250,6 +1427,43 @@ const Profile = () => {
                     className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-sm transition-colors"
                   >
                     Log Out
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {showDeletePhotoConfirm && (
+            <div 
+              className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setShowDeletePhotoConfirm(false)}
+            >
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6">
+                  <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center text-rose-500 mb-4 mx-auto">
+                    <Trash2 className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center">Delete Photo</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm text-center">Are you sure you want to delete your profile photo?</p>
+                </div>
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+                  <button 
+                    onClick={() => setShowDeletePhotoConfirm(false)}
+                    className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 font-semibold rounded-xl text-sm transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => handleAvatarDelete()}
+                    className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-sm transition-colors"
+                  >
+                    Delete
                   </button>
                 </div>
               </motion.div>

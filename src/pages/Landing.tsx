@@ -54,7 +54,7 @@ const Hero = () => {
       <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[500px] h-[500px] bg-primary-50 dark:bg-primary-900/10 rounded-full blur-3xl opacity-50 pointer-events-none" />
       <div className="absolute bottom-10 left-0 -translate-x-1/2 w-[300px] h-[300px] bg-primary-50 dark:bg-primary-900/10 rounded-full blur-3xl opacity-50 pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+      <div className="w-full px-[15px] relative">
         <div className="max-w-3xl text-center md:text-left mx-auto md:mx-0">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -64,7 +64,7 @@ const Hero = () => {
             <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 text-[10px] font-semibold uppercase tracking-wider mb-6 border border-primary-100/50 dark:border-primary-800/50">
               <Zap className="w-3 h-3 mr-1" /> Built for Nigerian Tenants
             </span>
-            <h1 className="text-3xl lg:text-5xl font-semibold text-slate-900 dark:text-white tracking-tight leading-[1.2] mb-6">
+            <h1 className="text-3xl lg:text-5xl font-display font-semibold text-slate-900 dark:text-white tracking-tight leading-[1.2] mb-6">
               Find rental housing across Nigeria <span className="text-primary-600 dark:text-primary-400 underline decoration-primary-100 dark:decoration-primary-900 underline-offset-8">without agent stress.</span>
             </h1>
             <p className="text-base lg:text-lg text-slate-600 dark:text-slate-400 mb-10 leading-relaxed max-w-2xl mx-auto md:mx-0">
@@ -135,9 +135,9 @@ const RoleSelection = () => {
 
   return (
     <section className="py-24 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-[15px]">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-semibold text-slate-900 dark:text-white mb-4 tracking-tight">Choose your journey</h2>
+          <h2 className="text-3xl font-display font-semibold text-slate-900 dark:text-white mb-4 tracking-tight">Choose your journey</h2>
           <p className="text-slate-600 dark:text-slate-400 max-w-xl mx-auto text-sm lg:text-base">Get started with DirectRent today. Select how you want to interact with our platform.</p>
         </div>
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
@@ -188,7 +188,7 @@ const RoleSelection = () => {
 
 const ProblemSolution = () => (
   <section className="py-24 bg-white dark:bg-slate-950 transition-colors duration-300 overflow-hidden">
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="w-full px-[15px]">
       <div className="grid lg:grid-cols-2 gap-20 items-center">
         <motion.div 
           initial="hidden"
@@ -197,7 +197,7 @@ const ProblemSolution = () => (
           variants={staggerContainer}
           className="space-y-12"
         >
-          <motion.h2 variants={fadeUpVariant} className="text-3xl lg:text-4xl font-semibold text-slate-900 dark:text-white leading-tight tracking-tight">Tired of the typical <br className="hidden md:block" /> Nigerian housing stress?</motion.h2>
+          <motion.h2 variants={fadeUpVariant} className="text-3xl lg:text-4xl font-display font-semibold text-slate-900 dark:text-white leading-tight tracking-tight">Tired of the typical <br className="hidden md:block" /> Nigerian housing stress?</motion.h2>
           <div className="space-y-10">
             <motion.div variants={fadeUpVariant} className="flex gap-4">
               <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-red-50 dark:bg-rose-900/20 text-red-500 dark:text-rose-400 flex items-center justify-center border border-red-100 dark:border-rose-900/50"><AlertCircle className="w-5 h-5" /></div>
@@ -265,11 +265,11 @@ const FeaturedListings = () => {
   return (
     <section id="listings" className="py-24 lg:py-32 relative overflow-hidden transition-colors duration-300">
       <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 -z-10" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-[15px]">
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
           <div className="max-w-xl text-center md:text-left mx-auto md:mx-0">
             <span className="inline-block text-primary-600 dark:text-primary-400 font-semibold text-xs uppercase tracking-widest mb-3">Verified Listings</span>
-            <h2 className="text-3xl lg:text-4xl font-semibold text-slate-900 dark:text-white mb-6 tracking-tight">Hand-picked for you</h2>
+            <h2 className="text-3xl lg:text-4xl font-display font-semibold text-slate-900 dark:text-white mb-6 tracking-tight">Hand-picked for you</h2>
             <p className="text-slate-600 dark:text-slate-400 text-base lg:text-lg leading-relaxed">We've curated the most reliable rental apartments in Nigeria's top areas.</p>
           </div>
           <button onClick={handleAction} className="flex items-center gap-2 font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-all group text-sm mx-auto md:mx-0">
@@ -301,9 +301,9 @@ const FeaturedListings = () => {
 
 const HowItWorks = () => (
   <section id="how-it-works" className="py-24 lg:py-32 bg-white dark:bg-slate-950 transition-colors duration-300">
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="w-full px-[15px]">
       <div className="text-center mb-16">
-        <h2 className="text-3xl lg:text-4xl font-semibold text-slate-900 dark:text-white mb-4 tracking-tight">How it works</h2>
+        <h2 className="text-3xl lg:text-4xl font-display font-semibold text-slate-900 dark:text-white mb-4 tracking-tight">How it works</h2>
         <p className="text-slate-500 dark:text-slate-400 text-sm lg:text-base">Simpler than the traditional, stressful way.</p>
       </div>
       <motion.div 
@@ -357,13 +357,13 @@ const HowItWorks = () => (
 const TrustSafety = () => (
   <section id="security" className="py-24 bg-primary-600 dark:bg-primary-900 relative overflow-hidden transition-colors duration-500">
     <div className="absolute top-0 right-0 p-20 opacity-10"><ShieldCheck className="w-64 h-64 text-white" /></div>
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-white text-center">
+    <div className="w-full px-[15px] relative z-10 text-white text-center">
       <motion.h2 
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.6 }}
-        className="text-3xl lg:text-4xl font-semibold mb-6 tracking-tight"
+        className="text-3xl lg:text-4xl font-display font-semibold mb-6 tracking-tight"
       >
         Your safety is our #1 priority
       </motion.h2>
@@ -401,9 +401,9 @@ const TrustSafety = () => (
 
 const Testimonials = () => (
   <section className="py-24 lg:py-32 bg-white dark:bg-slate-950 transition-colors duration-300">
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="w-full px-[15px]">
       <div className="text-center mb-16">
-        <h2 className="text-3xl lg:text-4xl font-semibold text-slate-900 dark:text-white mb-4 tracking-tight">Loved by tenants</h2>
+        <h2 className="text-3xl lg:text-4xl font-display font-semibold text-slate-900 dark:text-white mb-4 tracking-tight">Loved by tenants</h2>
         <p className="text-slate-500 dark:text-slate-400 text-sm lg:text-base">Real stories from tenants who skipped the stress.</p>
       </div>
       <motion.div 
@@ -462,9 +462,9 @@ const FAQ = () => {
 
   return (
     <section className="py-24 lg:py-32 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-[15px]">
         <div className="text-center mb-16">
-          <h2 className="text-3xl lg:text-4xl font-semibold text-slate-900 dark:text-white mb-4 tracking-tight">Got questions?</h2>
+          <h2 className="text-3xl lg:text-4xl font-display font-semibold text-slate-900 dark:text-white mb-4 tracking-tight">Got questions?</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm lg:text-base">We've got answers to help you understand how DirectRent works.</p>
         </div>
         <motion.div 
@@ -531,7 +531,7 @@ const Landing = () => {
         <FAQ />
         
         <section className="py-24 bg-white dark:bg-slate-950 transition-colors duration-300 overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="w-full px-[15px]">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} 
               whileInView={{ opacity: 1, scale: 1 }} 
@@ -542,7 +542,7 @@ const Landing = () => {
               <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary-600/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
               <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-primary-600/10 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2" />
               <div className="relative z-10">
-                <h2 className="text-3xl lg:text-5xl font-semibold text-white mb-6 tracking-tight">Ready to find your <br className="hidden md:block" /> next rental home?</h2>
+                <h2 className="text-3xl lg:text-5xl font-display font-semibold text-white mb-6 tracking-tight">Ready to find your <br className="hidden md:block" /> next rental home?</h2>
                 <p className="text-slate-400 text-base lg:text-lg mb-10 max-w-xl mx-auto opacity-80 leading-relaxed">Join thousands of Nigerian tenants today and secure your housing with peace of mind.</p>
                 <div className="flex flex-col sm:flex-row justify-center gap-4">
                   <button onClick={() => { setAuthMode('signup'); setView('auth'); }} className="bg-primary-600 text-white px-8 py-4 rounded-xl font-bold text-sm hover:bg-primary-700 transition-all shadow-xl shadow-primary-500/20 active:scale-95">Get Started for Free</button>

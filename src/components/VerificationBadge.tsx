@@ -8,34 +8,20 @@ interface VerificationBadgeProps {
   className?: string;
 }
 
-const VerificationBadge: React.FC<VerificationBadgeProps> = ({ level = 'Unverified', showText = true, className = '' }) => {
+const VerificationBadge: React.FC<VerificationBadgeProps> = ({ level = 'none', showText = true, className = '' }) => {
   const getConfig = () => {
     switch (level) {
-      case 'Fully Verified':
-        return {
-          icon: <ShieldCheck className="w-3.5 h-3.5" />,
-          color: 'bg-amber-100 text-amber-700 border-amber-200',
-          text: 'Fully Verified',
-          dot: 'bg-amber-500'
-        };
-      case 'Trusted':
+      case 'verified':
         return {
           icon: <ShieldCheck className="w-3.5 h-3.5" />,
           color: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-          text: 'Trusted',
+          text: 'Verified Agent',
           dot: 'bg-emerald-500'
-        };
-      case 'Verified':
-        return {
-          icon: <ShieldCheck className="w-3.5 h-3.5" />,
-          color: 'bg-blue-100 text-blue-700 border-blue-200',
-          text: 'Verified',
-          dot: 'bg-blue-500'
         };
       default:
         return {
-          icon: <ShieldAlert className="w-3.5 h-3.5" />,
-          color: 'bg-slate-100 text-slate-500 border-slate-200',
+          icon: <Shield className="w-3.5 h-3.5" />,
+          color: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700',
           text: 'Unverified',
           dot: 'bg-slate-400'
         };

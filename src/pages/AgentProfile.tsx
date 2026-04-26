@@ -98,26 +98,41 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
           const completedSnap = await getDocs(qCompleted);
           completedSize = completedSnap.size;
         } catch (e) {
-          console.warn("Could not fetch real transaction stats, using fallback:", e);
+          console.warn("Could not fetch real transaction stats:", e);
+        }
+
+        let listingsCount = 0;
+        try {
+          const listingsRef = collection(db, 'listings');
+          const qListings = query(listingsRef, where('agent.id', '==', agentId));
+          const listingsSnap = await getDocs(qListings);
+          listingsCount = listingsSnap.size;
+        } catch (e) {
+          console.warn("Could not fetch real listings count:", e);
         }
         
         let reviewsData: Review[] = [];
+        let totalRating = 0;
         try {
           const reviewsRef = collection(db, 'reviews');
           const qReviews = query(reviewsRef, where('agentId', '==', agentId), orderBy('createdAt', 'desc'), limit(10));
           const reviewsSnap = await getDocs(qReviews);
           reviewsData = reviewsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Review[];
+          
+          if (reviewsSnap.size > 0) {
+            totalRating = reviewsSnap.docs.reduce((acc, doc) => acc + (doc.data().rating || 0), 0) / reviewsSnap.size;
+          }
         } catch (e) {
-          console.warn("Could not fetch real reviews, using fallback:", e);
+          console.warn("Could not fetch real reviews:", e);
         }
 
         // Merge with dummy data for deep population
         const dummy = DUMMY_AGENT_DATA[agentId] || null;
         
         const finalStats = {
-          completedTxns: (dummy?.stats?.completedTxns || DEFAULT_STATS.completedTxns) + completedSize,
-          activeListingsCount: dummy?.stats?.activeListings || DEFAULT_STATS.activeListings,
-          avgRating: dummy?.stats?.rating || DEFAULT_STATS.rating,
+          completedTxns: completedSize || (dummy?.stats?.completedTxns || DEFAULT_STATS.completedTxns),
+          activeListingsCount: listingsCount || (dummy?.stats?.activeListings || DEFAULT_STATS.activeListings),
+          avgRating: totalRating || (dummy?.stats?.rating || DEFAULT_STATS.rating),
           successRate: dummy?.stats?.successRate || DEFAULT_STATS.successRate,
           responseTime: dummy?.stats?.responseTime || DEFAULT_STATS.responseTime
         };
@@ -164,7 +179,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
       className="min-h-screen bg-slate-50 dark:bg-slate-950 relative flex flex-col transition-colors duration-300"
     >
       {/* floating back button - fixed to stay on top regardless of scroll */}
-      <div className="fixed top-0 left-0 right-0 p-4 pt-4 md:pt-4 px-4 md:px-8 z-50 pointer-events-none">
+      <div className="fixed top-0 left-0 right-0 p-4 pt-4 md:pt-4 px-2 z-50 pointer-events-none">
         <button 
           onClick={onBack}
           className="w-10 h-10 rounded-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer pointer-events-auto"
@@ -174,139 +189,146 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto w-full pb-14 md:pb-24">
-        <div className="max-w-4xl mx-auto px-4 pt-2 pb-8 md:pt-4 md:pb-12 space-y-6">
+        <div className="w-full px-[15px] pt-2 pb-8 md:pt-4 md:pb-12 space-y-6">
         
-        {/* Optimized Profile Card */}
-        <div className="bg-slate-900 dark:bg-slate-925 rounded-xl p-6 md:p-8 text-white relative overflow-hidden shadow-xl mt-4 md:mt-6 border dark:border-slate-800 transition-colors">
-          <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary-600/20 rounded-full blur-[80px]" />
-          <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-emerald-600/10 rounded-full blur-[80px]" />
+        {/* Optimized Profile Card - Dark Premium Concept */}
+        <div className="bg-slate-900 rounded-2xl p-6 md:p-8 text-white relative overflow-hidden shadow-2xl mt-4 md:mt-6 border border-white/5 transition-all">
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary-600/10 rounded-full blur-[120px] -mr-64 -mt-64" />
+          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-emerald-600/5 rounded-full blur-[100px] -ml-48 -mb-48" />
           
-          <div className="relative z-10 flex flex-col md:flex-row items-center gap-8 md:gap-10">
+          <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 md:gap-10">
             <div className="relative">
-              <div className="w-28 h-28 md:w-32 md:h-32 rounded-xl bg-white dark:bg-slate-800 p-1 shadow-2xl">
-                <div className="w-full h-full rounded-lg bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden">
+              <div className="w-24 h-24 md:w-36 md:h-36 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 p-[2px] shadow-2xl">
+                <div className="w-full h-full rounded-[14px] bg-slate-900 flex items-center justify-center overflow-hidden relative">
                   <SafeImage 
-                    src={
+                    src={agent?.avatarUrl || (
                       agentId === 'agent_kunle' ? "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&h=400&q=80" :
                       agentId === 'agent_sarah' ? "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&h=400&q=80" :
                       agentId === 'agent_mike' ? "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&h=400&q=80" :
                       agentId === 'agent_bose' ? "https://images.unsplash.com/photo-1589156280159-27698a70f29e?auto=format&fit=crop&w=400&h=400&q=80" :
                       `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&h=400&q=80`
-                    } 
+                    )} 
                     alt={agent?.name}
                     className="w-full h-full object-cover"
                   />
+                  {agent?.verificationStatus === 'verified' && (
+                    <div className="absolute bottom-1 right-1 w-6 h-6 bg-primary-600 rounded-lg flex items-center justify-center shadow-lg border border-white/20">
+                      <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                    </div>
+                  )}
                 </div>
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-10 h-10 md:w-11 md:h-11 bg-primary-600 rounded-lg border-4 border-slate-900 dark:border-slate-925 flex items-center justify-center shadow-lg transition-colors">
-                <BadgeCheck className="w-5 h-5 md:w-6 md:h-6 text-white" />
               </div>
             </div>
 
-            <div className="text-center md:text-left space-y-3">
-              <div className="flex flex-col md:flex-row md:items-baseline gap-2 md:gap-3">
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{agent?.name}</h2>
-                <div className="flex items-center justify-center md:justify-start gap-1 text-primary-400">
-                   <ShieldCheck className="w-3.5 h-3.5" />
-                   <span className="text-[9px] font-black uppercase tracking-[0.2em]">Verified Partner</span>
+            <div className="text-center md:text-left space-y-4">
+              <div className="space-y-1">
+                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+                  <h2 className="text-3xl md:text-4xl font-black tracking-tighter">{agent?.firstName ? `${agent.firstName} ${agent.lastName}` : agent?.name}</h2>
+                  <div className="flex items-center justify-center md:justify-start gap-1.5 text-primary-400 bg-primary-400/10 px-2.5 py-1 rounded-lg border border-primary-400/20">
+                     <BadgeCheck className="w-3.5 h-3.5" />
+                     <span className="text-[9px] font-black uppercase tracking-[0.1em]">Verified Partner</span>
+                  </div>
                 </div>
-              </div>
-              
-              <div className="flex flex-wrap justify-center md:justify-start items-center gap-4 text-slate-400 text-sm">
-                <div className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-primary-500" />
-                  {agent?.city}, Nigeria
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-emerald-500" />
-                  Partner since 2024
+                
+                <div className="flex flex-wrap justify-center md:justify-start items-center gap-4 text-slate-400 text-[13px] font-medium">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-primary-500" />
+                    {agent?.city || 'Ibadan'}, Nigeria
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                    Partner since 2024
+                  </div>
                 </div>
               </div>
 
-              <div className="pt-2 flex flex-wrap justify-center md:justify-start gap-2.5">
-                <div className="bg-amber-400/10 text-amber-400 px-4 py-2 rounded-xl border border-amber-400/20 flex items-center gap-2">
+              <div className="flex flex-wrap justify-center md:justify-start gap-3">
+                <div className="bg-amber-500/15 text-amber-400 px-4 py-2.5 rounded-xl border border-amber-500/20 flex items-center gap-2 shadow-inner">
                   <Star className="w-3.5 h-3.5 fill-current" />
-                  <span className="font-bold text-xs md:text-sm tracking-tight">{stats.avgRating.toFixed(1)} Rating</span>
+                  <span className="font-black text-xs md:text-sm tracking-tight">{stats.avgRating.toFixed(1)} Rating</span>
                 </div>
-                <div className="bg-emerald-400/10 text-emerald-400 px-4 py-2 rounded-xl border border-emerald-400/20 flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span className="font-bold text-xs md:text-sm tracking-tight">Vetted Agent</span>
+                <div className="bg-emerald-500/15 text-emerald-400 px-4 py-2.5 rounded-xl border border-emerald-500/20 flex items-center gap-2 shadow-inner">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span className="font-black text-xs md:text-sm tracking-tight">Vetted Agent</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Enhanced Stats Cards - Refined Layout & Relevance */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between h-32 md:h-36 group hover:border-primary-100 dark:hover:border-primary-900/50 transition-colors">
-            <div className="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center text-primary-600 dark:text-primary-400 group-hover:bg-primary-600 dark:group-hover:bg-primary-500 group-hover:text-white transition-colors">
-              <CheckCircle2 className="w-4 h-4" />
+        {/* Bento Grid Stats Card Concept */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-slate-900 border border-white/5 p-5 rounded-2xl flex flex-col justify-between h-36 relative group">
+            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-primary-400">
+              <CheckCircle2 className="w-5 h-5" />
             </div>
-            <div className="flex flex-col gap-1">
-              <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{stats.completedTxns}</div>
-              <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-tight">Rentals Completed</div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between h-32 md:h-36 group hover:border-emerald-100 dark:hover:border-emerald-900/50 transition-colors">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 dark:group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-              <Zap className="w-4 h-4" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{stats.successRate}</div>
-              <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-tight">Success Rate</div>
+            <div className="space-y-0.5">
+              <div className="text-3xl font-black text-white tracking-tighter">{stats.completedTxns}</div>
+              <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Rentals Completed</div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between h-32 md:h-36 group hover:border-indigo-100 dark:hover:border-indigo-900/50 transition-colors">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 dark:group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-              <Timer className="w-4 h-4" />
+          <div className="bg-slate-900 border border-white/5 p-5 rounded-2xl flex flex-col justify-between h-36 relative group">
+            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-emerald-400">
+              <Zap className="w-5 h-5" />
             </div>
-            <div className="flex flex-col gap-1">
-              <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{stats.responseTime}</div>
-              <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-tight">Avg. Response</div>
+            <div className="space-y-0.5">
+              <div className="text-3xl font-black text-white tracking-tighter">{stats.successRate}</div>
+              <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Success Rate</div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between h-32 md:h-36 group hover:border-amber-100 dark:hover:border-amber-900/50 transition-colors">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:bg-amber-600 dark:group-hover:bg-amber-500 group-hover:text-white transition-colors">
-              <Building2 className="w-4 h-4" />
+          <div className="bg-slate-900 border border-white/5 p-5 rounded-2xl flex flex-col justify-between h-36 relative group">
+            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-indigo-400">
+              <Clock className="w-5 h-5" />
             </div>
-            <div className="flex flex-col gap-1">
-              <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{stats.activeListingsCount}</div>
-              <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-tight">Active Listings</div>
+            <div className="space-y-0.5">
+              <div className="text-3xl font-black text-white tracking-tighter">{stats.responseTime}</div>
+              <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Avg. Response</div>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-white/5 p-5 rounded-2xl flex flex-col justify-between h-36 relative group">
+            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-amber-400">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div className="space-y-0.5">
+              <div className="text-3xl font-black text-white tracking-tighter">{stats.activeListingsCount}</div>
+              <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Active Listings</div>
             </div>
           </div>
         </div>
 
         {/* Information Section Enhancement */}
-        <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
-           <div className="flex items-center gap-3 mb-5">
-             <div className="w-1 h-5 bg-primary-600 dark:bg-primary-500 rounded-full" />
-             <h3 className="text-base md:text-lg font-bold text-slate-900 dark:text-white">About {agent?.name}</h3>
-           </div>
-           <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
-             {agent?.name} is a high-performing real estate professional specializing in residential properties within the {agent?.city || 'Ibadan'} area. With a proven track record of successful rentals and a deep understanding of the local market, they provide seamless experiences for both tenants and landlords. Every transaction managed by {agent?.name} is backed by DirectRent's satisfaction guarantee.
-           </p>
+        <div className="bg-slate-900 p-6 md:p-10 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden">
+             <div className="flex items-center gap-3 mb-6 relative z-10">
+               <div className="w-1.5 h-8 bg-primary-600 rounded-full shadow-lg shadow-primary-500/20" />
+               <h3 className="text-xl font-black text-white tracking-tight">About {agent?.firstName || (agent?.name?.split(' ')[0]) || 'Agent'}</h3>
+             </div>
+             
+             <p className="text-slate-400 leading-relaxed text-sm md:text-base font-medium relative z-10 [text-wrap:balance]">
+               {(agent?.about || (
+                 `${agent?.firstName || agent?.name} is a high-performing real estate professional specializing in residential properties within the ${agent?.city || 'Ibadan'} area. With a proven track record of successful rentals and a deep understanding of the local market, they provide seamless experiences for both tenants and landlords. Every transaction managed by ${agent?.firstName || agent?.name} is backed by DirectRent's satisfaction guarantee.`
+               )).replace(/(^|[.!?]\s+)([a-z])/g, (m, p1, p2) => p1 + p2.toUpperCase())}
+             </p>
            
-           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl transition-colors">
-              <div className="flex items-start gap-4">
-                 <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-primary-600 dark:text-primary-400 shadow-sm border dark:border-slate-700">
-                   <ShieldCheck className="w-5 h-5" />
+           <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6 p-8 bg-white/5 rounded-3xl border border-white/5 relative z-10">
+              <div className="flex items-start gap-5">
+                 <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center text-primary-500 shadow-xl">
+                   <ShieldCheck className="w-6 h-6" />
                  </div>
                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Secure Transactions</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Payments are held in escrow until verification.</p>
+                    <h4 className="text-base font-bold text-white tracking-tight">Secure Transactions</h4>
+                    <p className="text-[13px] text-slate-400 mt-1 leading-relaxed">Payments are held in escrow until verification.</p>
                  </div>
               </div>
-              <div className="flex items-start gap-4">
-                 <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm border dark:border-slate-700">
-                   <BadgeCheck className="w-5 h-5" />
+              <div className="flex items-start gap-5">
+                 <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center text-emerald-500 shadow-xl">
+                   <BadgeCheck className="w-6 h-6" />
                  </div>
                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Vetted Background</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Regularly audited for service quality and integrity.</p>
+                    <h4 className="text-base font-bold text-white tracking-tight">Vetted Background</h4>
+                    <p className="text-[13px] text-slate-400 mt-1 leading-relaxed">Regularly audited for service quality and integrity.</p>
                  </div>
               </div>
            </div>
@@ -343,10 +365,10 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
              </div>
           </div>
 
-          <div className="relative -mx-4 md:-mx-8 overflow-hidden">
+          <div className="relative -mx-[15px] overflow-hidden">
             <div 
               id="reviews-carousel"
-              className="flex gap-4 overflow-x-auto pb-6 px-4 md:px-8 snap-x snap-mandatory scrollbar-hide scroll-smooth"
+              className="flex gap-4 overflow-x-auto pb-6 px-[15px] snap-x snap-mandatory scrollbar-hide scroll-smooth"
             >
               {reviews.length > 0 ? (
                 <>

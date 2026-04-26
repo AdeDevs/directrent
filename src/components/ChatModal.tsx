@@ -14,11 +14,13 @@ import {
   setDoc, 
   doc, 
   getDoc,
-  updateDoc
+  updateDoc,
+  increment
 } from 'firebase/firestore';
 import { Listing, User as AppUser, VerificationLevel } from '../types';
 import { useAuth } from '../context/AuthContext';
 import VerificationBadge from './VerificationBadge';
+import { createNotification } from '../lib/notifications';
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -29,6 +31,8 @@ interface ChatModalProps {
 }
 
 type ConversationStatus = 'inquiry' | 'negotiating' | 'contract_requested' | 'contract_sent' | 'paid' | 'completed';
+
+import { calculateVerificationLevel } from '../lib/verification';
 
 interface Message {
   id: string;
@@ -66,30 +70,53 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
   useEffect(() => {
     if (!isOpen) return;
 
+    // Reset unread count for current user
+    const resetUnread = async () => {
+      try {
+        const convRef = doc(db, 'conversations', conversationId);
+        const convSnap = await getDoc(convRef);
+        if (convSnap.exists()) {
+          const fieldToReset = currentUser.role === 'tenant' ? 'unreadCount_tenant' : 'unreadCount_agent';
+          if (convSnap.data()[fieldToReset] > 0) {
+            await updateDoc(convRef, {
+              [fieldToReset]: 0,
+              updatedAt: serverTimestamp()
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error resetting unread count:", err);
+      }
+    };
+    resetUnread();
+
     setIsLoading(true);
     setError(null);
 
     // Sync Conversation Status
     const convRef = doc(db, 'conversations', conversationId);
+    let unsubOther: (() => void) | undefined;
+
     const unsubConv = onSnapshot(convRef, async (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         setConvStatus(data.status || 'inquiry');
         setConvData(data);
 
-        // Fetch other user's verification status
+        // Fetch other user's verification status with live listener
         const otherId = currentUser.role === 'tenant' ? data.agentId : data.tenantId;
-        if (otherId) {
-          const otherDoc = await getDoc(doc(db, 'users', otherId));
-          if (otherDoc.exists()) {
-            const d = otherDoc.data();
-            setOtherUser({
-              name: d.name,
-              avatarUrl: d.avatarUrl,
-              verificationLevel: d.verificationLevel,
-              role: d.role
-            });
-          }
+        if (otherId && !unsubOther) {
+          unsubOther = onSnapshot(doc(db, 'users', otherId), (userSnap) => {
+            if (userSnap.exists()) {
+              const d = userSnap.data();
+              setOtherUser({
+                name: d.firstName || d.lastName ? `${d.firstName || ''} ${d.lastName || ''}`.trim() : (d.name || "User"),
+                avatarUrl: d.avatarUrl,
+                verificationLevel: d.verificationLevel === 'verified' ? 'verified' : calculateVerificationLevel(d as any),
+                role: d.role
+              });
+            }
+          });
         }
       }
     });
@@ -129,6 +156,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
     return () => {
       unsubscribe();
       unsubConv();
+      if (unsubOther) unsubOther();
     };
   }, [isOpen, conversationId, currentUser.id, currentUser.role]);
 
@@ -144,7 +172,8 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
       await updateDoc(convRef, {
         status: nextStatus,
         lastMessage: content,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
       });
 
       // Add system message
@@ -157,6 +186,19 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
         actionType: actionType,
         createdAt: serverTimestamp()
       });
+
+      // Send notification to the OTHER user
+      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown') {
+        await createNotification(
+          recipientId,
+          `Transaction Update: ${actionType.replace('_', ' ')}`,
+          content,
+          'message',
+          'chat',
+          conversationId
+        );
+      }
     } catch (err) {
       console.error("Action error:", err);
       setError("Failed to process transaction step.");
@@ -178,25 +220,41 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
       // Check if conversation exists, if not create metadata
       const convDoc = await getDoc(convRef);
       if (!convDoc.exists()) {
+        const agentId = listing.agent?.id || 'unknown';
+        let agentImage = '';
+        
+        // Try to fetch agent's image if not in listing
+        if (agentId !== 'unknown') {
+          const agentDoc = await getDoc(doc(db, 'users', agentId));
+          if (agentDoc.exists()) {
+            agentImage = agentDoc.data().avatarUrl || '';
+          }
+        }
+
         await setDoc(convRef, {
           id: conversationId,
           tenantId: currentUser.id,
           agentId: agentId,
           listingId: listing.id.toString(),
-          tenantName: currentUser.name,
+          tenantName: currentUser.name || `${currentUser.firstName} ${currentUser.lastName}`.trim(),
           agentName: listing.agent?.name || 'Agent',
+          tenantImage: currentUser.avatarUrl || '',
+          agentImage: agentImage,
           listingTitle: listing.title,
           listingImage: listing.image,
           listingPrice: listing.price,
           status: 'inquiry',
           updatedAt: serverTimestamp(),
-          lastMessage: newMessage.trim()
+          lastMessage: newMessage.trim(),
+          unreadCount_tenant: currentUser.role === 'tenant' ? 0 : 1,
+          unreadCount_agent: currentUser.role === 'agent' ? 0 : 1
         });
       } else {
-        await setDoc(convRef, {
+        await updateDoc(convRef, {
           lastMessage: newMessage.trim(),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
+          updatedAt: serverTimestamp(),
+          [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
+        });
       }
 
       // Add message to subcollection with metadata fields for relational rules
@@ -210,6 +268,19 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
         type: 'text',
         createdAt: serverTimestamp()
       });
+
+      // Send notification to the OTHER user
+      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown') {
+        await createNotification(
+          recipientId,
+          `New message from ${currentUser.name || 'User'}`,
+          newMessage.trim(),
+          'message',
+          'chat',
+          conversationId
+        );
+      }
 
       setNewMessage('');
     } catch (err: any) {
@@ -240,16 +311,16 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
             {/* Header */}
             <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
               <div className="flex items-center gap-2.5 sm:gap-3 text-left">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary-600 flex items-center justify-center text-white font-bold border border-primary-100 dark:border-primary-900 overflow-hidden shrink-0 uppercase text-xs sm:text-base">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold border border-slate-100 dark:border-slate-800 overflow-hidden shrink-0 uppercase text-xs sm:text-base scale-110">
                   {otherUser?.avatarUrl ? (
-                    <img src={otherUser.avatarUrl} className="w-full h-full object-cover" alt="" />
+                    <img src={otherUser.avatarUrl} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
                   ) : (
                     (otherUser?.name || listing.agent?.name || 'A').charAt(0)
                   )}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm leading-none truncate max-w-[120px] sm:max-w-none">
+                    <h3 className="font-display font-bold text-slate-900 dark:text-white text-xs sm:text-sm leading-none truncate max-w-[120px] sm:max-w-none tracking-tight">
                       {otherUser?.name || listing.agent?.name}
                     </h3>
                     {otherUser?.verificationLevel && (
@@ -281,8 +352,8 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
                 alt={listing.title}
               />
               <div className="flex-1 min-w-0 text-left">
-                <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight truncate">Inquiry</p>
-                <h4 className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 truncate">{listing.title}</h4>
+                <p className="text-[9px] font-display font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">Inquiry</p>
+                <h4 className="text-[10px] sm:text-xs font-display font-bold text-slate-700 dark:text-slate-300 truncate tracking-tight">{listing.title}</h4>
               </div>
               <div className="bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 shrink-0">
                 <p className="text-[10px] font-bold text-primary-600 dark:text-primary-400">{listing.price}</p>
@@ -391,19 +462,20 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
                     className={`flex ${msg.type === 'action' ? 'justify-center my-4 sm:my-6' : msg.senderId === currentUser.id ? 'justify-end' : 'justify-start'}`}
                   >
                     {msg.type === 'action' ? (
-                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-2 sm:py-3 px-4 sm:px-5 rounded-2xl shadow-sm flex flex-col items-center text-center max-w-[90%] sm:max-w-[80%]">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center mb-2 sm:mb-3 text-primary-600 dark:text-primary-400">
+                      <div className="bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100/50 dark:border-indigo-500/20 py-2 sm:py-3 px-4 sm:px-5 rounded-2xl shadow-sm flex flex-col items-center text-center max-w-[95%] sm:max-w-[80%] backdrop-blur-sm">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white dark:bg-slate-900 flex items-center justify-center mb-2 sm:mb-3 text-indigo-600 dark:text-indigo-400 shadow-sm">
                           {msg.actionType === 'paid' ? <CreditCard className="w-4 h-4 sm:w-5 sm:h-5" /> : <FileText className="w-4 h-4 sm:w-5 sm:h-5" />}
                         </div>
-                        <p className="text-[10px] sm:text-xs font-bold text-slate-800 dark:text-slate-200 mb-0.5 leading-tight uppercase tracking-wide">Transaction Step</p>
-                        <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 italic">"{msg.content}"</p>
+                        <p className="text-[10px] sm:text-xs font-display font-black text-indigo-600 dark:text-indigo-400 mb-0.5 leading-tight uppercase tracking-[0.2em]">Update</p>
+                        <p className="text-[11px] sm:text-xs font-sans text-slate-800 dark:text-slate-200 font-medium leading-relaxed">"{msg.content}"</p>
+                        <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 font-display font-black uppercase tracking-widest">Verified Property Block</p>
                       </div>
                     ) : (
                       <div 
-                        className={`max-w-[85%] px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[13px] sm:text-sm shadow-sm ${
+                        className={`max-w-[85%] px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-[13px] sm:text-sm shadow-sm transition-colors font-sans tracking-tight ${
                           msg.senderId === currentUser.id 
-                            ? 'bg-primary-600 text-white rounded-br-none shadow-primary-200 dark:shadow-none' 
-                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-bl-none border border-slate-100 dark:border-slate-750'
+                            ? 'bg-primary-600 text-white rounded-br-none shadow-primary-500/20' 
+                            : 'bg-white dark:bg-slate-200 text-slate-900 border border-slate-100 dark:border-slate-300 rounded-bl-none'
                         }`}
                       >
                         {msg.content}
@@ -427,7 +499,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
-                    className="w-full bg-slate-100/80 dark:bg-slate-800 border-2 border-transparent px-4 py-2.5 sm:py-3.5 pr-10 rounded-lg text-[13px] sm:text-sm outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 dark:focus:ring-primary-900/20 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 dark:text-white"
+                    className="w-full bg-slate-100/80 dark:bg-slate-800 border-2 border-transparent px-4 py-2.5 sm:py-3.5 pr-10 rounded-lg text-[13px] sm:text-sm outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 dark:focus:ring-primary-900/20 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 dark:text-white font-sans tracking-tight"
                     disabled={isSending}
                   />
                   <button type="button" className="hidden sm:block absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-warning-500 transition-colors">

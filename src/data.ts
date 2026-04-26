@@ -23,7 +23,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     amenities: ["Water", "Security", "Prepaid Meter"],
     landmark: "5 mins from UI Gate",
     isRecentlyAdded: true,
-    agent: { id: "agent_kunle", name: "Kunle Ajayi", rating: 4.8, isVerified: true },
+    agent: { 
+      id: "agent_kunle", 
+      name: "Kunle Ajayi", 
+      rating: 4.8, 
+      isVerified: true,
+      avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80" 
+    },
     isFavorite: false
   },
   {
@@ -48,7 +54,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     amenities: ["Solar", "Security", "Parking"],
     landmark: "Near Bodija Market",
     slotsLeft: 2,
-    agent: { id: "agent_sarah", name: "Sarah Bolanle", rating: 4.5, isVerified: true },
+    agent: { 
+      id: "agent_sarah", 
+      name: "Sarah Bolanle", 
+      rating: 4.5, 
+      isVerified: true,
+      avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80"
+    },
     isFavorite: true
   },
   {
@@ -73,7 +85,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     amenities: ["Water", "Security"],
     landmark: "Close to General Gas",
     isRecentlyAdded: true,
-    agent: { id: "agent_mike", name: "Olawale Mike", rating: 4.2, isVerified: false },
+    agent: { 
+      id: "agent_mike", 
+      name: "Olawale Mike", 
+      rating: 4.2, 
+      isVerified: false,
+      avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80"
+    },
     isFavorite: false
   },
   {
@@ -98,7 +116,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     amenities: ["Generator", "AC", "Security"],
     landmark: "Near Jericho Mall",
     isRecentlyAdded: false,
-    agent: { id: "agent_bose", name: "Bose Adeniran", rating: 4.9, isVerified: true },
+    agent: { 
+      id: "agent_bose", 
+      name: "Bose Adeniran", 
+      rating: 4.9, 
+      isVerified: true,
+      avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80"
+    },
     isFavorite: false
   },
   {
@@ -123,7 +147,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     amenities: ["Water", "Fenced"],
     landmark: "Walking distance to UI",
     isRecentlyAdded: true,
-    agent: { id: "agent_ibrahim", name: "Ibrahim Lawal", rating: 3.8, isVerified: false },
+    agent: { 
+      id: "agent_ibrahim", 
+      name: "Ibrahim Lawal", 
+      rating: 3.8, 
+      isVerified: false,
+      avatarUrl: "https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?auto=format&fit=crop&w=150&q=80"
+    },
     isFavorite: false
   },
   {
@@ -148,7 +178,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     amenities: ["Security", "Clean Water", "Parking"],
     landmark: "Behind Ring Road State Hospital",
     slotsLeft: 1,
-    agent: { id: "agent_janet", name: "Janet Ade", rating: 4.7, isVerified: true },
+    agent: { 
+      id: "agent_janet", 
+      name: "Janet Ade", 
+      rating: 4.7, 
+      isVerified: true,
+      avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"
+    },
     isFavorite: false
   },
   {
@@ -173,7 +209,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     amenities: ["Water", "Spacious Kitchen"],
     landmark: "Near NNPC Depot",
     isRecentlyAdded: false,
-    agent: { id: "agent_samuel", name: "Samuel Okon", rating: 4.0, isVerified: false },
+    agent: { 
+      id: "agent_samuel", 
+      name: "Samuel Okon", 
+      rating: 4.0, 
+      isVerified: false,
+      avatarUrl: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&w=150&q=80"
+    },
     isFavorite: false
   },
   {
@@ -198,7 +240,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     amenities: ["AC", "Swimming Pool", "Gym"],
     landmark: "Behind Custom Office",
     isRecentlyAdded: true,
-    agent: { id: "agent_kunle", name: "Kunle Ajayi", rating: 4.8, isVerified: true },
+    agent: { 
+      id: "agent_kunle", 
+      name: "Kunle Ajayi", 
+      rating: 4.8, 
+      isVerified: true,
+      avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80"
+    },
     isFavorite: true
   },
   {
@@ -223,7 +271,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     amenities: ["Steady Water", "Secured Gate"],
     landmark: "Close to Eleyele",
     isRecentlyAdded: false,
-    agent: { id: "agent_sarah", name: "Sarah Bolanle", rating: 4.5, isVerified: true },
+    agent: { 
+      id: "agent_sarah", 
+      name: "Sarah Bolanle", 
+      rating: 4.5, 
+      isVerified: true,
+      avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80"
+    },
     isFavorite: false
   },
   {
@@ -249,7 +303,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     landmark: "2 mins from Under G Gate",
     isRecentlyAdded: true,
     slotsLeft: 3,
-    agent: { id: "agent_tayo", name: "Tayo O.", rating: 4.6, isVerified: true },
+    agent: { 
+      id: "agent_tayo", 
+      name: "Tayo O.", 
+      rating: 4.6, 
+      isVerified: true,
+      avatarUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80"
+    },
     isFavorite: false
   },
   {
@@ -274,7 +334,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     amenities: ["Well Water", "Fenced"],
     landmark: "Near Adenike Area",
     isRecentlyAdded: false,
-    agent: { id: "agent_moses", name: "Moses Adewale", rating: 4.1, isVerified: false },
+    agent: { 
+      id: "agent_moses", 
+      name: "Moses Adewale", 
+      rating: 4.1, 
+      isVerified: false,
+      avatarUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80"
+    },
     isFavorite: false
   },
   {
@@ -299,7 +365,13 @@ export const FEATURED_LISTINGS: Listing[] = [
     amenities: ["Reading Table", "Fan"],
     landmark: "Very close to Lautech Stadium",
     isRecentlyAdded: true,
-    agent: { id: "agent_comfort", name: "Comfort I.", rating: 4.4, isVerified: true },
+    agent: { 
+      id: "agent_comfort", 
+      name: "Comfort I.", 
+      rating: 4.4, 
+      isVerified: true,
+      avatarUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80"
+    },
     isFavorite: false
   }
 ];

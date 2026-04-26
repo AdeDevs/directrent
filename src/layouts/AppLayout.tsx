@@ -8,9 +8,11 @@ import ProfilePage from "../pages/Profile";
 import FavoritesPage from "../pages/Favorites";
 import ListingDetails from "../pages/ListingDetails";
 import AgentProfile from "../pages/AgentProfile";
+import CreateListing from "../pages/CreateListing";
+import MyListings from "../pages/MyListings";
+import NotificationsPage from "../pages/Notifications";
 import { useAuth } from "../context/AuthContext";
 import { AppTab } from "../types";
-import { style } from "motion/react-client";
 
 const AppLayout = () => {
   const {
@@ -49,7 +51,7 @@ const AppLayout = () => {
               agentId={selectedAgentId}
               onBack={() => setSelectedAgentId(null)}
             />
-          ) : currentListing ? (
+          ) : (currentListing && activeTab !== "create") ? (
             <ListingDetails
               key="listing-details"
               listing={currentListing}
@@ -66,6 +68,9 @@ const AppLayout = () => {
               {activeTab === "chat" && <ChatPage key="chat" />}
               {activeTab === "profile" && <ProfilePage key="profile" />}
               {activeTab === "favorites" && <FavoritesPage key="favorites" />}
+              {activeTab === "create" && <CreateListing key="create" />}
+              {activeTab === "mylistings" && <MyListings key="mylistings" />}
+              {activeTab === "notifications" && <NotificationsPage key="notifications" />}
             </motion.div>
           )}
         </AnimatePresence>
@@ -74,6 +79,7 @@ const AppLayout = () => {
       <div className="relative z-50">
         <BottomNav
           activeTab={activeTab}
+          user={user}
           setActiveTab={(tab) => {
             setCurrentListing(null);
             setSelectedAgentId(null);

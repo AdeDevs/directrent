@@ -8,40 +8,32 @@ import { User, VerificationLevel } from '../types';
  * FULLY VERIFIED (FUTURE): NIN verified via external API (placeholder logic for now)
  */
 export function calculateVerificationLevel(user: Partial<User>): VerificationLevel {
-  const { phoneVerified, avatarUrl, nin } = user;
+  const { role, verificationStatus } = user;
 
-  // Potential future logic for Fully Verified (e.g., if we had a ninVerified flag)
-  // For now, let's just stick to what was requested.
-  
-  const hasPhone = !!phoneVerified;
-  const hasAvatar = !!avatarUrl;
-  const hasNin = !!nin && nin.length >= 10;
-
-  if (hasPhone && hasAvatar && hasNin) {
-    // If we had an external API check, we'd check ninVerified here for "Fully Verified"
-    // For now, return Trusted as the highest automatic level
-    return 'Trusted';
+  if (role === 'agent') {
+    if (verificationStatus === 'verified') return 'verified';
+    return 'none';
   }
 
-  if (hasPhone) {
-    return 'Verified';
-  }
+  // Tenants just get 'none' or 'verified' if they completed basic info?
+  // Let's stick to the prompt's focus on agents.
+  if (user.phoneVerified && user.nin && (user.firstName || user.name)) return 'verified';
 
-  return 'Unverified';
+  return 'none';
 }
 
 /**
  * Checks if the profile is complete.
- * fullName, phoneVerified, gender, age, city, nin, avatarUrl
+ * firstName, lastName, phoneVerified, gender, age, city, nin, avatarUrl
  */
 export function isProfileComplete(user: Partial<User>): boolean {
   return !!(
-    user.name &&
+    user.firstName &&
+    user.lastName &&
     user.phoneVerified &&
     user.gender &&
     user.age &&
     user.city &&
-    user.nin &&
-    user.avatarUrl
+    user.nin
   );
 }

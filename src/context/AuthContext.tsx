@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, UserRole, ViewState, AuthMode, Listing, AppTab } from '../types';
-import { auth, db } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, serverTimestamp, deleteField, updateDoc, FieldValue } from 'firebase/firestore';
 import { isProfileComplete } from '../lib/verification';
 
 interface AuthContextType {
@@ -11,7 +11,7 @@ interface AuthContextType {
   user: User | null;
   login: (role: UserRole, userData: Partial<User>) => void;
   logout: () => Promise<void>;
-  updateProfile: (updates: Partial<User>) => Promise<void>;
+  updateProfile: (updates: any) => Promise<void>;
   view: ViewState;
   setView: (view: ViewState) => void;
   authMode: AuthMode;
@@ -39,7 +39,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentListing, setCurrentListing] = useState<Listing | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<number[]>([]);
-  const [activeTab, setActiveTab] = useState<AppTab>('home');
+  const [activeTab, setActiveTabState] = useState<AppTab>(() => {
+    const saved = localStorage.getItem('last_active_tab') as AppTab;
+    return (saved && ['home', 'chat', 'profile', 'favorites', 'create', 'mylistings'].includes(saved)) ? saved : 'home';
+  });
+
+  const setActiveTab = (tab: AppTab) => {
+    setActiveTabState(tab);
+    localStorage.setItem('last_active_tab', tab);
+  };
 
   useEffect(() => {
     if (!user) {
@@ -58,49 +66,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubscribeUser: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (unsubscribeUser) {
+        unsubscribeUser();
+        unsubscribeUser = null;
+      }
+
       if (firebaseUser) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data() as User;
+        // Subscribe to real-time updates for the user document
+        const userRef = doc(db, "users", firebaseUser.uid);
+        unsubscribeUser = onSnapshot(userRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const userData = { ...docSnap.data(), id: firebaseUser.uid } as User;
             setUser(userData);
             
-            // Auto redirect based on new vs returning user profile completeness
-            if (isProfileComplete(userData)) {
-              setActiveTab('home');
-            } else {
-              setActiveTab('profile');
+            // Auto redirect logic (only run once on login)
+            const justLoggedIn = sessionStorage.getItem("just_logged_in") === "true";
+            if (justLoggedIn) {
+              sessionStorage.removeItem("just_logged_in");
+              if (isProfileComplete(userData)) {
+                setActiveTab("home");
+              } else {
+                setActiveTab("profile");
+              }
             }
-
+            
             // Only switch to app view if we are on landing or auth pages
-            if (sessionStorage.getItem('sms_reset_flow') !== 'active') {
-              setView(prev => (prev === 'landing' || prev === 'auth') ? 'app' : prev);
+            if (sessionStorage.getItem("sms_reset_flow") !== "active") {
+              setView(prev => (prev === "landing" || prev === "auth") ? "app" : prev);
             }
           } else {
             setUser(null);
           }
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-          setUser(null);
-        }
+          setIsLoading(false);
+        }, (error) => {
+          console.error("User snapshot error:", error);
+          setIsLoading(false);
+        });
       } else {
         setUser(null);
-        setView(prev => prev === 'app' ? 'landing' : prev);
+        setView(prev => prev === "app" ? "landing" : prev);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
-    return () => unsubscribe();
-  }, []); // Remove [view] dependency for stability
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeUser) unsubscribeUser();
+    };
+  }, []);
 
   const login = (role: UserRole, userData: Partial<User>) => {
-    // This is called after Firebase Auth success in Auth.tsx
-    // to update the local state immediately
+    // Local state will be updated by the onSnapshot listener automatically
+    // But we still handle initial redirects here for speed
     if (userData && userData.id) {
-       setUser(userData as User);
        if (isProfileComplete(userData)) {
          setActiveTab('home');
+         sessionStorage.removeItem('just_logged_in');
        } else {
          setActiveTab('profile');
        }
@@ -108,17 +132,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateProfile = async (updates: Partial<User>) => {
+  const updateProfile = async (updates: any) => {
     if (!user) return;
     try {
-      // Use updateDoc to send ONLY the changed fields to Firestore
-      // This is much more efficient than setDoc with the full user object
       const userRef = doc(db, 'users', user.id);
-      await setDoc(userRef, updates, { merge: true });
       
-      // Update local state by merging
-      const updatedUser = { ...user, ...updates };
-      setUser(updatedUser);
+      // Filter out undefined and null values that shouldn't be updated
+      // Firestore doesn't like undefined
+      const cleanUpdates: any = {};
+      Object.keys(updates).forEach(key => {
+        if (updates[key] !== undefined) {
+          cleanUpdates[key] = updates[key];
+        }
+      });
+
+      // Simply update Firestore; local state will sync via onSnapshot
+      try {
+        await updateDoc(userRef, cleanUpdates);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, `users/${user.id}`);
+      }
     } catch (error) {
       console.error("Error updating profile:", error);
       throw error;

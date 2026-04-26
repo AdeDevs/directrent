@@ -1,14 +1,33 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { ChevronLeft, Grid, Heart, MapPin, ArrowRight } from "lucide-react";
+import { ChevronLeft, Grid, Bookmark, MapPin, ArrowRight, MessageCircle, Bell } from "lucide-react";
+import { db } from "../lib/firebase";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import { FEATURED_LISTINGS } from "../data";
 import { Listing } from "../types";
 import SafeImage from "../components/SafeImage";
+import NotificationBadge from "../components/NotificationBadge";
 
 const FavoritesPage = () => {
-  const { favorites, setActiveTab, setCurrentListing, toggleFavorite } =
+  const { user, favorites, setActiveTab, setCurrentListing, toggleFavorite } =
     useAuth();
+
+  const [activeChatListingIds, setActiveChatListingIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const conversationsRef = collection(db, "conversations");
+    const fieldToFilter = user.role === "tenant" ? "tenantId" : "agentId";
+    const q = query(conversationsRef, where(fieldToFilter, "==", user.id));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const listingIds = snapshot.docs.map((doc) => parseInt(doc.data().listingId));
+      setActiveChatListingIds(Array.from(new Set(listingIds)));
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const savedListings = useMemo(() => {
     return FEATURED_LISTINGS.filter((listing) =>
@@ -25,7 +44,7 @@ const FavoritesPage = () => {
     >
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
-        <div className="w-full max-w-full px-3 md:px-4 h-16 flex items-center gap-4">
+        <div className="w-full max-w-full px-2 md:px-4 h-16 flex items-center gap-4">
           <button
             onClick={() => setActiveTab("profile")}
             className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group"
@@ -37,19 +56,23 @@ const FavoritesPage = () => {
               Saved Properties
             </h1>
           </div>
-          {/* <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center text-primary-600">
-            <Heart className="w-5 h-5 fill-current" />
-          </div> */}
+          <button 
+            onClick={() => setActiveTab('notifications')}
+            className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group mr-1"
+          >
+            <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 transition-colors" />
+            <NotificationBadge />
+          </button>
         </div>
       </header>
 
       {/* Grid Content */}
       <main
-        className="pt-[72px] px-3 md:px-4 w-full max-w-full pb-20 sm:pb-32 transition-all duration-300"
+        className="pt-[72px] px-[15px] w-full pb-[110px] transition-all duration-300"
         style={{ paddingTop: 20, paddingBottom: 0 }}
       >
         {savedListings.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6 lg:gap-8">
             {savedListings.map((listing) => (
               <motion.div
                 key={listing.id}
@@ -70,13 +93,13 @@ const FavoritesPage = () => {
                       e.stopPropagation();
                       toggleFavorite(listing.id);
                     }}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/40 dark:bg-black/40 backdrop-blur-md flex items-center justify-center text-red-500 shadow-sm hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer z-10"
+                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/60 dark:bg-slate-900/60 backdrop-blur-md flex items-center justify-center text-primary-600 dark:text-primary-400 shadow-sm hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer z-10"
                   >
-                    <Heart className="w-4 h-4 fill-current" />
+                    <Bookmark className={`w-4 h-4 transition-colors ${favorites.includes(listing.id) ? 'fill-current' : ''}`} />
                   </button>
-                  {listing.verified && (
-                    <div className="absolute top-3 left-3 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center shadow-md border-2 border-white dark:border-slate-800">
-                      <div className="w-2 h-2 bg-white rounded-full" />
+                  {activeChatListingIds.includes(listing.id) && (
+                    <div className="absolute top-3 left-3 w-6 h-6 bg-emerald-500 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/30 border-2 border-white dark:border-slate-800" title="Active conversation">
+                      <MessageCircle className="w-3.5 h-3.5 text-white" />
                     </div>
                   )}
                   <div className="absolute bottom-2 left-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-2 py-1 rounded-lg border border-white/20 dark:border-slate-800 shadow-sm">
@@ -106,13 +129,13 @@ const FavoritesPage = () => {
         ) : (
           <div className="flex flex-col items-center justify-center text-center py-20 px-8">
             <div className="w-16 h-16 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center text-slate-300 dark:text-slate-700 mb-6">
-              <Grid className="w-8 h-8" />
+              <Bookmark className="w-8 h-8" />
             </div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
               No saved properties yet
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-[240px] mx-auto mb-8">
-              Start exploring listings and heart the ones you love to keep them
+              Start exploring listings and bookmark the ones you love to keep them
               here.
             </p>
             <button
