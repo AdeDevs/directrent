@@ -691,7 +691,7 @@ const Profile = () => {
   const currentLevel = calculateVerificationLevel(user);
 
   return (
-    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-[110px] transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-[0] transition-colors duration-300">
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
         <div className="w-full max-w-full px-2 h-16 flex items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight ml-2">
@@ -707,7 +707,7 @@ const Profile = () => {
         </div>
       </header>
 
-      <main className="w-full pt-4 px-[15px] space-y-8 lg:space-y-12">
+      <main className="w-full pt-4 px-[15px] space-y-8 lg:space-y-12" style={{marginBottom:"-40px"}}>
         {showSuccess && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}

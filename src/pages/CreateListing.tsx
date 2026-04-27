@@ -263,7 +263,7 @@ export default function CreateListing() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-[110px] transition-colors">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-[0] transition-colors">
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-2 h-16 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button 
@@ -281,7 +281,7 @@ export default function CreateListing() {
         </div>
       </header>
 
-      <main className="w-full px-[15px] pt-4 pb-[110px] space-y-8 lg:space-y-12">
+      <main className="w-full px-[15px] pt-4 pb-[0] space-y-8 lg:space-y-12">
         {error && (
           <motion.div 
             initial={{ opacity: 0, y: -10 }}

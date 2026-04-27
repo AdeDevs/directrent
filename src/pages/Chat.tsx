@@ -320,7 +320,7 @@ const Inbox = () => {
         </div>
       </header>
 
-      <main className="pt-[72px] px-[15px] pb-[110px]" style={{ paddingTop: "20px" }}>
+      <main className="pt-[72px] px-[15px] pb-[0px]" style={{ paddingTop: "20px" }}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -341,7 +341,7 @@ const Inbox = () => {
           </div>
 
           {/* Chat List */}
-          <div className="space-y-2.5 sm:space-y-4 pb-[110px]">
+          <div className="space-y-2.5 sm:space-y-4 pb-[110px]" style={{paddingBottom:0}}>
             <AnimatePresence mode="popLayout">
               {filteredConversations.length === 0 ? (
                 <motion.div

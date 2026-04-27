@@ -151,7 +151,7 @@ const Home = () => {
         </div>
       </header>
 
-      <main className="pt-[60px] sm:pt-[72px] px-[15px] pb-[110px]" style={{paddingTop: '16px'}}>
+      <main className="pt-[60px] sm:pt-[72px] px-[15px] pb-[0px]" style={{paddingTop: '16px'}}>
         <motion.div 
           initial={{ opacity: 0, y: 10 }} 
           animate={{ opacity: 1, y: 0 }} 

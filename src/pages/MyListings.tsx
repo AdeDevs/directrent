@@ -95,7 +95,7 @@ export default function MyListings() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-[110px] transition-colors">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-[0] transition-colors">
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 h-14 sm:h-16 flex items-center justify-between">
         <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight ml-1">My Listings</h1>
         <div className="flex items-center gap-1">

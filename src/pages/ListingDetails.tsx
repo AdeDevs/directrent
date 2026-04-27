@@ -1101,7 +1101,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
 
       {/* Recommended Section / Insights Dashboard */}
       <div className="w-full border-t border-slate-200 dark:border-slate-800 mt-4 md:mt-8 flex-1 flex flex-col transition-colors duration-300">
-        <div className="px-[15px] pt-10 pb-[110px] w-full flex-1" style={{paddingBottom:"110px"}}>
+        <div className="px-[15px] pt-10 pb-[110px] w-full flex-1" style={{paddingBottom:0}}>
           {isOwnListing ? (
             <div className="space-y-12">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
