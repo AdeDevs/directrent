@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Default deny
+    // Default deny - Pillar 0
     match /{document=**} {
       allow read, write: if false;
     }
@@ -12,18 +12,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isEmailVerified() {
-      // Temporarily allowing unverified emails for development ease. 
-      // Re-enable in production for Pillar 6/9 compliance.
-      return true; 
-    }
-
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
     function incoming() {
@@ -34,192 +28,229 @@ service cloud.firestore {
       return resource.data;
     }
 
-    // --- User Validation ---
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.get('email', '').lower() in [
+          'adeyemiakinyemi01@gmail.com', 
+          'adeisbatman@gmail.com', 
+          'super@gmail.com'
+        ]) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'moderator']))
+      );
+    }
+
+    // --- Validation Blueprints (Pillar 2) ---
+
     function isValidUser(data) {
-      return (!('firstName' in data) || (data.firstName is string)) &&
-             (!('lastName' in data) || (data.lastName is string)) &&
-             (!('email' in data) || (data.email is string)) &&
-             (!('role' in data) || data.role in ['tenant', 'agent']) &&
-             (!('gender' in data) || (data.gender is string)) &&
-             (!('age' in data) || (data.age is string)) &&
-             (!('nin' in data) || (data.nin is string)) &&
-             (!('city' in data) || (data.city is string)) &&
-             (!('about' in data) || (data.about is string)) &&
-             (!('phoneNumber' in data) || (data.phoneNumber is string)) &&
+      return (!('id' in data) || (data.id is string || data.id == null)) &&
+             (!('email' in data) || (data.email is string || data.email == null)) &&
+             (!('role' in data) || (data.role in ['tenant', 'agent', 'admin', 'moderator'])) &&
+             (!('name' in data) || (data.name is string || data.name == null)) &&
+             (!('firstName' in data) || (data.firstName is string || data.firstName == null)) &&
+             (!('lastName' in data) || (data.lastName is string || data.lastName == null)) &&
+             (!('theme' in data) || (data.theme in ['light', 'dark'])) &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string || data.phoneNumber == null)) &&
+             (!('internalPhone' in data) || (data.internalPhone is string || data.internalPhone == null)) &&
+             (!('adminTier' in data) || (data.adminTier is string || data.adminTier == null)) &&
              (!('phoneVerified' in data) || (data.phoneVerified is bool)) &&
-             (!('verificationLevel' in data) || (data.verificationLevel is string)) &&
+             (!('nin' in data) || (data.nin is string || data.nin == null)) &&
              (!('avatarUrl' in data) || (data.avatarUrl == null || data.avatarUrl is string)) &&
-             (!('verificationStatus' in data) || (data.verificationStatus is string)) &&
-             (!('updatedAt' in data) || data.updatedAt is timestamp);
+             (!('city' in data) || (data.city is string || data.city == null)) &&
+             (!('country' in data) || (data.country is string || data.country == null)) &&
+             (!('gender' in data) || (data.gender is string || data.gender == null)) &&
+             (!('age' in data) || (data.age is string || data.age == null)) &&
+             (!('about' in data) || (data.about is string || data.about == null)) &&
+             (!('govtIdUrl' in data) || (data.govtIdUrl == null || data.govtIdUrl is string)) &&
+             (!('selfieUrl' in data) || (data.selfieUrl == null || data.selfieUrl is string)) &&
+             (!('govtIdType' in data) || (data.govtIdType == null || data.govtIdType is string)) &&
+             (!('idNumber' in data) || (data.idNumber is string || data.idNumber == null)) &&
+             (!('idType' in data) || (data.idType is string || data.idType == null)) &&
+             (!('verificationLevel' in data) || (data.verificationLevel is string || data.verificationLevel == null)) &&
+             (!('verificationStatus' in data) || (data.verificationStatus is string || data.verificationStatus == null)) &&
+             (!('favoritesCount' in data) || (data.favoritesCount is number)) &&
+             (!('listingsCount' in data) || (data.listingsCount is number)) &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp || data.updatedAt == null || data.updatedAt is map)) &&
+             (!('agent' in data) || (data.agent is map));
     }
 
-    // --- Conversation Validation ---
+    function isThemeUpdate() {
+      return isSignedIn() && 
+             incoming().diff(existing()).affectedKeys().hasOnly(['theme']);
+    }
+
+    function isValidListing(data) {
+      return data.keys().hasAll(['title', 'priceValue', 'location', 'type', 'image', 'agent']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.priceValue is number && data.priceValue >= 0 &&
+             data.location is string && data.location.size() <= 300 &&
+             data.image is string && data.image.size() <= 1000 &&
+             data.agent.id == request.auth.uid &&
+             (!('images' in data) || (data.images is list && data.images.size() <= 20)) &&
+             (!('amenities' in data) || (data.amenities is list && data.amenities.size() <= 50)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
     function isValidConversation(data) {
-      return (!('tenantId' in data) || (data.tenantId is string && data.tenantId.size() > 0)) &&
-             (!('agentId' in data) || (data.agentId is string && data.agentId.size() > 0)) &&
-             (!('listingId' in data) || (data.listingId is string && data.listingId.size() > 0)) &&
-             (!('tenantName' in data) || (data.tenantName is string)) &&
-             (!('agentName' in data) || (data.agentName is string)) &&
-             (!('listingTitle' in data) || (data.listingTitle is string)) &&
-             (!('listingImage' in data) || (data.listingImage is string)) &&
-             (!('listingPrice' in data) || (data.listingPrice is string)) &&
-             (!('status' in data) || (data.status is string && data.status in ['inquiry', 'negotiating', 'contract_requested', 'contract_sent', 'paid', 'completed'])) &&
-             (!('unreadCount_tenant' in data) || data.unreadCount_tenant is number) &&
-             (!('unreadCount_agent' in data) || data.unreadCount_agent is number) &&
-             (!('lastMessage' in data) || data.lastMessage is string) &&
-             (!('updatedAt' in data) || data.updatedAt is timestamp);
-    }
-
-
-    // --- Message Validation ---
-    function isValidMessage(data) {
-      return data.content is string && data.content.size() > 0 && data.content.size() <= 2000 &&
-             data.senderId == request.auth.uid &&
-             data.tenantId is string && data.agentId is string &&
-             (data.type == null || data.type == "text" || data.type == "action") &&
-             (data.tenantId == request.auth.uid || data.agentId == request.auth.uid) &&
-             data.createdAt == request.time;
-    }
-
-    // --- Review Validation ---
-    function isValidReview(data) {
-      return data.tenantId == request.auth.uid &&
-             data.agentId is string &&
-             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
-             data.comment is string && data.comment.size() >= 5 && data.comment.size() <= 500 &&
+      return data.tenantId is string && data.agentId is string && 
              data.listingId is string &&
-             data.createdAt == request.time;
+             data.status in ['inquiry', 'negotiating', 'contract_requested', 'contract_sent', 'paid', 'completed'] &&
+             data.updatedAt == request.time;
     }
 
-    // --- Favorite Validation ---
-    function isValidFavorite(data) {
-      return data.listingId is string &&
-             data.createdAt == request.time;
+    function isValidMessage(data) {
+       return data.content is string && data.content.size() <= 2000 &&
+              data.senderId == request.auth.uid &&
+              (data.tenantId == request.auth.uid || data.agentId == request.auth.uid) &&
+              data.createdAt == request.time;
     }
 
-    // --- Notification Validation ---
     function isValidNotification(data) {
-      return data.userId is string &&
+      return data.keys().hasAll(['userId', 'title', 'message', 'type', 'read', 'createdAt']) &&
+             data.userId is string && 
              data.title is string && data.title.size() <= 200 &&
              data.message is string && data.message.size() <= 1000 &&
              data.type in ['message', 'verification', 'listing', 'system'] &&
-             data.read is bool &&
-             data.createdAt == request.time;
+             data.read == false &&
+             data.createdAt == request.time &&
+             (!('link' in data) || data.link == null || data.link is string) &&
+             (!('relatedId' in data) || data.relatedId == null || data.relatedId is string);
     }
 
-    // --- Listing Validation ---
-    function isValidListing(data) {
-      return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
-             data.priceValue is number && data.priceValue > 0 &&
-             data.location is string && data.location.size() > 0 &&
-             data.type is string &&
-             data.image is string &&
-             data.agent.id == request.auth.uid &&
-             (!('images' in data) || data.images is list) &&
-             (!('video' in data) || (data.video == null || data.video is string)) &&
-             (!('beds' in data) || data.beds is number) &&
-             (!('baths' in data) || data.baths is number) &&
-             (!('amenities' in data) || data.amenities is list) &&
-             (!('landmark' in data) || data.landmark is string) &&
-             (!('description' in data) || data.description is string) &&
-             (!('verified' in data) || data.verified is bool) &&
-             (!('isApproved' in data) || data.isApproved is bool) &&
-             (!('createdAt' in data) || data.createdAt is timestamp) &&
-             (!('updatedAt' in data) || data.updatedAt is timestamp);
-    }
+    // --- Collections ---
 
-    // --- Analytics Validation ---
-    function isValidAnalytics(data) {
-      return data.listingId is string &&
-             data.type in ['view', 'save', 'inquiry'] &&
-             (data.userId == null || data.userId == request.auth.uid) &&
-             data.createdAt == request.time;
-    }
-
-    // --- Resources ---
-
-    // Analytics
-    match /analytics/{analyticsId} {
-      allow list: if isSignedIn(); // Allow counting for stats
-      allow get: if isSignedIn();
-      allow create: if isValidAnalytics(incoming());
-    }
-
-    // Listings
+    // Public Listings
     match /listings/{listingId} {
       allow list, get: if true;
-      allow create: if isSignedIn() && isEmailVerified() && isValidListing(incoming()) && isValidId(listingId);
-      allow update: if isSignedIn() && isEmailVerified() && existing().agent.id == request.auth.uid && isValidListing(incoming());
-      allow delete: if isSignedIn() && existing().agent.id == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(listingId) && isValidListing(incoming()) && (
+        isAdmin() || (
+          incoming().agent.id == request.auth.uid && (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('verificationLevel', 'none').toLowerCase() == 'verified' ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('listingsCount', 0) < 5
+          )
+        )
+      );
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        // Action: Agent Edit
+        (existing().agent.id == request.auth.uid && isValidListing(incoming()) && incoming().agent.id == existing().agent.id) ||
+        // Action: Engagement Incr (Public)
+        (incoming().diff(existing()).affectedKeys().hasOnly(['viewCount', 'favoritesCount', 'inquiryCount', 'updatedAt']) && 
+         incoming().updatedAt == request.time)
+      );
+      allow delete: if isAdmin() || (isSignedIn() && existing().agent.id == request.auth.uid);
+    }
+
+    // User Profiles (Pillar 6 Hardening)
+    match /users/{userId} {
+      allow get: if isSignedIn() && (
+        isOwner(userId) || 
+        isAdmin() || 
+        resource.data.role == 'agent'
+      );
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && 
+                    incoming().keys().hasAll(['name', 'email', 'role']) && 
+                    isValidUser(incoming());
+      allow update: if (isOwner(userId) || isAdmin()) && (
+        isAdmin() ||
+        (isThemeUpdate() && isValidUser(incoming())) ||
+        (
+          isValidUser(incoming()) &&
+          // Prevent role/email spoofing
+          (!('role' in incoming().diff(existing()).affectedKeys()) || 
+            incoming().get('role', '') == existing().get('role', '')) &&
+          (!('email' in incoming().diff(existing()).affectedKeys()) || 
+            incoming().get('email', '') == existing().get('email', '')) &&
+          (
+            // If updating 'agent' related fields, ensure 'isVerified' cannot be set to true by user
+            !('agent' in incoming().diff(existing()).affectedKeys()) || 
+            (incoming().get(['agent', 'isVerified'], false) == false && existing().get(['agent', 'isVerified'], false) == false) ||
+            (incoming().get(['agent', 'isVerified'], false) == existing().get(['agent', 'isVerified'], false))
+          )
+        )
+      );
+      allow delete: if isAdmin();
+
+      match /favorites/{listingId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) && isValidId(listingId);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // Conversations - Relational Guard (Pillar 1)
+    match /conversations/{convId} {
+      allow get: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidConversation(incoming()) && incoming().tenantId == request.auth.uid;
+      allow update: if isSignedIn() && (existing().tenantId == request.auth.uid || existing().agentId == request.auth.uid || isAdmin()) &&
+                    isValidConversation(incoming()) &&
+                    incoming().tenantId == existing().tenantId && 
+                    incoming().agentId == existing().agentId;
+      allow delete: if isAdmin();
+
+      match /messages/{msgId} {
+        allow read: if isSignedIn() && (get(/databases/$(database)/documents/conversations/$(convId)).data.tenantId == request.auth.uid || 
+                                        get(/databases/$(database)/documents/conversations/$(convId)).data.agentId == request.auth.uid || 
+                                        isAdmin());
+        allow create: if isSignedIn() && isValidMessage(incoming()) && 
+                      (get(/databases/$(database)/documents/conversations/$(convId)).data.tenantId == request.auth.uid || 
+                       get(/databases/$(database)/documents/conversations/$(convId)).data.agentId == request.auth.uid);
+        allow delete: if isAdmin();
+      }
     }
 
     // Reviews
     match /reviews/{reviewId} {
-      allow list: if true;
-      allow get: if true;
-      allow create: if isSignedIn() && isValidReview(incoming());
-      allow update, delete: if false; // Reviews are immutable once posted
-    }
-    match /users/{userId} {
-      allow get: if isSignedIn();
-      allow list: if true; 
-      allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) && isValidUser(incoming()); 
-      
-      match /favorites/{listingId} {
-        allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidFavorite(incoming());
-        allow delete: if isOwner(userId);
-      }
+      allow list, get: if true;
+      allow create: if isSignedIn() && incoming().tenantId == request.auth.uid && incoming().createdAt == request.time;
+      allow delete: if isAdmin();
     }
 
-    match /test/connection {
-      allow read: if true;
+    // Tours (Pillar 8 Hardening)
+    match /tours/{tourId} {
+      allow list: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && incoming().tenantId == request.auth.uid && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && (existing().tenantId == request.auth.uid || existing().agentId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
     }
 
-    // Conversations
-    match /conversations/{convId} {
-      // Relaxed get to allow checking for existence (!convDoc.exists()) 
-      allow get: if isSignedIn(); 
-      // Allow listing completed transactions for verified track record
-      allow list: if isSignedIn() && (
-        resource.data.tenantId == request.auth.uid || 
-        resource.data.agentId == request.auth.uid ||
-        resource.data.status == 'completed'
-      );
-      allow create: if isSignedIn() && isEmailVerified() && isValidConversation(incoming()) && incoming().tenantId == request.auth.uid;
-      allow update: if isSignedIn() && isEmailVerified() && (existing().tenantId == request.auth.uid || existing().agentId == request.auth.uid) &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt', 'status', 'unreadCount_tenant', 'unreadCount_agent']) &&
-                    incoming().updatedAt == request.time;
-      
-      match /messages/{msgId} {
-        allow list, get: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid);
-        allow create: if isSignedIn() && (incoming().tenantId == request.auth.uid || incoming().agentId == request.auth.uid) && isValidMessage(incoming());
-      }
+    // Verifications (Pillar 6)
+    match /verifications/{verifyId} {
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow get, list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update, delete: if isAdmin();
     }
 
-    // Notifications
+    // Notifications (Pillar 8)
     match /notifications/{notifId} {
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list, get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && isValidNotification(incoming());
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid && 
                     incoming().diff(existing()).affectedKeys().hasOnly(['read']);
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-    }
-
-    // Tours
-    match /tours/{tourId} {
-      allow list: if isSignedIn(); // Allow counting for stats
-      allow get: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid);
-      allow create: if isSignedIn(); // Add more validation if needed
-      allow update: if isSignedIn() && (existing().tenantId == request.auth.uid || existing().agentId == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
     // Reports
     match /reports/{reportId} {
-      allow create: if isSignedIn();
-      allow get, list: if false; // Only admins via console
+      allow create: if isSignedIn() && incoming().reporterId == request.auth.uid;
+      allow get, list, update, delete: if isAdmin();
+    }
+
+    // Analytics (Pillar 7)
+    match /analytics/{analyticsId} {
+      allow create: if incoming().createdAt == request.time;
+      allow list, get, delete: if isAdmin() || (isSignedIn() && resource.data.agentId == request.auth.uid);
+    }
+
+    // Vault (Pillar 6)
+    match /vault/{vaultId} {
+      allow list, get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && 
+                    (incoming().createdAt == request.time || !('createdAt' in incoming()));
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
   }
 }

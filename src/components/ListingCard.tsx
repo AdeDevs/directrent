@@ -49,7 +49,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
         <div className="absolute top-3 left-3 flex flex-col items-start gap-2">
           {(() => {
             const isApproved = listing.isApproved === true || listing.isApproved === undefined;
-            const isRecent = listing.isRecentlyAdded || (listing.createdAt && (Date.now() - (listing.createdAt.seconds * 1000) < 24 * 60 * 60 * 1000));
+            const isRecent = listing.isRecentlyAdded || (listing.createdAt && (Date.now() - ((listing.createdAt.seconds || 0) * 1000) < 24 * 60 * 60 * 1000));
             
             if (isApproved && isRecent) {
               return (
@@ -109,7 +109,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
         </div>
 
         <div className="flex flex-wrap gap-1 mb-4 sm:mb-5">
-          {listing.amenities.slice(0, 3).map((amenity, idx) => (
+          {(listing.amenities || []).slice(0, 3).map((amenity, idx) => (
             <span key={`${amenity}-${idx}`} className="px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-md text-[8px] sm:text-[9px] font-bold uppercase tracking-wider border border-slate-100/50 dark:border-slate-700/50">
               {amenity}
             </span>

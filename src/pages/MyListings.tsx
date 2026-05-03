@@ -88,8 +88,9 @@ export default function MyListings() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <div className="w-8 h-8 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 gap-4">
+        <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-800 border-t-primary-600 dark:border-t-primary-500 rounded-full animate-spin" />
+        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest animate-pulse">Fetching your listings...</p>
       </div>
     );
   }
@@ -115,7 +116,7 @@ export default function MyListings() {
         </div>
       </header>
 
-      <main className="w-full px-3 py-4 sm:p-6 space-y-6 sm:space-y-10">
+      <main className="w-full px-3 py-4 sm:p-6 space-y-6 sm:space-y-10 pb-[14px] mb-0">
         {/* Stats Grid */}
         <section className="grid grid-cols-3 gap-2.5 sm:gap-4">
           {stats.map((stat, i) => (
@@ -200,9 +201,13 @@ export default function MyListings() {
                       {listing.price} <span className="text-[10px] text-slate-400 font-normal tracking-tight">/ yr</span>
                     </p>
                     <div className="flex items-center gap-2 sm:gap-3 text-slate-400">
-                      <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/50 px-1.5 py-0.5 rounded-md">
-                        <BarChart3 className="w-2.5 h-2.5" />
-                        <span className="text-[10px] font-semibold text-slate-500">124</span>
+                      <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/50 px-1.5 py-0.5 rounded-md" title="Total Views">
+                        <Eye className="w-2.5 h-2.5" />
+                        <span className="text-[10px] font-semibold text-slate-500">{listing.viewCount || 0}</span>
+                      </div>
+                      <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/50 px-1.5 py-0.5 rounded-md" title="Total Leads">
+                        <MessageSquare className="w-2.5 h-2.5" />
+                        <span className="text-[10px] font-semibold text-slate-500">{listing.inquiryCount || 0}</span>
                       </div>
                       <ChevronRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform hidden sm:block" />
                     </div>

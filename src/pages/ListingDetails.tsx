@@ -13,7 +13,8 @@ import ListingCard from '../components/ListingCard';
 import ChatModal from '../components/ChatModal';
 import { FEATURED_LISTINGS } from '../data';
 import { useAuth } from '../context/AuthContext';
-import { addDoc, collection, serverTimestamp, query, where, getCountFromServer } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, query, where, getCountFromServer, doc } from 'firebase/firestore';
+import { purgeListingData } from '../utils/adminCleanup';
 import { toast } from 'react-hot-toast';
 
 import SafeImage from '../components/SafeImage';
@@ -279,10 +280,22 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       if (sessionStorage.getItem(sessionKey)) return;
 
       try {
+        const { setDoc, doc, increment } = await import('firebase/firestore');
+        const listingIdStr = listing.id.toString();
+        const listingRef = doc(db, 'listings', listingIdStr);
+        
+        // Atomically increment the view count on the main listing document
+        await setDoc(listingRef, {
+          viewCount: increment(1),
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch(err => console.warn("Failed to record viewCount:", err));
+
+        // Simplified analytics record for history
         await addDoc(collection(db, 'analytics'), {
-          listingId: listing.id.toString(),
+          listingId: listingIdStr,
           type: 'view',
           userId: user?.id || null,
+          agentId: listing.agent?.id || null,
           createdAt: serverTimestamp()
         });
         sessionStorage.setItem(sessionKey, 'true');
@@ -298,13 +311,14 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        if (!user) return;
+        if (!user || !isOwnListing) return;
 
         // Views from analytics
         const viewsQuery = query(
           collection(db, 'analytics'), 
           where('listingId', '==', listing.id.toString()),
-          where('type', '==', 'view')
+          where('type', '==', 'view'),
+          where('agentId', '==', user.id)
         );
         const viewsCount = await getCountFromServer(viewsQuery);
         
@@ -312,7 +326,8 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
         const inquiriesQuery = query(
           collection(db, 'analytics'), 
           where('listingId', '==', listing.id.toString()),
-          where('type', '==', 'inquiry')
+          where('type', '==', 'inquiry'),
+          where('agentId', '==', user.id)
         );
         const inquiriesCount = await getCountFromServer(inquiriesQuery);
 
@@ -320,7 +335,8 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
         const savesQuery = query(
           collection(db, 'analytics'), 
           where('listingId', '==', listing.id.toString()),
-          where('type', '==', 'save')
+          where('type', '==', 'save'),
+          where('agentId', '==', user.id)
         );
         const savesCount = await getCountFromServer(savesQuery);
         
@@ -355,10 +371,24 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
 
     // Record inquiry analytics
     try {
+      const { setDoc, doc, increment, serverTimestamp: fsServerTimestamp } = await import('firebase/firestore');
+      const listingIdStr = listing.id.toString();
+      const listingRef = doc(db, 'listings', listingIdStr);
+      await setDoc(listingRef, {
+        inquiryCount: increment(1),
+        updatedAt: fsServerTimestamp(),
+        // Ensure it has basic metadata to be queryable
+        createdAt: fsServerTimestamp(),
+        title: listing.title,
+        image: listing.image,
+        status: listing.status || 'ACTIVE'
+      }, { merge: true }).catch(() => {/* Ignore errors */});
+
       await addDoc(collection(db, 'analytics'), {
-        listingId: listing.id.toString(),
+        listingId: listingIdStr,
         type: 'inquiry',
         userId: user.id,
+        agentId: listing.agent?.id || null,
         createdAt: serverTimestamp()
       });
     } catch (e) {
@@ -403,6 +433,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           listingId: listingId.toString(),
           type: 'save',
           userId: user.id,
+          agentId: listing.agent?.id || null,
           createdAt: serverTimestamp()
         });
       }
@@ -428,10 +459,24 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       });
       
       // Record inquiry analytics
+      const { setDoc, doc, increment, serverTimestamp: fsServerTimestamp } = await import('firebase/firestore');
+      const listingIdStr = listing.id.toString();
+      const listingRef = doc(db, 'listings', listingIdStr);
+      await setDoc(listingRef, {
+        inquiryCount: increment(1),
+        updatedAt: fsServerTimestamp(),
+        // Ensure it has basic metadata to be queryable
+        createdAt: fsServerTimestamp(),
+        title: listing.title,
+        image: listing.image,
+        status: listing.status || 'ACTIVE'
+      }, { merge: true }).catch(() => {/* Ignore errors */});
+
       await addDoc(collection(db, 'analytics'), {
-        listingId: listing.id.toString(),
+        listingId: listingIdStr,
         type: 'inquiry',
         userId: user.id,
+        agentId: listing.agent?.id || null,
         createdAt: serverTimestamp()
       });
 
@@ -442,7 +487,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
     }
   };
 
-  const images = listing.images && listing.images.length > 0 
+  const images = listing.images && (listing.images as any).length > 0 
     ? listing.images 
     : [listing.image];
 
@@ -622,8 +667,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                   onClick={async () => {
                     setIsDeleting(true);
                     try {
-                      const { deleteDoc, doc } = await import('firebase/firestore');
-                      await deleteDoc(doc(db, 'listings', listing.id.toString()));
+                      await purgeListingData(listing.id.toString());
                       setShowDeleteConfirm(false);
                       setCurrentListing(null);
                       setActiveTab('mylistings');
@@ -770,7 +814,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                              {listing.isApproved ? 'LIVE' : 'PENDING'}
                           </div>
                           <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                          <span>1.2k Views</span>
+                          <span>{realStats.views.toLocaleString()} Views</span>
                         </>
                       ) : (
                         <>
@@ -1030,13 +1074,13 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                 {listing.agent && (
                   <div 
                     onClick={() => setSelectedAgentId(listing.agent!.id!)}
-                    className="bg-slate-900 dark:bg-slate-925 p-6 lg:p-8 rounded-3xl text-white shadow-xl relative overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary-500/50 transition-all active:scale-[0.98]"
+                    className="bg-white dark:bg-slate-900 p-6 lg:p-8 rounded-3xl text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 shadow-xl relative overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary-500/50 transition-all active:scale-[0.98]"
                   >
-                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary-500/20 rounded-full blur-2xl pointer-events-none" />
-                    <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Listed By</h2>
+                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary-500/10 rounded-full blur-2xl pointer-events-none" />
+                    <h2 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">Listed By</h2>
                     
                     <div className="flex items-center gap-4 mb-8 relative z-10">
-                      <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-xl font-bold text-primary-600 shadow-inner flex-shrink-0 font-sans overflow-hidden">
+                      <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl font-bold text-primary-600 shadow-inner flex-shrink-0 font-sans overflow-hidden border border-slate-200 dark:border-slate-700">
                         {listing.agent.avatarUrl ? (
                           <img src={listing.agent.avatarUrl} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
                         ) : (
@@ -1045,15 +1089,15 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                       </div>
                       <div className="overflow-hidden">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-lg font-bold text-white truncate w-full">{listing.agent.name}</span>
-                          {listing.agent.isVerified && <ShieldCheck className="w-5 h-5 text-blue-400 flex-shrink-0" />}
+                          <span className="text-lg font-bold text-slate-900 dark:text-white truncate w-full">{listing.agent.name}</span>
+                          {listing.agent.isVerified && <ShieldCheck className="w-5 h-5 text-blue-500 flex-shrink-0" />}
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1.5 text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-lg">
+                          <div className="flex items-center gap-1.5 text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-400/10 px-2.5 py-1 rounded-lg">
                             <Star className="w-3 h-3 fill-current" />
                             <span className="text-[10px] uppercase tracking-wider font-bold">{listing.agent.rating}</span>
                           </div>
-                          <div className="bg-emerald-400/10 text-emerald-400 px-2.5 py-1 rounded-lg">
+                          <div className="bg-emerald-50 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-lg">
                             <span className="text-[10px] uppercase tracking-wider font-bold">Verified Agent</span>
                           </div>
                         </div>
@@ -1067,7 +1111,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                             e.stopPropagation();
                             handleTourClick();
                           }}
-                          className="w-full bg-white text-slate-900 h-12 rounded-xl font-black text-sm shadow-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-widest"
+                          className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-200 border border-slate-200 dark:border-slate-700 dark:hover:bg-slate-700 h-12 rounded-xl font-black text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-widest"
                         >
                           <Calendar className="w-4 h-4" /> Schedule Tour
                         </button>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Zap, 
@@ -40,6 +40,10 @@ const staggerContainer = {
 const Hero = () => {
   const { setView, user, setAuthMode } = useAuth();
   
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const handleFind = () => {
     if (user) {
       setView('app');
@@ -111,7 +115,7 @@ const Hero = () => {
                 "https://images.unsplash.com/photo-1567532939803-f4a1801c8763?auto=format&fit=crop&w=100&h=100&q=80",
                 "https://images.unsplash.com/photo-1531123897727-8f129e16fd3c?auto=format&fit=crop&w=100&h=100&q=80"
               ].map((src, i) => (
-                <SafeImage key={i} src={src} alt="Tenant" className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 object-cover shadow-sm" />
+                <SafeImage key={`img-${i}`} src={src} alt="Tenant" className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 object-cover shadow-sm" />
               ))}
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400 text-center sm:text-left">
@@ -154,7 +158,7 @@ const RoleSelection = () => {
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">Looking for a safe, verified apartment close to campus without the agent headache.</p>
             <ul className="space-y-4 mb-10">
               {["Find verified apartments", "Avoid scams & fake agents", "Direct contact with owners", "Quick search filters"].map((item, id) => (
-                <li key={id} className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+                <li key={`tenant-${id}`} className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
                   <CheckCircle2 className="text-primary-600 dark:text-primary-500 w-4 h-4 flex-shrink-0" />
                   {item}
                 </li>
@@ -172,7 +176,7 @@ const RoleSelection = () => {
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">Ready to list rental-friendly properties and reach thousands of verified tenant leads.</p>
             <ul className="space-y-4 mb-10">
               {["List properties quickly", "Reach verified tenants", "Faster deals & closings", "Identity verification"].map((item, id) => (
-                <li key={id} className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+                <li key={`agent-${id}`} className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
                   <CheckCircle2 className="text-slate-400 dark:text-slate-600 w-4 h-4 flex-shrink-0" />
                   {item}
                 </li>
@@ -321,7 +325,7 @@ const HowItWorks = () => (
               { step: "02", title: "View verified listings", desc: "No more guesswork. Photos and descriptions are verified." },
               { step: "03", title: "Contact agent directly", desc: "Zero middleman drama. Pay securely and move in." }
             ].map((item, idx) => (
-              <div key={idx} className="flex gap-6">
+              <div key={`tenant-step-${idx}`} className="flex gap-6">
                 <div className="text-3xl font-bold text-primary-200 dark:text-primary-800/20 leading-none">{item.step}</div>
                 <div>
                   <h4 className="font-semibold text-primary-950 dark:text-primary-100 mb-1">{item.title}</h4>
@@ -339,7 +343,7 @@ const HowItWorks = () => (
               { step: "02", title: "Get tenant leads", desc: "Get notified when verified tenants show interest." },
               { step: "03", title: "Close deals faster", desc: "Finalize paper work and get paid quicker than ever." }
             ].map((item, idx) => (
-              <div key={idx} className="flex gap-6">
+              <div key={`agent-step-${idx}`} className="flex gap-6">
                 <div className="text-3xl font-bold text-slate-200 dark:text-slate-800/20 leading-none">{item.step}</div>
                 <div>
                   <h4 className="font-semibold text-slate-900 dark:text-white mb-1">{item.title}</h4>
@@ -388,7 +392,7 @@ const TrustSafety = () => (
           { icon: <Clock className="w-6 h-6" />, title: "Physical Inspection", desc: "Our team physically inspects random top-tier properties to ensure accuracy." },
           { icon: <MessageSquare className="w-6 h-6" />, title: "Secure Communication", desc: "Chat with agents directly within the platform to keep your details safe." }
         ].map((feature, idx) => (
-          <motion.div key={idx} variants={fadeUpVariant} className="bg-white/10 backdrop-blur-md p-8 rounded-xl border border-white/20 hover:bg-white/15 transition-colors">
+          <motion.div key={`feature-${idx}`} variants={fadeUpVariant} className="bg-white/10 backdrop-blur-md p-8 rounded-xl border border-white/20 hover:bg-white/15 transition-colors">
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-6">{feature.icon}</div>
             <h4 className="text-lg font-semibold mb-3">{feature.title}</h4>
             <p className="text-primary-50 text-xs leading-relaxed opacity-80">{feature.desc}</p>
@@ -418,7 +422,7 @@ const Testimonials = () => (
           { name: "Bisi O.", dept: "Ibadan", text: "DirectRent helped me find a landlord listing directly. Saved me nearly 80k in random agent fees!", avatar: "https://images.unsplash.com/photo-1567532939803-f4a1801c8763?auto=format&fit=crop&w=100&h=100&q=80" },
           { name: "Sola W.", dept: "Abuja", text: "The verified badge gave me confidence. Moving in next week and I didn't have to chase any shady agents.", avatar: "https://images.unsplash.com/photo-1531123897727-8f129e16fd3c?auto=format&fit=crop&w=100&h=100&q=80" }
         ].map((test, idx) => (
-          <motion.div key={idx} variants={fadeUpVariant} className="bg-slate-50 dark:bg-slate-900 p-8 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col justify-between hover:shadow-lg dark:hover:shadow-none transition-all">
+          <motion.div key={`test-${idx}`} variants={fadeUpVariant} className="bg-slate-50 dark:bg-slate-900 p-8 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col justify-between hover:shadow-lg dark:hover:shadow-none transition-all">
             <p className="text-slate-600 dark:text-slate-300 text-sm italic leading-relaxed mb-8">"{test.text}"</p>
             <div className="flex items-center gap-4">
               <SafeImage src={test.avatar} className="w-10 h-10 rounded-full border-2 border-primary-100 dark:border-primary-900" alt={test.name} />
@@ -475,7 +479,7 @@ const FAQ = () => {
           className="space-y-4"
         >
           {faqs.map((faq, idx) => (
-            <motion.div key={idx} variants={fadeUpVariant} className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+            <motion.div key={`faq-${idx}`} variants={fadeUpVariant} className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
               <button 
                 onClick={() => setOpenIdx(openIdx === idx ? null : idx)}
                 className="w-full text-left px-6 py-6 flex items-center justify-between focus:outline-none"
@@ -486,6 +490,7 @@ const FAQ = () => {
               <AnimatePresence>
                 {openIdx === idx && (
                   <motion.div
+                    key={`faq-ans-${idx}`}
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}

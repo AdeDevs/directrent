@@ -33,7 +33,10 @@ const Notifications = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setNotifications([]);
+      return;
+    }
 
     const nRef = collection(db, "notifications");
     const q = query(
@@ -54,7 +57,10 @@ const Notifications = () => {
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      setNotifications([]);
+    };
   }, [user]);
 
   const markAsRead = async (id: string) => {
@@ -125,8 +131,8 @@ const Notifications = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center gap-4 transition-colors">
-        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading Alerts</p>
+        <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-800 border-t-primary-600 dark:border-t-primary-500 rounded-full animate-spin" />
+        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest animate-pulse">Fetching notifications...</p>
       </div>
     );
   }
@@ -152,11 +158,12 @@ const Notifications = () => {
         </div>
       </header>
 
-      <main className="w-full px-3 py-6 sm:p-6 pb-[110px]">
+      <main className="w-full px-3 py-6 sm:p-6 pb-[14px] mb-0">
         <div className="max-w-2xl mx-auto space-y-3">
           <AnimatePresence mode="popLayout">
             {notifications.length === 0 ? (
               <motion.div 
+                key="empty-notifications"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-12 text-center shadow-sm"
@@ -170,7 +177,7 @@ const Notifications = () => {
             ) : (
               notifications.map((n, idx) => (
                 <motion.div
-                  key={n.id}
+                  key={`notif-${n.id}`}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -20 }}

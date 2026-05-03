@@ -48,7 +48,6 @@ import { doc, updateDoc, deleteField, collection, query, where, orderBy, onSnaps
 import { auth, storage, db } from "../lib/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { FEATURED_LISTINGS } from "../data";
 import { Listing } from "../types";
 import VerificationBadge from "../components/VerificationBadge";
 import { calculateVerificationLevel, isProfileComplete as checkProfileComplete } from "../lib/verification";
@@ -408,7 +407,9 @@ const Profile = () => {
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error: any) {
       console.error("SMS Error:", error);
-      if (error.code === 'auth/operation-not-allowed') {
+      if (error.code === 'auth/invalid-app-credential') {
+        setPhoneError("Invalid app credential. In a preview environment, you MUST add your phone number as a 'Phone number for testing' in your Firebase console to skip reCAPTCHA and real SMS.");
+      } else if (error.code === 'auth/operation-not-allowed') {
         setPhoneError("Nigeria (+234) is not enabled for SMS in your Firebase Console. Please enable it in Authentication Settings.");
       } else if (error.code === 'auth/billing-not-enabled') {
         setPhoneError("Billing is required for real SMS in Nigeria. WORKAROUND: Add your number as a 'Test Number' in Firebase Console (Authentication > Sign-in method > Phone) to skip billing.");
@@ -538,6 +539,18 @@ const Profile = () => {
       if (selectedFile) {
         setIsUploading(true);
         console.log("Image selected, starting upload process...");
+        
+        // CLEANUP PREVIOUS IMAGE FROM STORAGE IF IT EXISTS
+        if (user.avatarUrl && user.avatarUrl.includes("firebasestorage.googleapis.com")) {
+          try {
+            console.log("Cleaning up previous profile image from storage...");
+            const oldPhotoRef = ref(storage, user.avatarUrl);
+            await deleteObject(oldPhotoRef);
+          } catch (delErr) {
+            console.warn("Could not delete old profile image (might not exist or permission denied):", delErr);
+          }
+        }
+        
         try {
           // Compress the image (using a slightly smaller size for even better reliability)
           console.log("Compressing image...");
@@ -707,7 +720,7 @@ const Profile = () => {
         </div>
       </header>
 
-      <main className="w-full pt-4 px-[15px] space-y-8 lg:space-y-12" style={{marginBottom:"-40px"}}>
+      <main className="w-full pt-4 px-[15px] space-y-8 lg:space-y-12 pb-[14px] mb-0">
         {showSuccess && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -965,9 +978,6 @@ const Profile = () => {
           </div>
         </section>
 
-        {/* Recaptcha Container */}
-        <div id="recaptcha-container" ref={recaptchaRef}></div>
-
         <AnimatePresence>
           {showPhoneInput && (
             <div 
@@ -1022,6 +1032,8 @@ const Profile = () => {
                             className="w-full bg-transparent border-0 px-3 sm:px-4 py-3 sm:py-4 text-sm sm:text-base font-bold text-slate-900 dark:text-white outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 tracking-wide"
                           />
                         </div>
+                        {/* Hidden recaptcha container moved inside modal context */}
+                        <div id="recaptcha-container" ref={recaptchaRef} className="mt-2 flex justify-center"></div>
                         {phoneError && (
                           <motion.div 
                             initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}

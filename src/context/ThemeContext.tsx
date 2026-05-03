@@ -12,8 +12,12 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark' || savedTheme === 'light') return savedTheme;
+    try {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark' || savedTheme === 'light') return savedTheme;
+    } catch (e) {
+      console.error("Theme load failed:", e);
+    }
     return 'light';
   });
 
@@ -23,18 +27,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     const root = window.document.documentElement;
-    const body = window.document.body;
-    const oldTheme = theme === 'dark' ? 'light' : 'dark';
     
-    root.classList.remove(oldTheme);
-    root.classList.add(theme);
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.setAttribute('data-theme', 'dark');
+      root.style.colorScheme = 'dark';
+    } else {
+      root.classList.remove('dark');
+      root.setAttribute('data-theme', 'light');
+      root.style.colorScheme = 'light';
+    }
     
-    // Also sync to body for better selector coverage
-    body.classList.remove(oldTheme);
-    body.classList.add(theme);
-    
-    localStorage.setItem('theme', theme);
-    console.log(`Theme state: ${theme}, classes updated.`);
+    try {
+      localStorage.setItem('theme', theme);
+    } catch (e) {
+      console.error("Theme storage failed:", e);
+    }
   }, [theme]);
 
   const toggleTheme = () => {

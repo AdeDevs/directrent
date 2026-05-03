@@ -3,10 +3,10 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Search, Settings2, MapPin, FilterX, Home as HomeIcon, Trash2, Bell, Map, LayoutGrid, Navigation } from 'lucide-react';
 import { Map as PigeonMap, Marker, ZoomControl } from 'pigeon-maps';
 import ListingCard from '../components/ListingCard';
-import { FEATURED_LISTINGS } from '../data';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, onSnapshot, orderBy, deleteDoc, doc, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, doc, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { purgeListingData } from '../utils/adminCleanup';
 import { Listing, Notification } from '../types';
 import NotificationBadge from '../components/NotificationBadge';
 
@@ -45,18 +45,8 @@ const Home = () => {
   const filters = ['All', 'Self-Contain', '1 Bedroom Flat', 'Shared'];
 
   const filteredListings = useMemo(() => {
-    // Merge static listings with DB ones
-    let baseListings = [...dbListings, ...FEATURED_LISTINGS];
-    
-    // Deduplicate by ID
-    const seenIds = new Set();
-    baseListings = baseListings.filter(l => {
-      if (seenIds.has(String(l.id))) return false;
-      seenIds.add(String(l.id));
-      return true;
-    });
-    
-    // Sort merged listings by id or date? DB ones are already sorted by date in query
+    // ONLY use DB listings
+    let baseListings = [...dbListings];
     
     // Filter based on user role and approval status
     if (isAgent && user) {
@@ -76,7 +66,7 @@ const Home = () => {
     return baseListings.filter(listing => {
       const matchesSearch = listing.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                              listing.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                             listing.amenities.some(a => a.toLowerCase().includes(searchQuery.toLowerCase()));
+                             (listing.amenities || []).some(a => a.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesFilter = activeFilter === 'All' || listing.type === activeFilter;
       const matchesBudget = listing.priceValue <= maxBudget;
       return matchesSearch && matchesFilter && matchesBudget;
@@ -92,7 +82,7 @@ const Home = () => {
   const handleDelete = async (listingId: string | number) => {
     const idStr = String(listingId);
     try {
-      await deleteDoc(doc(db, 'listings', idStr));
+      await purgeListingData(idStr);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `listings/${idStr}`);
     }
@@ -151,7 +141,7 @@ const Home = () => {
         </div>
       </header>
 
-      <main className="pt-[60px] sm:pt-[72px] px-[15px] pb-[0px]" style={{paddingTop: '16px'}}>
+      <main className="pt-[60px] sm:pt-[72px] px-[15px] pb-[14px] mb-0" style={{paddingTop: '16px'}}>
         <motion.div 
           initial={{ opacity: 0, y: 10 }} 
           animate={{ opacity: 1, y: 0 }} 
@@ -309,9 +299,9 @@ const Home = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-4 sm:gap-6 lg:gap-8">
             {filteredListings.length > 0 ? (
-              filteredListings.map((listing, i) => (
+              filteredListings.map((listing) => (
                 <ListingCard 
-                  key={`${listing.id}-${i}`} 
+                  key={`home-listing-${listing.id}`} 
                   listing={listing} 
                   onViewDetails={() => setCurrentListing(listing)}
                   isAgentView={isAgent}

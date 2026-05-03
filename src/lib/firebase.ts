@@ -66,8 +66,8 @@ async function testConnection() {
     if (error.message?.includes('offline')) {
       console.error("Firebase connection failed: Client appears to be offline.");
     } else if (error.code === 'permission-denied') {
-      // This is actually a good sign - it means we reached the server and rules blocked us
-      console.log("Firebase connection verified (Permission Denied).");
+      // This is a sign that the server is reachable and security rules are active
+      console.log("Firebase server reachability verified.");
     } else {
       console.warn("Firebase initialization notice:", error.message);
     }

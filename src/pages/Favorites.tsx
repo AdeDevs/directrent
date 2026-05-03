@@ -30,7 +30,10 @@ const FavoritesPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setActiveChatListingIds([]);
+      return;
+    }
     const conversationsRef = collection(db, "conversations");
     const fieldToFilter = user.role === "tenant" ? "tenantId" : "agentId";
     const q = query(conversationsRef, where(fieldToFilter, "==", user.id));
@@ -43,7 +46,10 @@ const FavoritesPage = () => {
       setActiveChatListingIds(Array.from(new Set(listingIds)));
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      setActiveChatListingIds([]);
+    };
   }, [user]);
 
   const savedListings = useMemo(() => {
@@ -93,14 +99,14 @@ const FavoritesPage = () => {
 
       {/* Grid Content */}
       <main
-        className="pt-[72px] px-[15px] w-full pb-[100px] transition-all duration-300"
+        className="pt-[72px] px-[15px] w-full pb-[14px] mb-0 transition-all duration-300"
         style={{ paddingTop: 20}}
       >
         {savedListings.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6 lg:gap-8">
             {savedListings.map((listing) => (
               <motion.div
-                key={listing.id}
+                key={`fav-${listing.id}`}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 whileTap={{ scale: 0.95 }}

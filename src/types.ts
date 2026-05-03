@@ -8,6 +8,7 @@ export interface Listing {
   image: string;
   verified: boolean;
   isApproved?: boolean;
+  status?: 'active' | 'pending' | 'rejected' | 'hidden';
   noFee: boolean;
   beds?: number;
   baths?: number;
@@ -30,9 +31,12 @@ export interface Listing {
   coordinates?: [number, number];
   createdAt?: any;
   updatedAt?: any;
+  viewCount?: number;
+  favoritesCount?: number;
+  inquiryCount?: number;
 }
 
-export type ViewState = 'landing' | 'auth' | 'app';
+export type ViewState = 'landing' | 'auth' | 'app' | 'admin' | 'admin-auth';
 export type AppTab = 'home' | 'chat' | 'profile' | 'favorites' | 'create' | 'mylistings' | 'notifications' | 'terms' | 'faq';
 
 export interface Notification {
@@ -47,7 +51,7 @@ export interface Notification {
   relatedId?: string;
 }
 export type AuthMode = 'login' | 'signup';
-export type UserRole = 'tenant' | 'agent';
+export type UserRole = 'tenant' | 'agent' | 'admin' | 'moderator';
 
 export type VerificationLevel = 'none' | 'verified';
 
@@ -61,6 +65,7 @@ export interface User {
   id: string;
   firstName: string;
   lastName: string;
+  name: string;
   email: string;
   nin: string;
   city: string;
@@ -76,8 +81,13 @@ export interface User {
   govtIdType?: 'NIN Slip' | 'National ID Card' | 'Drivers License' | 'Passport';
   selfieUrl?: string;
   verificationStatus?: 'none' | 'pending' | 'verified';
+  adminTier?: 'Moderator' | 'Super Admin';
+  internalPhone?: string;
+  createdAt?: string;
+  updatedAt?: string;
   about?: string;
   theme?: 'light' | 'dark';
+  listingsCount?: number;
 }
 
 export type ConversationStatus = 'inquiry' | 'negotiating' | 'contract_requested' | 'contract_sent' | 'paid' | 'completed';
@@ -92,4 +102,17 @@ export interface Review {
   listingId: string;
   listingTitle: string;
   createdAt: any;
+}
+
+export interface Verification {
+  id: string;
+  userId: string;
+  name: string;
+  idType: string;
+  idNumber?: string;
+  role?: string;
+  location?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: any;
+  updatedAt?: any;
 }

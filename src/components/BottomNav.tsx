@@ -29,7 +29,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, user }) 
 
   return (
     <nav className="fixed z-50 transition-all bottom-0 left-0 w-full bg-white/95 dark:bg-slate-950/98 backdrop-blur-3xl border-t border-slate-200/80 dark:border-white/10 shadow-[0_-8px_32px_rgba(0,0,0,0.08)] dark:shadow-black/40 px-0.5 pt-2.5 pb-5 md:bottom-6 md:left-1/2 md:-translate-x-1/2 md:w-[520px] md:bg-white/80 dark:md:bg-slate-900/90 md:rounded-[32px] md:border md:border-white/20 dark:md:border-white/10 md:shadow-[0_8px_32px_rgba(0,0,0,0.12)] md:ring-1 md:ring-slate-900/5 dark:md:ring-white/10 md:px-6 md:py-3 flex justify-between items-center overflow-hidden">
-      <div className="flex items-center justify-between max-w-lg mx-auto w-full px-05">
+      <div className="flex items-center justify-between max-w-lg mx-auto w-full px-0.5">
         {tabs.map((tab) => (
           <button 
             key={tab.id}

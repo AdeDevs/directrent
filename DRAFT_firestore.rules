@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true || request.auth.token.email == 'adeyemiakinyemi01@gmail.com';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        request.auth.token.email == 'adeyemiakinyemi01@gmail.com'
+      );
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUser(data) {
+      return (!('role' in data) || data.role in ['tenant', 'agent', 'admin']) &&
+             (!('email' in data) || data.email is string) &&
+             (!('name' in data) || data.name is string);
+    }
+
+    function isValidListing(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.priceValue is number && data.priceValue > 0 &&
+             data.agent.id == request.auth.uid;
+    }
+
+    function isValidVerification(data) {
+      return data.userId == request.auth.uid &&
+             data.name is string &&
+             data.idType is string &&
+             data.status == 'pending';
+    }
+
+    function isValidReport(data) {
+      return data.listingId is string &&
+             data.reporterId == request.auth.uid &&
+             data.reason is string &&
+             data.status == 'pending';
+    }
+
+    // --- Resources ---
+
+    // Users
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create, update: if isOwner(userId) && isValidUser(incoming());
+    }
+
+    // Listings
+    match /listings/{listingId} {
+      allow list, get: if true;
+      allow create: if isSignedIn() && isEmailVerified() && isValidListing(incoming());
+      allow update, delete: if isSignedIn() && (existing().agent.id == request.auth.uid || isAdmin());
+    }
+
+    // Verifications
+    match /verifications/{verifyId} {
+      allow list, get: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && isValidVerification(incoming());
+      allow update: if isAdmin();
+    }
+
+    // Reports
+    match /reports/{reportId} {
+      allow list, get: if isAdmin();
+      allow create: if isSignedIn() && isValidReport(incoming());
+      allow update: if isAdmin();
+    }
+
+    // Conversations, Messages, Notifications, Tours (simplified for this fix)
+    match /conversations/{convId} {
+      allow get, list: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
+      match /messages/{msgId} {
+        allow list, get: if isSignedIn();
+      }
+    }
+
+    match /notifications/{notifId} {
+      allow list, get, update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+    }
+
+    match /tours/{tourId} {
+      allow list, get, update: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+    }
+
+    match /analytics/{analyticsId} {
+      allow list, get: if isAdmin();
+      allow create: if isSignedIn();
+    }
+    
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

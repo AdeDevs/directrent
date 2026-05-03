@@ -176,6 +176,15 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
         [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
       });
 
+      // If completing, increment agent's success count
+      if (nextStatus === 'completed' && agentId !== 'unknown') {
+        const agentDocRef = doc(db, 'users', agentId);
+        await updateDoc(agentDocRef, {
+          completedTxns: increment(1),
+          updatedAt: serverTimestamp()
+        }).catch(e => console.warn("Could not increment agent completedTxns:", e));
+      }
+
       // Add system message
       await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
         content: content,
@@ -236,7 +245,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
           tenantId: currentUser.id,
           agentId: agentId,
           listingId: listing.id.toString(),
-          tenantName: currentUser.name || `${currentUser.firstName} ${currentUser.lastName}`.trim(),
+          tenantName: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'User',
           agentName: listing.agent?.name || 'Agent',
           tenantImage: currentUser.avatarUrl || '',
           agentImage: agentImage,
@@ -249,6 +258,14 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
           unreadCount_tenant: currentUser.role === 'tenant' ? 0 : 1,
           unreadCount_agent: currentUser.role === 'agent' ? 0 : 1
         });
+
+        // Increment inquiryCount on the listing
+        const listingDocRef = doc(db, 'listings', listing.id.toString());
+        await setDoc(listingDocRef, { 
+          inquiryCount: increment(1),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
       } else {
         await updateDoc(convRef, {
           lastMessage: newMessage.trim(),
@@ -274,7 +291,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
       if (recipientId && recipientId !== 'unknown') {
         await createNotification(
           recipientId,
-          `New message from ${currentUser.name || 'User'}`,
+          `New message from ${`${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'User'}`,
           newMessage.trim(),
           'message',
           'chat',

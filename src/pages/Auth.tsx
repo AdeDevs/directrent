@@ -17,7 +17,7 @@ import {
   signInWithCredential,
   EmailAuthProvider
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 
 const Auth = () => {
   const { authMode, setAuthMode, preselectedRole, login, setView } = useAuth();
@@ -32,6 +32,7 @@ const Auth = () => {
   const [resetSent, setResetSent] = useState(false);
   
   // Real SMS Flow Variables
+  const [signupStep, setSignupStep] = useState(1);
   const [smsStep, setSmsStep] = useState<'phone' | 'otp' | 'new-password' | 'done'>('phone');
   const [otpCode, setOtpCode] = useState('');
   const [newResetPassword, setNewResetPassword] = useState('');
@@ -93,7 +94,24 @@ const Auth = () => {
       value = value.replace(/[^a-zA-Z\s]/g, '');
       value = capitalize(value);
     } else if (name === 'phoneNumber') {
-      value = value.replace(/\D/g, '');
+      let clean = value.replace(/\D/g, '');
+      if (clean.startsWith('234') && clean.length > 10) {
+        clean = clean.slice(3);
+      } else if (clean.startsWith('0') && clean.length > 10) {
+        clean = clean.slice(1);
+      }
+      
+      if (clean.length <= 10) {
+        // Format as XXX XXX XXXX
+        let formatted = clean;
+        if (clean.length > 3 && clean.length <= 6) {
+          formatted = `${clean.slice(0, 3)} ${clean.slice(3)}`;
+        } else if (clean.length > 6) {
+          formatted = `${clean.slice(0, 3)} ${clean.slice(3, 6)} ${clean.slice(6)}`;
+        }
+        setFormData(prev => ({ ...prev, [name]: formatted }));
+      }
+      return; 
     }
 
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -117,8 +135,13 @@ const Auth = () => {
     setIsResetMode(false);
     setResetSent(false);
     setSmsStep('phone');
+    setSignupStep(1);
+    setIsPhoneVerifying(false);
+    setPhoneVerified(false);
     if (window.recaptchaVerifier) {
-      window.recaptchaVerifier.clear();
+      try {
+        window.recaptchaVerifier.clear();
+      } catch (e) {}
       window.recaptchaVerifier = null;
     }
   };
@@ -147,7 +170,7 @@ const Auth = () => {
         newErrors.phoneNumber = 'Phone number is required';
       } else if (formData.phoneNumber.length < 10) {
         newErrors.phoneNumber = 'Invalid phone number';
-      } else if (role === 'agent' && !phoneVerified) {
+      } else if (!phoneVerified) {
         newErrors.phoneNumber = 'Please verify your phone number first';
       }
       
@@ -193,13 +216,17 @@ const Auth = () => {
       return !!(emailValid && passwordValid);
     }
 
+    if (signupStep === 1) {
+      return !!(formData.firstName && formData.lastName && emailValid && passwordValid && formData.password === formData.confirmPassword);
+    }
+
     return !!(
       formData.firstName && 
       formData.lastName && 
       emailValid && 
       formData.city && 
       formData.phoneNumber && formData.phoneNumber.length >= 10 &&
-      (role === 'tenant' || phoneVerified) &&
+      phoneVerified &&
       formData.nin && ninRegex.test(formData.nin) &&
       passwordValid &&
       formData.password === formData.confirmPassword
@@ -290,6 +317,8 @@ const Auth = () => {
           }
         }
       });
+      
+      await window.recaptchaVerifier.render();
 
       const result = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
       setConfirmationObj(result);
@@ -297,17 +326,23 @@ const Auth = () => {
       setResendTimer(60);
     } catch (error: any) {
       console.error("Signup SMS Error details:", error);
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
+        window.recaptchaVerifier = null;
+      }
       let message = 'Failed to send verification SMS. Please try again.';
       
-      if (error.code === 'auth/invalid-app-credential') {
-        message = 'Invalid app credential. This usually happens in preview environments. Please ensure your Firebase Console has authorized this domain or add your number as a Test Number in Firebase Auth.';
+      if (error.code === 'auth/invalid-app-credential' || error.message?.includes('-39') || error.code?.includes('-39')) {
+        message = 'Safety Check Failed: In a preview environment, your domain may not be authorized, or you may be using a VPN. PRO TIP: Add your number as a "Phone number for testing" in Firebase Console > Auth > Settings > Phone Numbers to skip this.';
       } else if (error.code === 'auth/too-many-requests') {
         message = 'Too many requests. Please try again later or use a different number.';
       } else if (error.message?.includes('recaptcha')) {
         message = 'reCAPTCHA verification failed. Please try again.';
       }
       
-      setErrors({ phoneNumber: `${message} (${error.code || 'error'})` });
+      setErrors({ phoneNumber: message });
     } finally {
       setIsLoading(false);
     }
@@ -335,11 +370,22 @@ const Auth = () => {
     
     setErrors({});
 
-    if (authMode === 'signup' && role === 'agent' && !phoneVerified) {
-      if (isPhoneVerifying) {
-        return verifySignupOTP();
+    if (authMode === 'signup') {
+      if (signupStep === 1) {
+        if (isFormValid()) {
+          setSignupStep(2);
+        } else {
+          validate(); // Trigger error messages
+        }
+        return;
       }
-      return sendSignupOTP();
+
+      if (!phoneVerified && formData.phoneNumber) {
+        if (isPhoneVerifying) {
+          return verifySignupOTP();
+        }
+        return sendSignupOTP();
+      }
     }
     
     if (isResetMode && resetMethod === 'sms') {
@@ -446,10 +492,16 @@ const Auth = () => {
           setErrors({});
         } catch (error: any) {
           console.error("SMS Reset Error details:", error);
+          if (window.recaptchaVerifier) {
+            try {
+              window.recaptchaVerifier.clear();
+            } catch (e) {}
+            window.recaptchaVerifier = null;
+          }
           let message = 'Failed to send reset SMS. Please check your connection.';
           
-          if (error.code === 'auth/invalid-app-credential') {
-            message = 'Invalid app credential. This usually happens in preview environments. Please ensure your Firebase Console has authorized this domain or add your number as a Test Number in Firebase Auth.';
+          if (error.code === 'auth/invalid-app-credential' || error.message?.includes('-39') || error.code?.includes('-39')) {
+            message = 'Safety Check Failed: In a preview environment, your domain may not be authorized, or you may be using a VPN. PRO TIP: Add your number as a "Phone number for testing" in Firebase Console > Auth > Settings > Phone Numbers to skip this.';
           } else if (error.code === 'auth/too-many-requests') {
             message = 'Too many requests. Please try again later or use a different number.';
           } else if (error.code === 'auth/invalid-phone-number') {
@@ -480,8 +532,8 @@ const Auth = () => {
           // Firebase Signup
           let user;
           
-          if (role === 'agent' && auth.currentUser && phoneVerified) {
-            // Agent case: They have a phone user session from OTP verification.
+          if (auth.currentUser && phoneVerified) {
+            // User has a phone session from OTP verification.
             // Link that existing UID with the new Email/Password credential.
             const emailCred = EmailAuthProvider.credential(formData.email, formData.password);
             try {
@@ -504,19 +556,22 @@ const Auth = () => {
 
           const uid = user.uid;
           
-          const userProfile: User = {
+          const userProfile: any = {
             id: uid,
             firstName: formData.firstName,
             lastName: formData.lastName,
+            name: `${formData.firstName} ${formData.lastName}`.trim(),
             email: formData.email,
             phoneNumber: `+234${formData.phoneNumber.replace(/^0/, '')}`,
-            phoneVerified: role === 'agent' ? phoneVerified : false,
+            phoneVerified: phoneVerified,
             verificationLevel: 'none',
             nin: formData.nin,
             city: formData.city,
             role: role,
             country: 'Nigeria',
-            verificationStatus: 'none'
+            verificationStatus: 'none',
+            listingsCount: 0,
+            createdAt: serverTimestamp()
           };
           
           // Store profile in Firestore
@@ -631,10 +686,10 @@ const Auth = () => {
       <main className="max-w-md mx-auto w-full pb-12">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">
-            {isResetMode ? 'Reset password' : (authMode === 'login' ? 'Welcome back' : 'Create account')}
+            {isResetMode ? 'Reset password' : (authMode === 'login' ? 'Welcome back' : (signupStep === 1 ? 'Create account' : 'Verify Identity'))}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
-            {isResetMode ? 'Enter your email to receive a password reset link' : (authMode === 'login' ? 'Sign in to access your listings' : 'Fast signup to start your housing journey')}
+            {isResetMode ? 'Enter your email to receive a password reset link' : (authMode === 'login' ? 'Sign in to access your listings' : (signupStep === 1 ? 'Fast signup to start your housing journey' : 'Provide your NIN and contact details'))}
           </p>
         </div>
 
@@ -672,7 +727,7 @@ const Auth = () => {
             </motion.div>
           )}
 
-          {authMode === 'signup' && (
+          {authMode === 'signup' && signupStep === 1 && (
             <div className="grid grid-cols-2 gap-3 mb-6">
               <button 
                 type="button" 
@@ -701,7 +756,7 @@ const Auth = () => {
             </div>
           )}
 
-          {authMode === 'signup' && (
+          {authMode === 'signup' && signupStep === 1 && (
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -715,90 +770,212 @@ const Auth = () => {
                   <ErrorMsg name="lastName" />
                 </div>
               </div>
+              
               <div>
-                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Phone Number</label>
-                <div className={`relative flex items-center bg-slate-50 dark:bg-slate-900 border rounded-xl overflow-hidden transition-all ${errors.phoneNumber ? 'border-red-500 bg-red-50/10' : 'border-slate-100 dark:border-slate-800 focus-within:border-primary-300 dark:focus-within:border-primary-700'}`}>
-                  <div className="px-3 py-3 bg-slate-100 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 tracking-tight">
-                    +234
-                  </div>
-                  <input 
-                    name="phoneNumber" 
-                    value={formData.phoneNumber} 
-                    onChange={handleChange} 
-                    type="tel" 
-                    placeholder="801 234 5678" 
-                    maxLength={11}
-                    disabled={isPhoneVerifying || phoneVerified}
-                    className="w-full bg-transparent px-3 py-3 text-sm outline-none text-slate-900 dark:text-white placeholder-slate-400" 
-                  />
-                  {phoneVerified && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
-                      <CheckCircle2 className="w-5 h-5" />
-                    </div>
-                  )}
-                </div>
-                <div id="recaptcha-container-signup" ref={recaptchaContainerRef} className="mt-2" />
-                <ErrorMsg name="phoneNumber" />
-                
-                {isPhoneVerifying && !phoneVerified && (
-                  <div className="mt-4 p-4 bg-primary-50 dark:bg-primary-900/10 border border-primary-100 dark:border-primary-900/30 rounded-xl space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-widest">Verify SMS Code</span>
-                      <button type="button" onClick={() => setIsPhoneVerifying(false)} className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase">Cancel</button>
-                    </div>
-                    <input 
-                      type="text" 
-                      maxLength={6}
-                      placeholder="Enter 6-digit code" 
-                      value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                      className="w-full bg-white dark:bg-slate-900 border border-primary-200 dark:border-primary-800 px-4 py-2 rounded-lg text-sm text-center font-mono tracking-[0.2em] outline-none focus:border-primary-500 dark:text-white"
-                    />
-                    <div className="flex justify-between items-center px-1">
-                      <button
-                        type="button"
-                        onClick={sendSignupOTP}
-                        disabled={resendTimer > 0 || isLoading}
-                        className="text-[10px] font-bold text-primary-600 disabled:text-slate-400"
-                      >
-                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={verifySignupOTP}
-                        className="text-[10px] font-bold bg-primary-600 text-white px-3 py-1.5 rounded-lg active:scale-95 transition-transform"
-                      >
-                        Verify Code
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Email Address</label>
+                <input name="email" value={formData.email} onChange={handleChange} type="email" placeholder="user@example.com" className={getInputClass('email')} />
+                <ErrorMsg name="email" />
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">NIN</label>
-                  <input name="nin" value={formData.nin} onChange={handleChange} type="text" placeholder="11 digits" maxLength={11} className={getInputClass('nin')} />
-                  <ErrorMsg name="nin" />
+                  <div className="flex justify-between items-end mb-1">
+                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Password</label>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      name="password" 
+                      value={formData.password} 
+                      onChange={handleChange} 
+                      type={showPassword ? "text" : "password"} 
+                      placeholder="••••••••" 
+                      className={getInputClass('password')} 
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <ErrorMsg name="password" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">City</label>
-                  <select name="city" value={formData.city} onChange={handleChange} className={getInputClass('city')}>
-                    <option value="" className="dark:bg-slate-900">Select City</option>
-                    {nigerianCities.map(city => <option key={city} value={city} className="dark:bg-slate-900">{city}</option>)}
-                  </select>
-                  <ErrorMsg name="city" />
+                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Confirm</label>
+                  <div className="relative">
+                    <input 
+                      name="confirmPassword" 
+                      value={formData.confirmPassword} 
+                      onChange={handleChange} 
+                      type={showConfirmPassword ? "text" : "password"} 
+                      placeholder="••••••••" 
+                      className={getInputClass('confirmPassword')} 
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <ErrorMsg name="confirmPassword" />
                 </div>
               </div>
             </>
           )}
 
-          {!isResetMode ? (
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Email Address</label>
-              <input name="email" value={formData.email} onChange={handleChange} type="email" placeholder="user@example.com" className={getInputClass('email')} />
-              <ErrorMsg name="email" />
-            </div>
-          ) : (
+          {authMode === 'signup' && signupStep === 2 && (
+            <>
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="space-y-4"
+              >
+                <button 
+                  type="button" 
+                  onClick={() => setSignupStep(1)}
+                  className="text-xs font-bold text-slate-400 hover:text-primary-600 flex items-center gap-1 mb-2"
+                >
+                  <X className="w-3 h-3" /> Back to stats
+                </button>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">NIN</label>
+                    <input name="nin" value={formData.nin} onChange={handleChange} type="text" placeholder="11 digits" maxLength={11} className={getInputClass('nin')} />
+                    <ErrorMsg name="nin" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">City</label>
+                    <select name="city" value={formData.city} onChange={handleChange} className={getInputClass('city')}>
+                      <option value="" className="dark:bg-slate-900">Select City</option>
+                      {nigerianCities.map(city => <option key={city} value={city} className="dark:bg-slate-900">{city}</option>)}
+                    </select>
+                    <ErrorMsg name="city" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Phone Number</label>
+                  <div className={`relative flex items-center bg-slate-50 dark:bg-slate-900 border rounded-xl overflow-hidden transition-all ${errors.phoneNumber ? 'border-red-500 bg-red-50/10' : 'border-slate-100 dark:border-slate-800 focus-within:border-primary-300 dark:focus-within:border-primary-700'}`}>
+                    <div className="px-3 py-3 bg-slate-100 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 tracking-tight">
+                      +234
+                    </div>
+                    <input 
+                      name="phoneNumber" 
+                      value={formData.phoneNumber} 
+                      onChange={handleChange} 
+                      type="tel" 
+                      placeholder="801 234 5678" 
+                      maxLength={11}
+                      disabled={isPhoneVerifying || phoneVerified}
+                      className="w-full bg-transparent px-3 py-3 text-sm outline-none text-slate-900 dark:text-white placeholder-slate-400" 
+                    />
+                    {phoneVerified && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                    )}
+                    {isLoading && !isPhoneVerifying && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
+                      </div>
+                    )}
+                  </div>
+                  <div id="recaptcha-container-signup" ref={recaptchaContainerRef} className="mt-2 flex justify-center" />
+                  <ErrorMsg name="phoneNumber" />
+                  
+                  {isPhoneVerifying && !phoneVerified && (
+                    <div className="mt-4 p-5 bg-white dark:bg-slate-900 border-2 border-primary-100 dark:border-primary-900 rounded-2xl shadow-xl space-y-4">
+                      <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800 pb-3">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-widest">Phone Verification</span>
+                          <span className="text-[9px] text-slate-400 font-bold">Code sent to +234 {formData.phoneNumber.replace(/^0/, '')}</span>
+                        </div>
+                        <button type="button" onClick={() => setIsPhoneVerifying(false)} className="text-[10px] font-bold text-slate-300 hover:text-red-500 uppercase transition-colors">Cancel</button>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <input 
+                          type="text" 
+                          maxLength={6}
+                          placeholder="Enter 6-digit code" 
+                          value={otpCode}
+                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-primary-200 dark:border-primary-800 px-4 py-3 rounded-xl text-lg text-center font-black tracking-[0.4em] font-mono outline-none focus:border-primary-500 focus:bg-white dark:text-white transition-all shadow-inner"
+                        />
+                        
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={verifySignupOTP}
+                            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 rounded-xl active:scale-95 transition-all shadow-md shadow-primary-200 dark:shadow-none flex items-center justify-center gap-2"
+                          >
+                            {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                            Verify & Continue
+                          </button>
+                          
+                          <button
+                            type="button"
+                            onClick={sendSignupOTP}
+                            disabled={resendTimer > 0 || isLoading}
+                            className="text-[10px] font-bold text-slate-400 hover:text-primary-600 disabled:opacity-50 transition-colors uppercase py-1"
+                          >
+                            {resendTimer > 0 ? `Resend Code in ${resendTimer}s` : "Resend SMS"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </>
+          )}
+
+          {authMode === 'login' && !isResetMode && (
+            <>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Email Address</label>
+                <input name="email" value={formData.email} onChange={handleChange} type="email" placeholder="user@example.com" className={getInputClass('email')} />
+                <ErrorMsg name="email" />
+              </div>
+
+              <div>
+                <div className="flex justify-between items-end mb-1">
+                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Password</label>
+                  <button 
+                    type="button" 
+                    onClick={() => { setIsResetMode(true); setErrors({}); }} 
+                    className="text-[10px] font-bold text-primary-600 dark:text-primary-400 hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="relative">
+                  <input 
+                    name="password" 
+                    value={formData.password} 
+                    onChange={handleChange} 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="••••••••" 
+                    className={getInputClass('password')} 
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <ErrorMsg name="password" />
+              </div>
+            </>
+          )}
+
+          {isResetMode && (
             <div className="space-y-4">
               <div className="flex gap-2 mb-4 bg-slate-50 dark:bg-slate-900 p-1 rounded-xl border border-slate-100 dark:border-slate-800">
                 <button 
@@ -935,69 +1112,11 @@ const Auth = () => {
             </div>
           )}
 
-          <div className={`${authMode === 'signup' ? 'grid grid-cols-2 gap-4' : ''}`}>
-            {!isResetMode && (
-              <>
-                <div>
-                  <div className="flex justify-between items-end mb-1">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Password</label>
-                    {authMode === 'login' && (
-                      <button 
-                        type="button" 
-                        onClick={() => { setIsResetMode(true); setErrors({}); }} 
-                        className="text-[10px] font-bold text-primary-600 dark:text-primary-400 hover:underline"
-                      >
-                        Forgot password?
-                      </button>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <input 
-                      name="password" 
-                      value={formData.password} 
-                      onChange={handleChange} 
-                      type={showPassword ? "text" : "password"} 
-                      placeholder="••••••••" 
-                      className={getInputClass('password')} 
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <ErrorMsg name="password" />
-                </div>
-                {authMode === 'signup' && (
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Confirm</label>
-                    <div className="relative">
-                      <input 
-                        name="confirmPassword" 
-                        value={formData.confirmPassword} 
-                        onChange={handleChange} 
-                        type={showConfirmPassword ? "text" : "password"} 
-                        placeholder="••••••••" 
-                        className={getInputClass('confirmPassword')} 
-                      />
-                      <button 
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                      >
-                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    <ErrorMsg name="confirmPassword" />
-                  </div>
-                )}
-              </>
-            )}
+          <div className={`${authMode === 'signup' && signupStep === 1 ? 'grid grid-cols-2 gap-4' : ''}`}>
+            {/* Password fields removed from here as they are moved to signupStep === 1 */}
           </div>
 
-          {smsStep !== 'done' && (
+          {smsStep !== 'done' && signupStep !== 3 && (
             <button 
               type="submit" 
               disabled={isLoading || resetSent}
@@ -1010,14 +1129,16 @@ const Auth = () => {
               {isLoading 
                 ? (isResetMode 
                     ? (smsStep === 'otp' ? 'Verifying...' : (smsStep === 'new-password' ? 'Updating...' : 'Sending Link...'))
-                    : (authMode === 'login' ? 'Signing In...' : 'Creating Account...')) 
+                    : (authMode === 'login' ? 'Signing In...' : (signupStep === 1 ? 'Please wait...' : 'Creating Account...'))) 
                 : (isResetMode 
                     ? (smsStep === 'otp' ? 'Verify OTP' : (smsStep === 'new-password' ? 'Set New Password' : (resetMethod === 'email' ? 'Send Reset Link' : 'Send OTP')))
                     : (authMode === 'login' 
                         ? 'Sign In' 
-                        : (role === 'agent' && !phoneVerified 
-                            ? (isPhoneVerifying ? 'Verify OTP Code' : 'Verify Phone') 
-                            : 'Create Account')))}
+                        : (signupStep === 1
+                            ? 'Next: Identity'
+                            : (!phoneVerified 
+                                ? (isPhoneVerifying ? 'Verify OTP Code' : 'Verify Phone') 
+                                : 'Finalize Registration'))))}
             </button>
           )}
 

@@ -76,6 +76,25 @@ export default function CreateListing() {
     amenities: currentListing?.amenities || [] as string[]
   });
 
+  const [atLimit, setAtLimit] = useState(false);
+
+  React.useEffect(() => {
+    const checkLimit = async () => {
+      if (!user || user.verificationLevel?.toLowerCase() === 'verified' || isEditMode) {
+        setAtLimit(false);
+        return;
+      }
+      
+      const { getCountFromServer, query, collection, where } = await import('firebase/firestore');
+      const q = query(collection(db, 'listings'), where('agent.id', '==', user.id));
+      const snapshot = await getCountFromServer(q);
+      if (snapshot.data().count >= 5) {
+        setAtLimit(true);
+      }
+    };
+    checkLimit();
+  }, [user?.id, user?.verificationLevel, isEditMode]);
+
   const capitalize = (str: string) => {
     return str.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
   };
@@ -169,6 +188,21 @@ export default function CreateListing() {
 
     setIsSubmitting(true);
     try {
+      // Check listing limit for unverified agents
+      if (user.verificationLevel?.toLowerCase() !== 'verified') {
+        const { getCountFromServer, query, collection, where } = await import('firebase/firestore');
+        const q = query(collection(db, 'listings'), where('agent.id', '==', user.id));
+        const snapshot = await getCountFromServer(q);
+        const count = snapshot.data().count;
+        
+        if (count >= 5 && !isEditMode) {
+          setError("Unverified agents are limited to 5 listings. Please verify your account to post more.");
+          setIsSubmitting(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+      }
+
       const listingId = isEditMode && currentListing ? currentListing.id : `listing_${Date.now()}`;
       
       // 1. Upload Images
@@ -224,14 +258,15 @@ export default function CreateListing() {
         landmark: formData.landmark,
         description: formData.description,
         amenities: formData.amenities,
-        verified: user.verificationLevel === 'verified',
+        verified: user.verificationLevel?.toLowerCase() === 'verified',
         isApproved: true,
         noFee: true,
         agent: {
           id: user.id,
           name: `${user.firstName} ${user.lastName}`,
+          avatarUrl: user.avatarUrl || null,
           rating: isEditMode ? (currentListing?.agent?.rating ?? 5.0) : 5.0,
-          isVerified: user.verificationLevel === 'verified'
+          isVerified: user.verificationLevel?.toLowerCase() === 'verified'
         },
         updatedAt: serverTimestamp(),
         ...(isEditMode ? {} : { createdAt: serverTimestamp() })
@@ -241,7 +276,15 @@ export default function CreateListing() {
         const { updateDoc } = await import('firebase/firestore');
         await updateDoc(doc(db, 'listings', listingId), listingData);
       } else {
-        await setDoc(doc(db, 'listings', listingId), listingData);
+        const { writeBatch, increment } = await import('firebase/firestore');
+        const batch = writeBatch(db);
+        
+        batch.set(doc(db, 'listings', listingId), listingData);
+        batch.update(doc(db, 'users', user.id), {
+          listingsCount: increment(1)
+        });
+        
+        await batch.commit();
       }
 
       await createNotification(
@@ -281,19 +324,44 @@ export default function CreateListing() {
         </div>
       </header>
 
-      <main className="w-full px-[15px] pt-4 pb-[0] space-y-8 lg:space-y-12">
-        {error && (
+      <main className="w-full px-[15px] pt-4 pb-[14px] mb-0 space-y-8 lg:space-y-12">
+        {atLimit && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-amber-50 dark:bg-amber-500/10 border-2 border-amber-200 dark:border-amber-500/20 rounded-3xl p-6 text-center space-y-4"
+          >
+            <div className="w-16 h-16 bg-amber-100 dark:bg-amber-500/20 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Listing Limit Reached</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                Unverified agents can only post up to 5 properties. <br className="hidden sm:block" />
+                Please verify your profile to unlock unlimited listings.
+              </p>
+            </div>
+            <button 
+              onClick={() => setActiveTab('profile')}
+              className="px-6 py-2.5 bg-amber-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+            >
+              Verify Profile
+            </button>
+          </motion.div>
+        )}
+
+        {(error || (atLimit && !isEditMode)) && (
           <motion.div 
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 rounded-2xl p-4 flex items-center gap-3 text-rose-600 dark:text-rose-400"
           >
             <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p className="text-sm font-bold">{error}</p>
+            <p className="text-sm font-bold">{error || "You have reached your listing limit."}</p>
           </motion.div>
         )}
 
-        <form onSubmit={handleCreate} className="space-y-8">
+        <form onSubmit={handleCreate} className={`space-y-8 ${atLimit && !isEditMode ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
           {/* Media Section */}
           <section className="space-y-6">
             <div className="space-y-4">

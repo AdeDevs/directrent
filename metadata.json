@@ -1,6 +1,5 @@
 {
   "name": "DirectRent",
-  "description": "A tenant-focused housing platform for Nigeria, connecting tenants directly with verified agents.",
-  "requestFramePermissions": ["geolocation", "camera"],
-  "majorCapabilities": []
+  "description": "DirectRent is a premium real estate platform for students and professionals in Nigeria, featuring verified agents and secure transactions.",
+  "requestFramePermissions": ["camera", "geolocation"]
 }

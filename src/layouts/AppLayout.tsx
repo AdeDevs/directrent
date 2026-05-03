@@ -48,23 +48,38 @@ const AppLayout = () => {
       >
         <AnimatePresence mode="wait">
           {selectedAgentId ? (
-            <AgentProfile
-              key="agent-profile"
-              agentId={selectedAgentId}
-              onBack={() => setSelectedAgentId(null)}
-            />
+            <motion.div
+              key={`agent-${selectedAgentId}`}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <AgentProfile
+                agentId={selectedAgentId}
+                onBack={() => setSelectedAgentId(null)}
+              />
+            </motion.div>
           ) : (currentListing && activeTab !== "create") ? (
-            <ListingDetails
-              key="listing-details"
-              listing={currentListing}
-              onBack={() => setCurrentListing(null)}
-            />
+            <motion.div
+              key={`listing-${currentListing.id}`}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ListingDetails
+                listing={currentListing}
+                onBack={() => setCurrentListing(null)}
+              />
+            </motion.div>
           ) : (
             <motion.div
-              key="dashboard-content"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              key={`dashboard-${activeTab}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
             >
               {activeTab === "home" && <HomePage key="home" />}
               {activeTab === "chat" && <ChatPage key="chat" />}

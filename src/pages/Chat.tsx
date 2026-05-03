@@ -239,7 +239,10 @@ const Inbox = () => {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setConversations([]);
+      return;
+    }
 
     const conversationsRef = collection(db, "conversations");
     const fieldToFilter = user.role === "tenant" ? "tenantId" : "agentId";
@@ -265,7 +268,10 @@ const Inbox = () => {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      setConversations([]);
+    };
   }, [user]);
 
   const filteredConversations = conversations.filter(
@@ -277,7 +283,7 @@ const Inbox = () => {
 
   const getTimeAgo = (timestamp: any) => {
     if (!timestamp) return "";
-    const date = timestamp.toDate();
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const now = new Date();
     const diff = Math.abs(now.getTime() - date.getTime());
     const minutes = Math.floor(diff / (1000 * 60));
@@ -291,13 +297,10 @@ const Inbox = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-6 bg-white dark:bg-slate-950 transition-colors duration-300">
-        <div className="relative">
-          <div className="w-12 h-12 border-4 border-primary-50 dark:border-primary-900/20 rounded-full animate-pulse" />
-          <Loader2 className="w-6 h-6 text-primary-600 dark:text-primary-400 animate-spin absolute inset-0 m-auto" />
-        </div>
-        <p className="text-[10px] font-bold text-slate-300 dark:text-slate-700 uppercase tracking-[0.3em]">
-          Syncing Messages
+      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4 bg-white dark:bg-slate-950 transition-colors duration-300">
+        <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-800 border-t-primary-600 dark:border-t-primary-500 rounded-full animate-spin" />
+        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest animate-pulse">
+          Fetching chat data...
         </p>
       </div>
     );
@@ -320,7 +323,7 @@ const Inbox = () => {
         </div>
       </header>
 
-      <main className="pt-[72px] px-[15px] pb-[0px]" style={{ paddingTop: "20px" }}>
+      <main className="pt-[72px] px-[15px] pb-[14px] mb-0" style={{ paddingTop: "20px" }}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -345,6 +348,7 @@ const Inbox = () => {
             <AnimatePresence mode="popLayout">
               {filteredConversations.length === 0 ? (
                 <motion.div
+                  key="empty-inbox"
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
                   className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/40 dark:shadow-black/40 flex flex-col items-center justify-center py-20 sm:py-32 px-8 text-center"
@@ -361,9 +365,9 @@ const Inbox = () => {
                   </p>
                 </motion.div>
               ) : (
-                filteredConversations.map((conv, idx) => (
+                filteredConversations.map((conv) => (
                   <ConversationRow
-                    key={conv.id}
+                    key={`conv-${conv.id}`}
                     conv={conv}
                     user={user}
                     onClick={() => setSelectedConv(conv)}
