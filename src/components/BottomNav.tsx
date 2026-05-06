@@ -32,7 +32,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, user }) 
       <div className="flex items-center justify-between max-w-lg mx-auto w-full px-0.5">
         {tabs.map((tab) => (
           <button 
-            key={tab.id}
+            key={`nav-${user?.role || 'guest'}-${tab.id}`}
             onClick={() => setActiveTab(tab.id as AppTab)}
             className={`flex flex-col items-center gap-0.5 transition-all relative cursor-pointer min-w-0 flex-1 ${
               activeTab === tab.id ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'

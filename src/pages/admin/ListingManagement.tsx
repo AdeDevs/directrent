@@ -15,7 +15,8 @@ import {
   TrendingUp,
   Clock,
   CheckCircle2,
-  EyeOff
+  EyeOff,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Listing } from '../../types';
@@ -26,6 +27,8 @@ interface ListingManagementProps {
   loading: boolean;
   onReview: (listing: Listing) => void;
   onDelete: (listingId: string) => void;
+  onApprove: (listingId: string) => void;
+  onVerify: (listingId: string, verify: boolean) => void;
   onExport?: () => void;
 }
 
@@ -34,6 +37,8 @@ const ListingManagement: React.FC<ListingManagementProps> = ({
   loading, 
   onReview, 
   onDelete,
+  onApprove,
+  onVerify,
   onExport
 }) => {
   const [activeDropdown, setActiveDropdown] = useState<string | number | null>(null);
@@ -362,7 +367,10 @@ const ListingManagement: React.FC<ListingManagementProps> = ({
                 </div>
               <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                   <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{listing.title}</h3>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{listing.title}</h3>
+                      {listing.verified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       <div className="w-5 h-5 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-200 dark:border-slate-700">
                         <img 
@@ -412,6 +420,22 @@ const ListingManagement: React.FC<ListingManagementProps> = ({
                     openUpwards={openUpwards}
                   >
                     <div className="py-1">
+                      {!listing.isApproved && (
+                        <button 
+                          onClick={() => { onApprove(listing.id.toString()); setActiveDropdown(null); }}
+                          className="w-full px-4 py-2 text-left text-xs font-bold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 border-b border-slate-100 dark:border-slate-700 transition-colors"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          Approve Listing
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => { onVerify(listing.id.toString(), !listing.verified); setActiveDropdown(null); }}
+                        className={`w-full px-4 py-2 text-left text-xs font-medium flex items-center gap-3 transition-colors border-b border-slate-100 dark:border-slate-700 ${listing.verified ? 'text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20' : 'text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'}`}
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        {listing.verified ? 'Unverify' : 'Verify'}
+                      </button>
                       <button 
                         onClick={() => { window.open(`/listings/${listing.id}`, '_blank'); setActiveDropdown(null); }}
                         className="w-full px-4 py-2 text-left text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 border-b border-slate-100 dark:border-slate-700"
@@ -460,7 +484,10 @@ const ListingManagement: React.FC<ListingManagementProps> = ({
                         <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1">{listing.title}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1">{listing.title}</span>
+                          {listing.verified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" title="Verified Property" />}
+                        </div>
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">{listing.type}</span>
                       </div>
                     </div>
@@ -520,6 +547,22 @@ const ListingManagement: React.FC<ListingManagementProps> = ({
                         >
                           <Eye className="w-4 h-4" />
                           View Details
+                        </button>
+                        {!listing.isApproved && (
+                          <button 
+                            onClick={() => { onApprove(listing.id.toString()); setActiveDropdown(null); }}
+                            className="w-full px-4 py-2 text-left text-xs font-bold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 transition-colors border-b border-slate-100 dark:border-slate-700"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            Approve Listing
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => { onVerify(listing.id.toString(), !listing.verified); setActiveDropdown(null); }}
+                          className={`w-full px-4 py-2 text-left text-xs font-medium flex items-center gap-3 transition-colors border-b border-slate-100 dark:border-slate-700 ${listing.verified ? 'text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20' : 'text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'}`}
+                        >
+                          <ShieldCheck className="w-4 h-4" />
+                          {listing.verified ? 'Unverify Property' : 'Verify Property'}
                         </button>
                         <button 
                           onClick={() => { window.open(`/listings/${listing.id}`, '_blank'); setActiveDropdown(null); }}

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { 
   Building2, 
@@ -20,6 +20,8 @@ import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { createNotification } from '../lib/notifications';
 import { compressImage } from '../lib/storage';
+import { GoogleMapsGuard } from '../components/GoogleMapsGuard';
+import { LocationPicker } from '../components/LocationPicker';
 
 const SUGGESTED_PROPERTY_TYPES = [
   "Self-Contain", 
@@ -68,6 +70,9 @@ export default function CreateListing() {
     title: currentListing?.title || '',
     priceValue: currentListing?.priceValue ? currentListing.priceValue.toLocaleString() : '',
     location: currentListing?.location || '',
+    latitude: currentListing?.latitude || null,
+    longitude: currentListing?.longitude || null,
+    placeId: currentListing?.placeId || '',
     type: currentListing?.type || '',
     landmark: currentListing?.landmark || '',
     description: currentListing?.description || '',
@@ -174,6 +179,16 @@ export default function CreateListing() {
     return null;
   };
 
+  const handleLocationSelect = useCallback((loc: { address: string; lat: number; lng: number; placeId: string }) => {
+    setFormData(prev => ({
+      ...prev,
+      location: loc.address,
+      latitude: loc.lat,
+      longitude: loc.lng,
+      placeId: loc.placeId
+    }));
+  }, []);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -251,6 +266,9 @@ export default function CreateListing() {
         price: `₦${priceNum.toLocaleString()}`,
         priceValue: priceNum,
         location: formData.location,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+        placeId: formData.placeId,
         type: formData.type,
         image: uploadedImageUrls[0] || DEFAULT_IMAGE,
         images: uploadedImageUrls,
@@ -259,7 +277,8 @@ export default function CreateListing() {
         description: formData.description,
         amenities: formData.amenities,
         verified: user.verificationLevel?.toLowerCase() === 'verified',
-        isApproved: true,
+        isApproved: isEditMode ? (currentListing?.isApproved ?? false) : false,
+        status: isEditMode ? (currentListing?.status ?? 'pending') : 'pending',
         noFee: true,
         agent: {
           id: user.id,
@@ -361,6 +380,7 @@ export default function CreateListing() {
           </motion.div>
         )}
 
+        <GoogleMapsGuard>
         <form onSubmit={handleCreate} className={`space-y-8 ${atLimit && !isEditMode ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
           {/* Media Section */}
           <section className="space-y-6">
@@ -374,7 +394,7 @@ export default function CreateListing() {
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {formData.images.map((url, idx) => (
-                  <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden group">
+                  <div key={`create-img-${idx}-${url.slice(-20)}`} className="relative aspect-square rounded-2xl overflow-hidden group">
                     <img src={url} alt={`Listing ${idx}`} className="w-full h-full object-cover" />
                     <button
                       type="button"
@@ -503,7 +523,7 @@ export default function CreateListing() {
                       className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl py-4 px-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
                     />
                     <datalist id="property-types">
-                      {SUGGESTED_PROPERTY_TYPES.map(t => <option key={t} value={t} />)}
+                      {SUGGESTED_PROPERTY_TYPES.map(t => <option key={`prop-type-${t}`} value={t} />)}
                     </datalist>
                   </div>
                 </div>
@@ -515,35 +535,11 @@ export default function CreateListing() {
           <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="space-y-2">
-                <div className="flex items-center justify-between pr-1">
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Location / Area</label>
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition(async (pos) => {
-                          const { latitude, longitude } = pos.coords;
-                          handleInputChange('location', `Pinned Location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`);
-                        });
-                      }
-                    }}
-                    className="text-[9px] font-black text-primary-600 uppercase tracking-tighter hover:underline"
-                  >
-                    Current Location
-                  </button>
-                </div>
-                <div className="relative">
-                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                  <input 
-                    required
-                    type="text" 
-                    placeholder="e.g. Bodija, Ibadan"
-                    value={formData.location}
-                    onChange={(e) => handleInputChange('location', e.target.value)}
-                    onBlur={() => handleBlur('location')}
-                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
-                  />
-                </div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Search Property Address</label>
+                <LocationPicker 
+                  initialValue={formData.location}
+                  onLocationSelect={handleLocationSelect}
+                />
               </div>
 
               <div className="space-y-2">
@@ -570,7 +566,7 @@ export default function CreateListing() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {AMENITIES_LIST.map(amenity => (
                 <button
-                  key={amenity}
+                  key={`amenity-toggle-${amenity}`}
                   type="button"
                   onClick={() => toggleAmenity(amenity)}
                   className={`flex items-center gap-2 px-3 py-3 rounded-2xl text-[10px] font-bold transition-all border ${formData.amenities.includes(amenity) ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-white/5 hover:border-slate-300'}`}
@@ -619,6 +615,7 @@ export default function CreateListing() {
             </p>
           </div>
         </form>
+        </GoogleMapsGuard>
       </main>
     </div>
   );

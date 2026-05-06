@@ -39,6 +39,114 @@ export const purgeAllFavorites = async () => {
   }
 };
 
+export const purgeAllNotifications = async () => {
+  try {
+    const notifQuery = await getDocs(collection(db, 'notifications'));
+    if (notifQuery.docs.length > 0) {
+      let count = 0;
+      let batch = writeBatch(db);
+      for (const nDoc of notifQuery.docs) {
+        batch.delete(doc(db, 'notifications', nDoc.id));
+        count++;
+        if (count === 450) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+      if (count > 0) await batch.commit();
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'notifications');
+  }
+};
+
+export const purgeAllReports = async () => {
+  try {
+    const reportsQuery = await getDocs(collection(db, 'reports'));
+    if (reportsQuery.docs.length > 0) {
+      let count = 0;
+      let batch = writeBatch(db);
+      for (const rDoc of reportsQuery.docs) {
+        batch.delete(doc(db, 'reports', rDoc.id));
+        count++;
+        if (count === 450) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+      if (count > 0) await batch.commit();
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'reports');
+  }
+};
+
+export const purgeAllReviews = async () => {
+  try {
+    const reviewsQuery = await getDocs(collection(db, 'reviews'));
+    if (reviewsQuery.docs.length > 0) {
+      let count = 0;
+      let batch = writeBatch(db);
+      for (const rDoc of reviewsQuery.docs) {
+        batch.delete(doc(db, 'reviews', rDoc.id));
+        count++;
+        if (count === 450) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+      if (count > 0) await batch.commit();
+    }
+    
+    // Also reset avgRating and reviewsCount on users if applicable
+    const usersQuery = await getDocs(collection(db, 'users'));
+    if (usersQuery.docs.length > 0) {
+      let count = 0;
+      let uBatch = writeBatch(db);
+      for (const user of usersQuery.docs) {
+        uBatch.update(doc(db, 'users', user.id), {
+          avgRating: 0,
+          completedTxns: 0
+        });
+        count++;
+        if (count === 450) {
+          await uBatch.commit();
+          uBatch = writeBatch(db);
+          count = 0;
+        }
+      }
+      if (count > 0) await uBatch.commit();
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'reviews');
+  }
+};
+
+export const purgeAllTours = async () => {
+  try {
+    const toursQuery = await getDocs(collection(db, 'tours'));
+    if (toursQuery.docs.length > 0) {
+      let count = 0;
+      let batch = writeBatch(db);
+      for (const tDoc of toursQuery.docs) {
+        batch.delete(doc(db, 'tours', tDoc.id));
+        count++;
+        if (count === 450) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+      if (count > 0) await batch.commit();
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'tours');
+  }
+};
+
 export const resetAllAnalytics = async () => {
   try {
     const analyticsQuery = await getDocs(collection(db, 'analytics'));
@@ -109,7 +217,10 @@ export const purgeListingData = async (listingId: string) => {
             const imageRef = ref(storage, imgUrl);
             await deleteObject(imageRef);
           } catch (e: any) {
-            console.warn(`Could not delete storage object: ${imgUrl}`, e.message);
+            // Ignore if object doesn't exist anymore
+            if (e.code !== 'storage/object-not-found') {
+              console.warn(`Could not delete storage object: ${imgUrl}`, e.message);
+            }
           }
         }
       }
@@ -120,7 +231,9 @@ export const purgeListingData = async (listingId: string) => {
           const videoRef = ref(storage, listing.videoUrl);
           await deleteObject(videoRef);
         } catch (e: any) {
-          console.warn(`Could not delete storage object: ${listing.videoUrl}`, e.message);
+          if (e.code !== 'storage/object-not-found') {
+            console.warn(`Could not delete storage object: ${listing.videoUrl}`, e.message);
+          }
         }
       }
     }
@@ -187,7 +300,13 @@ export const purgeUserData = async (userId: string) => {
 
         for (const fileUrl of filesToClean) {
           if (fileUrl && typeof fileUrl === 'string' && fileUrl.includes('firebasestorage.googleapis.com')) {
-            try { await deleteObject(ref(storage, fileUrl)); } catch (e) {}
+            try { 
+              await deleteObject(ref(storage, fileUrl)); 
+            } catch (e: any) {
+              if (e.code !== 'storage/object-not-found') {
+                console.warn(`Could not delete verification file: ${fileUrl}`, e);
+              }
+            }
           }
         }
         verificationsBatch.delete(vDoc.ref);
@@ -202,7 +321,13 @@ export const purgeUserData = async (userId: string) => {
     ];
     for (const fileUrl of userFilesToClean) {
       if (fileUrl && typeof fileUrl === 'string' && fileUrl.includes('firebasestorage.googleapis.com')) {
-        try { await deleteObject(ref(storage, fileUrl)); } catch (e) {}
+        try { 
+          await deleteObject(ref(storage, fileUrl)); 
+        } catch (e: any) {
+          if (e.code !== 'storage/object-not-found') {
+            console.warn(`Could not delete user file: ${fileUrl}`, e);
+          }
+        }
       }
     }
 
@@ -243,7 +368,13 @@ export const purgeUserData = async (userId: string) => {
 
     // 7. Cleanup User Avatar from Storage
     if (userData?.avatarUrl && userData.avatarUrl.includes('firebasestorage.googleapis.com')) {
-      try { await deleteObject(ref(storage, userData.avatarUrl)); } catch (e) {}
+      try { 
+        await deleteObject(ref(storage, userData.avatarUrl)); 
+      } catch (e: any) {
+        if (e.code !== 'storage/object-not-found') {
+          console.warn(`Could not delete user avatar: ${userData.avatarUrl}`, e);
+        }
+      }
     }
 
     // 8. Delete the user profile document

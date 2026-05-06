@@ -29,7 +29,11 @@ import { FEATURED_LISTINGS } from '../../data';
 import { 
   purgeAllChats, 
   purgeAllFavorites, 
-  resetAllAnalytics 
+  resetAllAnalytics,
+  purgeAllNotifications,
+  purgeAllReports,
+  purgeAllReviews,
+  purgeAllTours
 } from '../../utils/adminCleanup';
 
 const HealthCheck = () => {
@@ -159,7 +163,11 @@ const Maintenance = () => {
       await purgeAllChats();
       await purgeAllFavorites();
       await resetAllAnalytics();
-      setMessage({ type: 'success', text: 'Message history, favorites, and analytics have been reset across the entire platform.' });
+      await purgeAllNotifications();
+      await purgeAllReports();
+      await purgeAllReviews();
+      await purgeAllTours();
+      setMessage({ type: 'success', text: 'Message history, favorites, analytics, notifications, reports, reviews, and tours have been reset across the entire platform.' });
     } catch (err: any) {
       console.error('Reset error:', err);
       setMessage({ type: 'error', text: 'Failed to reset interaction data: ' + err.message });
@@ -281,13 +289,13 @@ const Maintenance = () => {
     {
       id: 'reset',
       title: 'Reset Interaction Data',
-      description: 'Consolidates messaging purge, favorites clearing, and analytics reset into a single operation. Essential for resetting deployment metrics or privacy audits.',
+      description: 'Consolidates messaging purge, favorites clearing, analytics reset, and removal of notifications, reports, reviews, and tours into a single operation.',
       icon: Zap,
       variant: 'danger',
       action: () => setConfirmModal({
         type: 'reset-activity',
         title: 'Clear All Engagement Data',
-        description: 'This will permanently delete all chat history, clear all user favorites, and zero out all view counters. This action is irreversible.',
+        description: 'This will permanently delete all chat history, clear all user favorites, zero out view counters, and remove all notifications, reports, reviews, and tours. This action is irreversible.',
         onConfirm: handleResetInteractionData
       })
     }

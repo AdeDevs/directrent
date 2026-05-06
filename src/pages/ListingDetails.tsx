@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowLeft, Bookmark, MapPin, BadgeCheck, Star, 
@@ -16,6 +16,8 @@ import { useAuth } from '../context/AuthContext';
 import { addDoc, collection, serverTimestamp, query, where, getCountFromServer, doc } from 'firebase/firestore';
 import { purgeListingData } from '../utils/adminCleanup';
 import { toast } from 'react-hot-toast';
+import { GoogleMapsGuard } from '../components/GoogleMapsGuard';
+import { useMap, useMapsLibrary, Map as GoogleMap, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
 
 import SafeImage from '../components/SafeImage';
 
@@ -256,6 +258,124 @@ const ScheduleTourModal = ({ isOpen, onClose, listing, userId }: { isOpen: boole
   );
 };
 
+const DirectionsDisplay = ({ origin, destination }: { origin: google.maps.LatLngLiteral, destination: google.maps.LatLngLiteral }) => {
+  const map = useMap();
+  const routesLib = useMapsLibrary('routes');
+  const polylinesRef = useRef<google.maps.Polyline[]>([]);
+
+  useEffect(() => {
+    if (!routesLib || !map) return;
+    
+    routesLib.Route.computeRoutes({
+      origin: { location: { latLng: origin } },
+      destination: { location: { latLng: destination } },
+      travelMode: google.maps.TravelMode.DRIVING,
+    } as any).then(({ routes }: any) => {
+      if (routes?.[0]) {
+        const newPolylines = routes[0].createPolylines();
+        newPolylines.forEach(p => p.setMap(map));
+        polylinesRef.current = newPolylines;
+        if (routes[0].viewport) map.fitBounds(routes[0].viewport);
+      }
+    });
+
+    return () => polylinesRef.current.forEach(p => p.setMap(null));
+  }, [routesLib, map, origin, destination]);
+
+  return null;
+};
+
+const DirectionsModal = ({ isOpen, onClose, destination }: { isOpen: boolean, onClose: () => void, destination: { lat: number, lng: number } }) => {
+  const [userLocation, setUserLocation] = useState<google.maps.LatLngLiteral | null>(null);
+  const [isLocating, setIsLocating] = useState(true);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setIsLocating(false);
+        },
+        () => {
+          // Fallback to a default location (e.g., Lagos center) if denied
+          setUserLocation({ lat: 6.5244, lng: 3.3792 });
+          setIsLocating(false);
+          toast.error("Location access denied. Showing directions from Lagos center.");
+        }
+      );
+    } else {
+      setIsLocating(false);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[4000] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-full max-w-2xl h-[80vh] bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl relative z-10 border border-slate-100 dark:border-slate-800 flex flex-col"
+      >
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary-50 dark:bg-primary-900/20 text-primary-600 rounded-xl flex items-center justify-center">
+              <Navigation className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Get Directions</h3>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">To Listing Location</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="flex-1 relative">
+          <GoogleMapsGuard>
+            {isLocating ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 z-10">
+                <div className="w-10 h-10 border-4 border-primary-100 border-t-primary-600 rounded-full animate-spin mb-4" />
+                <p className="text-sm font-bold text-slate-500 animate-pulse uppercase tracking-widest">Pinpointing your location...</p>
+              </div>
+            ) : userLocation && (
+              <GoogleMap
+                defaultCenter={destination}
+                defaultZoom={13}
+                mapId="DIRECTIONS_MAP"
+                internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+                className="w-full h-full"
+              >
+                <DirectionsDisplay origin={userLocation} destination={destination} />
+                <AdvancedMarker position={destination}>
+                  <Pin background="#4f46e5" glyphColor="#fff" />
+                </AdvancedMarker>
+                <AdvancedMarker position={userLocation}>
+                  <Pin background="#10b981" glyphColor="#fff" />
+                </AdvancedMarker>
+              </GoogleMap>
+            )}
+          </GoogleMapsGuard>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
   const { setCurrentListing, user, setView, setAuthMode, setSelectedAgentId, favorites, toggleFavorite, setActiveTab } = useAuth();
   const [activeMedia, setActiveMedia] = useState(0);
@@ -266,18 +386,49 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showTourModal, setShowTourModal] = useState(false);
-  const [realStats, setRealStats] = useState({ views: 0, inquiries: 0, saves: 0 });
+  const [showDirectionsModal, setShowDirectionsModal] = useState(false);
+  const [realStats, setRealStats] = useState({ 
+    views: listing.viewCount || 0, 
+    inquiries: listing.inquiryCount || 0, 
+    saves: listing.favoritesCount || 0,
+    trends: {
+      views: '0%',
+      inquiries: '0%',
+      saves: '0%',
+      interaction: '0%'
+    }
+  });
+
+  // Keep stats in sync with listing object if it updates (e.g. real-time)
+  useEffect(() => {
+    setRealStats(prev => ({
+      ...prev,
+      views: Math.max(prev.views, listing.viewCount || 0),
+      inquiries: Math.max(prev.inquiries, listing.inquiryCount || 0),
+      saves: Math.max(prev.saves, listing.favoritesCount || 0)
+    }));
+  }, [listing.viewCount, listing.inquiryCount, listing.favoritesCount]);
 
   const isFavorite = favorites.includes(listing.id);
   const isAgent = user?.role === 'agent';
-  const isOwnListing = isAgent && listing.agent?.id === user?.id;
+  const isAdminUser = user?.role === 'admin' || user?.role === 'moderator' || user?.email?.toLowerCase() === 'adeyemiakinyemi01@gmail.com';
+  const isOwnListing = (isAgent && listing.agent?.id === user?.id);
+  const isAdmin = isAdminUser;
+  const canManageListing = isOwnListing || isAdmin;
   
   // Track View on Mount
   useEffect(() => {
     const recordView = async () => {
+      // Don't count view if it's the specific agent's listing 
+      // Admins should count as views for testing unless they are also the listed agent
+      if (isOwnListing) return;
+
       // Use a session storage key to prevent over-counting in same session
       const sessionKey = `viewed_${listing.id}`;
       if (sessionStorage.getItem(sessionKey)) return;
+
+      // Mark as viewed immediately to prevent double-firing during auth transitions
+      sessionStorage.setItem(sessionKey, 'true');
 
       try {
         const { setDoc, doc, increment } = await import('firebase/firestore');
@@ -288,70 +439,122 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
         await setDoc(listingRef, {
           viewCount: increment(1),
           updatedAt: serverTimestamp()
-        }, { merge: true }).catch(err => console.warn("Failed to record viewCount:", err));
+        }, { merge: true }).catch(err => {
+          console.warn("Failed to record viewCount:", err);
+          // Only clear if it failed due to some transient error, 
+          // but usually it's safer to leave as true to avoid spamming
+        });
 
         // Simplified analytics record for history
-        await addDoc(collection(db, 'analytics'), {
-          listingId: listingIdStr,
-          type: 'view',
-          userId: user?.id || null,
-          agentId: listing.agent?.id || null,
-          createdAt: serverTimestamp()
-        });
-        sessionStorage.setItem(sessionKey, 'true');
+        if (listing.agent?.id) {
+          await addDoc(collection(db, 'analytics'), {
+            listingId: listingIdStr,
+            type: 'view',
+            userId: user?.id || null,
+            agentId: listing.agent.id,
+            createdAt: serverTimestamp()
+          });
+        }
       } catch (error) {
         console.error("Error recording view:", error);
       }
     };
 
     recordView();
-  }, [listing.id, user?.id]);
+  }, [listing.id, isOwnListing]); 
 
   // Fetch real stats
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        if (!user || !isOwnListing) return;
+        if (!user || !canManageListing) return;
 
-        // Views from analytics
-        const viewsQuery = query(
-          collection(db, 'analytics'), 
-          where('listingId', '==', listing.id.toString()),
-          where('type', '==', 'view'),
-          where('agentId', '==', user.id)
-        );
-        const viewsCount = await getCountFromServer(viewsQuery);
-        
-        // Count inquiries (messages + tour requests) from analytics
-        const inquiriesQuery = query(
-          collection(db, 'analytics'), 
-          where('listingId', '==', listing.id.toString()),
-          where('type', '==', 'inquiry'),
-          where('agentId', '==', user.id)
-        );
-        const inquiriesCount = await getCountFromServer(inquiriesQuery);
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+        const sixtyDaysAgo = new Date(now.getTime() - (60 * 24 * 60 * 60 * 1000));
 
-        // Saves from analytics
-        const savesQuery = query(
+        const getStatsInRange = async (type: string, start: Date, end: Date) => {
+          const q = query(
+            collection(db, 'analytics'), 
+            where('listingId', '==', listing.id.toString()),
+            where('agentId', '==', listing.agent.id),
+            where('type', '==', type),
+            where('createdAt', '>=', start),
+            where('createdAt', '<', end)
+          );
+          const snap = await getCountFromServer(q);
+          return snap.data().count;
+        };
+
+        const calculateTrend = (current: number, previous: number) => {
+          if (previous === 0) return current > 0 ? '+100%' : '0%';
+          const diff = ((current - previous) / previous) * 100;
+          return `${diff >= 0 ? '+' : ''}${Math.round(diff)}%`;
+        };
+
+        // Parallel fetch for current and previous periods
+        const [
+          currViews, prevViews,
+          currInq, prevInq,
+          currSaves, prevSaves
+        ] = await Promise.all([
+          getStatsInRange('view', thirtyDaysAgo, now),
+          getStatsInRange('view', sixtyDaysAgo, thirtyDaysAgo),
+          getStatsInRange('inquiry', thirtyDaysAgo, now),
+          getStatsInRange('inquiry', sixtyDaysAgo, thirtyDaysAgo),
+          getStatsInRange('save', thirtyDaysAgo, now),
+          getStatsInRange('save', sixtyDaysAgo, thirtyDaysAgo)
+        ]);
+
+        const totalViewsQuery = query(
           collection(db, 'analytics'), 
           where('listingId', '==', listing.id.toString()),
-          where('type', '==', 'save'),
-          where('agentId', '==', user.id)
+          where('agentId', '==', listing.agent.id),
+          where('type', '==', 'view')
         );
-        const savesCount = await getCountFromServer(savesQuery);
+        const totalViewsCount = await getCountFromServer(totalViewsQuery);
+
+        const totalInqQuery = query(
+          collection(db, 'analytics'), 
+          where('listingId', '==', listing.id.toString()),
+          where('agentId', '==', listing.agent.id),
+          where('type', '==', 'inquiry')
+        );
+        const totalInqCount = await getCountFromServer(totalInqQuery);
+
+        const totalSavesQuery = query(
+          collection(db, 'analytics'), 
+          where('listingId', '==', listing.id.toString()),
+          where('agentId', '==', listing.agent.id),
+          where('type', '==', 'save')
+        );
+        const totalSavesCount = await getCountFromServer(totalSavesQuery);
         
+        const totalViews = Math.max(totalViewsCount.data().count, listing.viewCount || 0);
+        const totalInq = Math.max(totalInqCount.data().count, listing.inquiryCount || 0);
+        const totalSaves = Math.max(totalSavesCount.data().count, listing.favoritesCount || 0);
+
+        const currRate = currViews > 0 ? (currInq + currSaves) / currViews : 0;
+        const prevRate = prevViews > 0 ? (prevInq + prevSaves) / prevViews : 0;
+
         setRealStats({
-          views: viewsCount.data().count,
-          inquiries: inquiriesCount.data().count,
-          saves: savesCount.data().count || favorites.filter(f => f === listing.id).length
+          views: totalViews,
+          inquiries: totalInq,
+          saves: totalSaves,
+          trends: {
+            views: calculateTrend(currViews, prevViews),
+            inquiries: calculateTrend(currInq, prevInq),
+            saves: calculateTrend(currSaves, prevSaves),
+            interaction: calculateTrend(currRate * 100, prevRate * 100)
+          }
         });
       } catch (error) {
-        console.warn("Real stats partially unavailable - permissions");
+        console.warn("Real stats partially unavailable - permissions", error);
       }
     };
 
     fetchStats();
-  }, [listing.id, favorites, user, isOwnListing]);
+  }, [listing.id, user, isOwnListing, isAdmin]);
   
   // Recommended listings (exclude current, pick 3)
   const recommended = FEATURED_LISTINGS.filter(l => l.id !== listing.id).slice(0, 3);
@@ -369,30 +572,17 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       return;
     }
 
-    // Record inquiry analytics
+    // Record intent to message (Analytics only, count happens on first message)
     try {
-      const { setDoc, doc, increment, serverTimestamp: fsServerTimestamp } = await import('firebase/firestore');
-      const listingIdStr = listing.id.toString();
-      const listingRef = doc(db, 'listings', listingIdStr);
-      await setDoc(listingRef, {
-        inquiryCount: increment(1),
-        updatedAt: fsServerTimestamp(),
-        // Ensure it has basic metadata to be queryable
-        createdAt: fsServerTimestamp(),
-        title: listing.title,
-        image: listing.image,
-        status: listing.status || 'ACTIVE'
-      }, { merge: true }).catch(() => {/* Ignore errors */});
-
       await addDoc(collection(db, 'analytics'), {
-        listingId: listingIdStr,
-        type: 'inquiry',
+        listingId: listing.id.toString(),
+        type: 'intent_message',
         userId: user.id,
         agentId: listing.agent?.id || null,
         createdAt: serverTimestamp()
       });
     } catch (e) {
-      console.warn("Failed to record inquiry analytic");
+      console.warn("Failed to record intent analytic");
     }
 
     setIsChatOpen(true);
@@ -424,19 +614,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
     }
 
     try {
-      const wasFavorite = favorites.includes(listingId);
-      await toggleFavorite(listingId);
-      
-      // If we just added it, record analytics
-      if (!wasFavorite) {
-        await addDoc(collection(db, 'analytics'), {
-          listingId: listingId.toString(),
-          type: 'save',
-          userId: user.id,
-          agentId: listing.agent?.id || null,
-          createdAt: serverTimestamp()
-        });
-      }
+      await toggleFavorite(listingId, listing.agent?.id);
     } catch (e) {
       console.error("Error toggling favorite with analytics:", e);
     }
@@ -462,15 +640,11 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       const { setDoc, doc, increment, serverTimestamp: fsServerTimestamp } = await import('firebase/firestore');
       const listingIdStr = listing.id.toString();
       const listingRef = doc(db, 'listings', listingIdStr);
+      
       await setDoc(listingRef, {
         inquiryCount: increment(1),
-        updatedAt: fsServerTimestamp(),
-        // Ensure it has basic metadata to be queryable
-        createdAt: fsServerTimestamp(),
-        title: listing.title,
-        image: listing.image,
-        status: listing.status || 'ACTIVE'
-      }, { merge: true }).catch(() => {/* Ignore errors */});
+        updatedAt: fsServerTimestamp()
+      }, { merge: true }).catch(err => console.warn("Failed to increment inquiryCount:", err));
 
       await addDoc(collection(db, 'analytics'), {
         listingId: listingIdStr,
@@ -530,7 +704,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
             <div className="w-full h-full relative group">
               <AnimatePresence mode="wait">
                 <motion.div 
-                  key={galleryIndex}
+                  key={`gallery-item-${galleryIndex}`}
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 1.05 }}
@@ -627,6 +801,15 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           onClose={() => setShowTourModal(false)} 
           listing={listing} 
           userId={user.id} 
+        />
+      )}
+
+      {/* Directions Modal */}
+      {listing.latitude && listing.longitude && (
+        <DirectionsModal
+          isOpen={showDirectionsModal}
+          onClose={() => setShowDirectionsModal(false)}
+          destination={{ lat: listing.latitude, lng: listing.longitude }}
         />
       )}
 
@@ -772,6 +955,10 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                  </div>
                  <button 
                   onClick={() => {
+                    if (listing.latitude && listing.longitude) {
+                      setShowDirectionsModal(true);
+                      return;
+                    }
                     const destination = encodeURIComponent(`${listing.location}, ${listing.landmark || ''}, Nigeria`);
                     window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
                   }}
@@ -803,12 +990,11 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                     )}
                   </div>
                   <div>
-                    <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1">
-                      {isOwnListing ? 'Your Listing' : listing.agent.name}
-                      {listing.agent.isVerified && <BadgeCheck className="w-3.5 h-3.5 text-blue-500" />}
-                    </div>
+                    <h4 className="text-[12px] font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                      {isOwnListing ? 'Your Listing' : isAdmin ? `Agent: ${listing.agent.name}` : listing.agent.name}
+                    </h4>
                     <div className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2 mt-0.5">
-                      {isOwnListing ? (
+                      {canManageListing ? (
                         <>
                           <div className="flex items-center gap-1 font-black text-emerald-600">
                              {listing.isApproved ? 'LIVE' : 'PENDING'}
@@ -850,7 +1036,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                     </button>
                   </div>
                 )}
-                {isOwnListing && (
+                {canManageListing && (
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
@@ -904,12 +1090,14 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
               )}
 
               <div className="flex items-center gap-2.5 sm:gap-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-500 dark:text-emerald-400 flex-shrink-0">
-                    <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${listing.verified ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-500 dark:text-amber-400'}`}>
+                    {listing.verified ? <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" /> : <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </div>
                   <div>
-                     <div className="text-[8px] sm:text-[10px] text-emerald-700/70 dark:text-emerald-400/70 font-bold uppercase tracking-widest leading-none mb-1">Status</div>
-                     <div className="text-[11px] sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 leading-none">{listing.verified ? 'Verified' : 'Unverified'}</div>
+                     <div className={`text-[8px] sm:text-[10px] uppercase tracking-widest leading-none mb-1 font-bold ${listing.verified ? 'text-emerald-700/70 dark:text-emerald-400/70' : 'text-amber-700/70 dark:text-amber-400/70'}`}>Safety Status</div>
+                     <div className={`text-[11px] sm:text-sm font-black leading-none ${listing.verified ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                       {listing.verified ? 'Verified Property' : 'Unverified Listing'}
+                     </div>
                   </div>
               </div>
             </div>
@@ -997,12 +1185,14 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           <div className="sticky top-24 flex flex-col gap-6 lg:gap-8 transition-all duration-300">
             
             {/* Sidebar Content */}
-            {isOwnListing ? (
+            {canManageListing ? (
               <div className="space-y-6">
                 {/* Status & Quick Actions */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm transition-colors duration-300">
                   <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Management</h2>
+                    <h2 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                       {isAdmin && !isOwnListing ? 'Admin Management' : 'Management'}
+                    </h2>
                     <div className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider ${listing.isApproved ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600'}`}>
                       {listing.isApproved ? 'Live' : 'Pending'}
                     </div>
@@ -1146,12 +1336,16 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       {/* Recommended Section / Insights Dashboard */}
       <div className="w-full border-t border-slate-200 dark:border-slate-800 mt-4 md:mt-8 flex-1 flex flex-col transition-colors duration-300">
         <div className="px-[15px] pt-10 pb-[110px] w-full flex-1" style={{paddingBottom:0}}>
-          {isOwnListing ? (
+          {canManageListing ? (
             <div className="space-y-12">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">Listing Insights</h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Detailed performance analysis of your property listing.</p>
+                  <h2 className="text-xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                    {isOwnListing ? 'Listing Insights' : 'Admin Metrics Dashboard'}
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    {isOwnListing ? 'Detailed performance analysis of your property listing.' : `Visibility and engagement data for agent: ${listing.agent.name}`}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center gap-2 shadow-sm">
@@ -1165,10 +1359,10 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden transition-colors duration-300">
                 <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-100 dark:divide-slate-800">
                   {[
-                    {label: "Total Views", value: realStats.views.toLocaleString(), change: "+12%", color: "text-indigo-600 dark:text-indigo-400" },
-                    { label: "Active Interests", value: realStats.saves.toLocaleString(), change: "+5%", color: "text-blue-600 dark:text-blue-400" },
-                    { label: "Interaction Rate", value: realStats.views > 0 ? `${Math.round(((realStats.inquiries + realStats.saves) / realStats.views) * 100)}%` : '0%', change: "+2%", color: "text-emerald-600 dark:text-emerald-400" },
-                    { label: "Total Inquiries", value: realStats.inquiries.toLocaleString(), change: "-2%", color: "text-amber-600 dark:text-amber-400" }
+                    {label: "Total Views", value: realStats.views.toLocaleString(), change: realStats.trends.views, color: "text-indigo-600 dark:text-indigo-400" },
+                    { label: "Active Interests", value: realStats.saves.toLocaleString(), change: realStats.trends.saves, color: "text-blue-600 dark:text-blue-400" },
+                    { label: "Interaction Rate", value: realStats.views > 0 ? `${Math.round(((realStats.inquiries + realStats.saves) / realStats.views) * 100)}%` : '0%', change: realStats.trends.interaction, color: "text-emerald-600 dark:text-emerald-400" },
+                    { label: "Total Inquiries", value: realStats.inquiries.toLocaleString(), change: realStats.trends.inquiries, color: "text-amber-600 dark:text-amber-400" }
                   ].map((stat, i) => (
                     <div key={`stat-${i}`} className="p-6 sm:p-8 flex flex-col justify-center">
                       <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 truncate">
@@ -1176,7 +1370,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                       </span>
                       <div className="flex items-baseline gap-3">
                         <span className={`text-2xl font-black ${stat.color}`}>{stat.value}</span>
-                        <span className={`text-[10px] font-bold ${stat.change.startsWith('+') ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        <span className={`text-[10px] font-bold ${stat.change.startsWith('+') ? 'text-emerald-500' : stat.change === '0%' ? 'text-slate-400' : 'text-rose-500'}`}>
                           {stat.change}
                         </span>
                       </div>
@@ -1219,7 +1413,6 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           )}
         </div>
       </div>
-
     </motion.div>
   );
 };

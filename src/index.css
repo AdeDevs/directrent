@@ -26,6 +26,10 @@
   }
 }
 
+.custom-cursor-area, .custom-cursor-area * {
+  cursor: none !important;
+}
+
 /* Ensure the reCAPTCHA challenge is above everything */
 .grecaptcha-badge { 
   z-index: 999999 !important; 

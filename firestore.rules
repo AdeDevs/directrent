@@ -30,14 +30,18 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        (request.auth.token.get('email', '').lower() in [
-          'adeyemiakinyemi01@gmail.com', 
-          'adeisbatman@gmail.com', 
-          'super@gmail.com'
-        ]) ||
+        request.auth.token.email.lower() == 'adeyemiakinyemi01@gmail.com' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'moderator']))
       );
+    }
+
+    function isValidAnalytics(data) {
+      return data.keys().hasAll(['listingId', 'type', 'agentId', 'createdAt']) &&
+             data.listingId is string && data.listingId.size() <= 128 &&
+             data.type in ['view', 'inquiry', 'save'] &&
+             data.agentId is string && data.agentId.size() <= 128 &&
+             (data.createdAt == request.time || data.createdAt is timestamp);
     }
 
     // --- Validation Blueprints (Pillar 2) ---
@@ -92,17 +96,31 @@ service cloud.firestore {
     }
 
     function isValidConversation(data) {
-      return data.tenantId is string && data.agentId is string && 
-             data.listingId is string &&
-             data.status in ['inquiry', 'negotiating', 'contract_requested', 'contract_sent', 'paid', 'completed'] &&
-             data.updatedAt == request.time;
+      return (!('tenantId' in data) || data.tenantId is string) && 
+             (!('agentId' in data) || data.agentId is string) && 
+             (!('listingId' in data) || data.listingId is string) &&
+             (!('status' in data) || data.status in ['inquiry', 'negotiating', 'contract_requested', 'contract_sent', 'paid', 'completed']) &&
+             (!('unreadCount_tenant' in data) || data.unreadCount_tenant is number) &&
+             (!('unreadCount_agent' in data) || data.unreadCount_agent is number) &&
+             (!('lastMessage' in data) || data.lastMessage is string) &&
+             (!('tenantName' in data) || data.tenantName is string) &&
+             (!('agentName' in data) || data.agentName is string) &&
+             (!('listingTitle' in data) || data.listingTitle is string) &&
+             (!('listingImage' in data) || data.listingImage is string) &&
+             (!('listingPrice' in data) || data.listingPrice is string) &&
+             (!('tenantImage' in data) || data.tenantImage is string) &&
+             (!('agentImage' in data) || data.agentImage is string) &&
+             (!('updatedAt' in data) || data.updatedAt == request.time || data.updatedAt is timestamp);
     }
 
     function isValidMessage(data) {
        return data.content is string && data.content.size() <= 2000 &&
               data.senderId == request.auth.uid &&
-              (data.tenantId == request.auth.uid || data.agentId == request.auth.uid) &&
-              data.createdAt == request.time;
+              (data.createdAt == request.time || data.createdAt is timestamp) &&
+              (!('type' in data) || data.type in ['text', 'action']) &&
+              (!('actionType' in data) || data.actionType is string) &&
+              (!('tenantId' in data) || data.tenantId is string) &&
+              (!('agentId' in data) || data.agentId is string);
     }
 
     function isValidNotification(data) {
@@ -146,7 +164,8 @@ service cloud.firestore {
       allow get: if isSignedIn() && (
         isOwner(userId) || 
         isAdmin() || 
-        resource.data.role == 'agent'
+        resource.data.role == 'agent' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agent'
       );
       allow list: if isAdmin();
       allow create: if isOwner(userId) && 
@@ -179,24 +198,48 @@ service cloud.firestore {
       }
     }
 
-    // Conversations - Relational Guard (Pillar 1)
     match /conversations/{convId} {
-      allow get: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && isValidConversation(incoming()) && incoming().tenantId == request.auth.uid;
-      allow update: if isSignedIn() && (existing().tenantId == request.auth.uid || existing().agentId == request.auth.uid || isAdmin()) &&
-                    isValidConversation(incoming()) &&
-                    incoming().tenantId == existing().tenantId && 
-                    incoming().agentId == existing().agentId;
+      allow read, list: if isSignedIn() && (
+        (resource != null && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid)) ||
+        (resource == null && (convId.matches('.*' + request.auth.uid + '.*'))) ||
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn() && isValidConversation(incoming()) && 
+                    (incoming().tenantId == request.auth.uid || isAdmin());
+      
+      allow update: if isSignedIn() && (
+        existing().tenantId == request.auth.uid || 
+        existing().agentId == request.auth.uid || 
+        isAdmin()
+      ) && isValidConversation(incoming());
+      
       allow delete: if isAdmin();
 
       match /messages/{msgId} {
-        allow read: if isSignedIn() && (get(/databases/$(database)/documents/conversations/$(convId)).data.tenantId == request.auth.uid || 
-                                        get(/databases/$(database)/documents/conversations/$(convId)).data.agentId == request.auth.uid || 
-                                        isAdmin());
+        allow read, list: if isSignedIn() && (
+          // Use resource.data if it exists for query validation
+          (resource != null && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid)) ||
+          // Fallback to conversation-level check
+          (exists(/databases/$(database)/documents/conversations/$(convId)) && (
+            get(/databases/$(database)/documents/conversations/$(convId)).data.tenantId == request.auth.uid || 
+            get(/databases/$(database)/documents/conversations/$(convId)).data.agentId == request.auth.uid
+          )) ||
+          // Fallback for new conversations where members are encoded in ID
+          convId.matches('.*' + request.auth.uid + '.*') ||
+          isAdmin()
+        );
+
         allow create: if isSignedIn() && isValidMessage(incoming()) && 
-                      (get(/databases/$(database)/documents/conversations/$(convId)).data.tenantId == request.auth.uid || 
-                       get(/databases/$(database)/documents/conversations/$(convId)).data.agentId == request.auth.uid);
+                      (
+                        (exists(/databases/$(database)/documents/conversations/$(convId)) && (
+                          get(/databases/$(database)/documents/conversations/$(convId)).data.tenantId == request.auth.uid || 
+                          get(/databases/$(database)/documents/conversations/$(convId)).data.agentId == request.auth.uid
+                        )) ||
+                        convId.matches('.*' + request.auth.uid + '.*') ||
+                        isAdmin()
+                      );
+        
         allow delete: if isAdmin();
       }
     }
@@ -241,7 +284,8 @@ service cloud.firestore {
 
     // Analytics (Pillar 7)
     match /analytics/{analyticsId} {
-      allow create: if incoming().createdAt == request.time;
+      allow create: if isValidId(analyticsId) && isValidAnalytics(incoming()) && 
+                    (incoming().agentId != null || isAdmin());
       allow list, get, delete: if isAdmin() || (isSignedIn() && resource.data.agentId == request.auth.uid);
     }
 

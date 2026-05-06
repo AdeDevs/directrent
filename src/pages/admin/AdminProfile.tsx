@@ -72,8 +72,10 @@ const AdminProfile = () => {
           try {
             const oldRef = ref(storage, user.avatarUrl);
             await deleteObject(oldRef);
-          } catch (delErr) {
-            console.warn("Could not delete old admin avatar:", delErr);
+          } catch (delErr: any) {
+            if (delErr.code !== 'storage/object-not-found') {
+              console.warn("Could not delete old admin avatar:", delErr);
+            }
           }
         }
 
@@ -86,8 +88,10 @@ const AdminProfile = () => {
         try {
           const oldRef = ref(storage, user.avatarUrl);
           await deleteObject(oldRef);
-        } catch (delErr) {
-          console.warn("Could not delete old admin avatar:", delErr);
+        } catch (delErr: any) {
+          if (delErr.code !== 'storage/object-not-found') {
+            console.warn("Could not delete old admin avatar:", delErr);
+          }
         }
       }
 

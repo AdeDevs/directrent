@@ -29,7 +29,7 @@ import {
   addDoc,
   serverTimestamp
 } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { Listing, Verification } from '../../types';
 
 interface ApprovalsProps {
@@ -114,7 +114,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       setAllListings(data);
       if (activeTab === 'listings') setLoading(false);
     }, (err) => {
-      console.error("Error fetching listings:", err);
+      handleFirestoreError(err, OperationType.LIST, 'listings');
       setLoading(false);
     });
 
@@ -123,7 +123,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       setAgentsFromColl(data);
       setLoading(false);
     }, (err) => {
-      console.error("Error fetching agent applications:", err);
+      handleFirestoreError(err, OperationType.LIST, 'verifications');
       setLoading(false);
     });
 
@@ -160,7 +160,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       }).filter(a => a.status === 'pending' || a.status === 'rejected');
       setAgentsFromUsers(data);
     }, (err) => {
-      console.error("Error fetching agents from users:", err);
+      handleFirestoreError(err, OperationType.LIST, 'users');
     });
 
     return () => {

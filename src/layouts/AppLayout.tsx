@@ -75,21 +75,21 @@ const AppLayout = () => {
             </motion.div>
           ) : (
             <motion.div
-              key={`dashboard-${activeTab}`}
+              key={`dashboard-${user.role}-${activeTab}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
             >
-              {activeTab === "home" && <HomePage key="home" />}
-              {activeTab === "chat" && <ChatPage key="chat" />}
-              {activeTab === "profile" && <ProfilePage key="profile" />}
-              {activeTab === "favorites" && <FavoritesPage key="favorites" />}
-              {activeTab === "create" && <CreateListing key="create" />}
-              {activeTab === "mylistings" && <MyListings key="mylistings" />}
-              {activeTab === "notifications" && <NotificationsPage key="notifications" />}
-              {activeTab === "terms" && <TermsOfUsePage key="terms" />}
-              {activeTab === "faq" && <FAQPage key="faq" />}
+              {activeTab === "home" && <HomePage key={`home-${user.role}`} />}
+              {activeTab === "chat" && <ChatPage key={`chat-${user.role}`} />}
+              {activeTab === "profile" && <ProfilePage key={`profile-${user.role}`} />}
+              {activeTab === "favorites" && <FavoritesPage key={`favorites-${user.role}`} />}
+              {activeTab === "create" && <CreateListing key={`create-${user.role}`} />}
+              {activeTab === "mylistings" && <MyListings key={`mylistings-${user.role}`} />}
+              {activeTab === "notifications" && <NotificationsPage key={`notifications-${user.role}`} />}
+              {activeTab === "terms" && <TermsOfUsePage key={`terms-${user.role}`} />}
+              {activeTab === "faq" && <FAQPage key={`faq-${user.role}`} />}
             </motion.div>
           )}
         </AnimatePresence>

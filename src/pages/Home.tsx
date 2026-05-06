@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Search, Settings2, MapPin, FilterX, Home as HomeIcon, Trash2, Bell, Map, LayoutGrid, Navigation } from 'lucide-react';
-import { Map as PigeonMap, Marker, ZoomControl } from 'pigeon-maps';
+import { Search, Settings2, MapPin, FilterX, Home as HomeIcon, Trash2, Bell, Map, LayoutGrid, Navigation, Info } from 'lucide-react';
+import { APIProvider, Map as GoogleMap, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef } from '@vis.gl/react-google-maps';
 import ListingCard from '../components/ListingCard';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -9,6 +9,67 @@ import { collection, query, onSnapshot, orderBy, doc, where, addDoc, serverTimes
 import { purgeListingData } from '../utils/adminCleanup';
 import { Listing, Notification } from '../types';
 import NotificationBadge from '../components/NotificationBadge';
+import { GoogleMapsGuard } from '../components/GoogleMapsGuard';
+
+const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing) => void }> = ({ listing, onClick }) => {
+  const [markerRef, marker] = useAdvancedMarkerRef();
+  const [infoWindowShown, setInfoWindowShown] = useState(false);
+
+  // If no lat/lng, we don't render it (though we should have it for all new listings)
+  if (!listing.latitude || !listing.longitude) return null;
+
+  return (
+    <>
+      <AdvancedMarker
+        ref={markerRef}
+        position={{ lat: listing.latitude, lng: listing.longitude }}
+        onClick={() => setInfoWindowShown(true)}
+      >
+        <div className="group cursor-pointer">
+          <div className="bg-primary-600 text-white px-2.5 py-1 rounded-full text-[11px] font-black shadow-xl shadow-primary-500/30 transform -translate-y-full mb-1 flex items-center gap-1 group-hover:scale-110 transition-all duration-300 border-2 border-white dark:border-slate-900">
+            ₦{listing.priceValue >= 1000000 ? `${(listing.priceValue / 1000000).toFixed(1)}M` : `${(listing.priceValue / 1000).toFixed(0)}k`}
+          </div>
+          <div className="w-3.5 h-3.5 bg-primary-600 border-2 border-white dark:border-slate-900 rounded-full shadow-lg mx-auto group-hover:scale-125 transition-transform" />
+        </div>
+      </AdvancedMarker>
+
+      {infoWindowShown && (
+        <InfoWindow
+          anchor={marker}
+          onCloseClick={() => setInfoWindowShown(false)}
+        >
+          <div 
+            className="p-0.5 overflow-hidden group/card max-w-[220px] cursor-pointer"
+            onClick={() => onClick(listing)}
+          >
+            <div className="relative overflow-hidden rounded-xl mb-3">
+              <img src={listing.image} alt="" className="w-full h-28 object-cover group-hover/card:scale-110 transition-transform duration-500" />
+              <div className="absolute top-2 left-2">
+                <span className="bg-white/90 backdrop-blur-md dark:bg-slate-900/90 px-2 py-0.5 rounded-lg text-[9px] font-black text-primary-600 uppercase tracking-tighter border border-slate-100 dark:border-slate-800">
+                  {listing.type}
+                </span>
+              </div>
+            </div>
+            <div className="px-1.5 pb-2">
+              <h4 className="font-black text-sm text-slate-900 dark:text-white line-clamp-1 mb-1 tracking-tight">{listing.title}</h4>
+              <div className="flex items-center gap-1.5 text-slate-500 mb-2">
+                <MapPin className="w-3 h-3 flex-shrink-0" />
+                <p className="text-[10px] font-medium line-clamp-1">{listing.location}</p>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-50 dark:border-slate-800">
+                <p className="text-primary-600 font-black text-sm">{listing.price}</p>
+                <div className="flex items-center gap-1 bg-primary-50 dark:bg-primary-900/20 px-1.5 py-0.5 rounded-md">
+                   <div className="w-1 h-1 rounded-full bg-primary-600 animate-pulse" />
+                   <span className="text-[8px] font-black text-primary-600 uppercase tracking-widest">Active</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </InfoWindow>
+      )}
+    </>
+  );
+};
 
 const Home = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -123,13 +184,15 @@ const Home = () => {
             <span className="text-sm sm:text-base font-display font-bold text-slate-900 dark:text-white tracking-tight">Direct<span className="text-primary-600">Rent</span></span>
           </div>
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setIsMapView(!isMapView)}
-              className={`p-2 rounded-full transition-all flex items-center justify-center ${isMapView ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
-              title={isMapView ? "Switch to Grid View" : "Switch to Map View"}
-            >
-              {isMapView ? <LayoutGrid className="w-5 h-5" /> : <Map className="w-5 h-5" />}
-            </button>
+            {!isAgent && (
+              <button 
+                onClick={() => setIsMapView(!isMapView)}
+                className={`p-2 rounded-full transition-all flex items-center justify-center ${isMapView ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+                title={isMapView ? "Switch to Grid View" : "Switch to Map View"}
+              >
+                {isMapView ? <LayoutGrid className="w-5 h-5" /> : <Map className="w-5 h-5" />}
+              </button>
+            )}
             <button 
               onClick={() => setActiveTab('notifications')}
               className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group"
@@ -141,7 +204,7 @@ const Home = () => {
         </div>
       </header>
 
-      <main className="pt-[60px] sm:pt-[72px] px-[15px] pb-[14px] mb-0" style={{paddingTop: '16px'}}>
+      <main className="px-[15px] mb-0" style={{ paddingTop: '15px', paddingBottom: '0px' }}>
         <motion.div 
           initial={{ opacity: 0, y: 10 }} 
           animate={{ opacity: 1, y: 0 }} 
@@ -193,7 +256,7 @@ const Home = () => {
                 <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-none">
                   {filters.map(filter => (
                     <button 
-                      key={filter}
+                      key={`filter-${filter}`}
                       onClick={() => setActiveFilter(filter)}
                       className={`px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-2xl text-[10px] sm:text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${activeFilter === filter ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}`}
                     >
@@ -255,7 +318,7 @@ const Home = () => {
 
       {/* Responsive Grid Layout / Map View */}
       <AnimatePresence mode="wait">
-        {isMapView ? (
+        {isMapView && !isAgent ? (
           <motion.div 
             key="map-view"
             initial={{ opacity: 0, scale: 0.98 }}
@@ -263,29 +326,23 @@ const Home = () => {
             exit={{ opacity: 0, scale: 0.98 }}
             className="w-full h-[600px] rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl relative"
           >
-            <PigeonMap 
-              defaultCenter={[6.5244, 3.3792]} // Lagos center
-              defaultZoom={11}
-              boxClassname="pigeon-filters"
-            >
-              <ZoomControl />
-              {filteredListings.map(listing => (
-                <Marker 
-                  // @ts-ignore
-                  key={listing.id} 
-                  width={50}
-                  anchor={[6.5244 + (Math.random() - 0.5) * 0.1, 3.3792 + (Math.random() - 0.5) * 0.1]} // Random offset around Lagos for demo
-                  onClick={() => setCurrentListing(listing)}
-                >
-                  <div className="group relative">
-                    <div className="bg-primary-600 text-white px-2 py-1 rounded-lg text-[10px] font-black shadow-lg shadow-primary-500/40 transform -translate-y-full mb-1 flex items-center gap-1 group-hover:scale-110 transition-transform">
-                      ₦{listing.priceValue >= 1000000 ? `${(listing.priceValue / 1000000).toFixed(1)}M` : `${(listing.priceValue / 1000).toFixed(0)}k`}
-                    </div>
-                    <div className="w-4 h-4 bg-primary-600 border-2 border-white dark:border-slate-900 rounded-full shadow-lg m-auto" />
-                  </div>
-                </Marker>
-              ))}
-            </PigeonMap>
+            <GoogleMapsGuard>
+              <GoogleMap 
+                defaultCenter={{ lat: 6.5244, lng: 3.3792 }} // Lagos center
+                defaultZoom={11}
+                mapId="LISTINGS_MAP"
+                internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+                className="w-full h-full"
+              >
+                {filteredListings.map(listing => (
+                  <MapMarkerWithInfoWindow 
+                    key={`marker-${listing.id}`} 
+                    listing={listing}
+                    onClick={setCurrentListing}
+                  />
+                ))}
+              </GoogleMap>
+            </GoogleMapsGuard>
             <div className="absolute top-4 left-4 right-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-lg flex items-center gap-3">
               <div className="w-10 h-10 bg-primary-50 dark:bg-primary-900/20 rounded-xl flex items-center justify-center text-primary-600">
                 <Navigation className="w-5 h-5" />
@@ -301,7 +358,7 @@ const Home = () => {
             {filteredListings.length > 0 ? (
               filteredListings.map((listing) => (
                 <ListingCard 
-                  key={`home-listing-${listing.id}`} 
+                  key={`home-listing-${user?.role || 'tenant'}-${listing.id}`} 
                   listing={listing} 
                   onViewDetails={() => setCurrentListing(listing)}
                   isAgentView={isAgent}

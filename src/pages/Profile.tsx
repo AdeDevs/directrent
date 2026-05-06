@@ -219,7 +219,13 @@ const Profile = () => {
       await deleteDoc(doc(db, 'vault', docId));
       if (url.includes("firebasestorage")) {
         const fileRef = ref(storage, url);
-        await deleteObject(fileRef);
+        try {
+          await deleteObject(fileRef);
+        } catch (delErr: any) {
+          if (delErr.code !== 'storage/object-not-found') {
+            console.error("Delete doc storage cleanup failed:", delErr);
+          }
+        }
       }
     } catch (err) {
       console.error("Delete doc failed:", err);
@@ -253,9 +259,10 @@ const Profile = () => {
         try {
           const photoRef = ref(storage, user.avatarUrl);
           await deleteObject(photoRef);
-        } catch (storageErr) {
-          console.error("Storage delete failed (might already be gone):", storageErr);
-          // Continue with Firestore update even if storage delete fails
+        } catch (storageErr: any) {
+          if (storageErr.code !== 'storage/object-not-found') {
+            console.error("Storage delete failed:", storageErr);
+          }
         }
       }
       
@@ -546,8 +553,10 @@ const Profile = () => {
             console.log("Cleaning up previous profile image from storage...");
             const oldPhotoRef = ref(storage, user.avatarUrl);
             await deleteObject(oldPhotoRef);
-          } catch (delErr) {
-            console.warn("Could not delete old profile image (might not exist or permission denied):", delErr);
+          } catch (delErr: any) {
+            if (delErr.code !== 'storage/object-not-found') {
+              console.warn("Could not delete old profile image:", delErr);
+            }
           }
         }
         

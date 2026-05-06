@@ -35,11 +35,12 @@ import {
   BadgeCheck,
   Play,
   MessageCircleMore,
+  MessageSquare,
   Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, getDocs, limit, orderBy, doc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { purgeListingData } from '../../utils/adminCleanup';
 import { 
   BarChart,
@@ -94,6 +95,8 @@ const AdminDashboard = () => {
   const [verifications, setVerifications] = useState<any[]>([]);
   const [listings, setListings] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [conversationCount, setConversationCount] = useState(0);
+
   // Analytics Data - Generated based on actual listings creation frequency
   const chartData = React.useMemo(() => {
     // Group listings by week/month based on timeframe
@@ -203,13 +206,17 @@ const AdminDashboard = () => {
         change: listingsTrend, 
         isUp: !listingsTrend.startsWith('-'), 
         icon: FileText,
+        color: 'text-indigo-600 dark:text-indigo-400',
+        bg: 'bg-indigo-50 dark:bg-indigo-900/20'
       },
       { 
-        label: 'AGENTS', 
+        label: 'VERIFIED AGENTS', 
         value: agents.length, 
         change: agentsTrend,
         isUp: !agentsTrend.startsWith('-'), 
         icon: ShieldCheck,
+        color: 'text-emerald-600 dark:text-emerald-400',
+        bg: 'bg-emerald-50 dark:bg-emerald-900/20'
       },
       { 
         label: 'TOTAL USERS', 
@@ -217,25 +224,40 @@ const AdminDashboard = () => {
         change: usersTrend, 
         isUp: !usersTrend.startsWith('-'), 
         icon: Users,
+        color: 'text-blue-600 dark:text-blue-400',
+        bg: 'bg-blue-50 dark:bg-blue-900/20'
       },
       { 
-        label: 'PENDING', 
+        label: 'PENDING TASKS', 
         value: pendingCount, 
-        statusBadge: highLoad ? 'High Load' : 'Normal',
+        statusBadge: highLoad ? 'Critical' : 'Normal',
         isUp: !highLoad, 
         icon: Clock,
+        color: highLoad ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-400',
+        bg: highLoad ? 'bg-rose-50 dark:bg-rose-900/20' : 'bg-slate-50 dark:bg-slate-900/20'
       },
     ];
   }, [listings, users, verifications]);
 
   useEffect(() => {
+    let unsubscribeListings: (() => void) | null = null;
+
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [usersSnap, verificationsSnap] = await Promise.all([
-          getDocs(query(collection(db, 'users'), limit(100))),
-          getDocs(query(collection(db, 'verifications'), orderBy('submittedAt', 'desc'), limit(50))),
-        ]);
+        const usersQuery = query(collection(db, 'users'), limit(100));
+        const verificationsQuery = query(collection(db, 'verifications'), orderBy('submittedAt', 'desc'), limit(50));
+
+        let usersSnap, verificationsSnap;
+        try {
+          [usersSnap, verificationsSnap] = await Promise.all([
+            getDocs(usersQuery),
+            getDocs(verificationsQuery),
+          ]);
+        } catch (e) {
+          handleFirestoreError(e, OperationType.GET, 'users/verifications');
+          return;
+        }
 
         const usersData = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const verificationsData = verificationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
@@ -244,10 +266,10 @@ const AdminDashboard = () => {
         setVerifications(verificationsData);
 
         // Real-time listener for listings
-        const { onSnapshot } = await import('firebase/firestore');
+        const { onSnapshot, getCountFromServer } = await import('firebase/firestore');
         const listingsQuery = query(collection(db, 'listings'), orderBy('createdAt', 'desc'), limit(200));
         
-        const unsubscribeListings = onSnapshot(listingsQuery, (snapshot) => {
+        unsubscribeListings = onSnapshot(listingsQuery, (snapshot) => {
           const listingsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
           setListings(listingsData);
 
@@ -285,7 +307,7 @@ const AdminDashboard = () => {
             
           setActivities(combined);
         }, (error) => {
-          console.warn("Firestore listener encountered a transient error:", error.message);
+          handleFirestoreError(error, OperationType.LIST, 'listings');
         });
 
         return () => unsubscribeListings();
@@ -324,6 +346,32 @@ const AdminDashboard = () => {
     } finally {
       setIsDeleting(false);
       setListingToDelete(null);
+    }
+  };
+
+  const handleApproveListing = async (listingId: string) => {
+    try {
+      const { updateDoc, doc, serverTimestamp: fsServerTimestamp } = await import('firebase/firestore');
+      await updateDoc(doc(db, 'listings', listingId), {
+        isApproved: true,
+        status: 'active',
+        updatedAt: fsServerTimestamp()
+      });
+      setIsReviewOpen(false);
+    } catch (error) {
+      console.error("Error approving listing:", error);
+    }
+  };
+
+  const handleVerifyListing = async (listingId: string, verify: boolean) => {
+    try {
+      const { updateDoc, doc, serverTimestamp: fsServerTimestamp } = await import('firebase/firestore');
+      await updateDoc(doc(db, 'listings', listingId), {
+        verified: verify,
+        updatedAt: fsServerTimestamp()
+      });
+    } catch (error) {
+      console.error("Error verifying listing:", error);
     }
   };
 
@@ -498,25 +546,36 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Overview Header Section */}
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
                   <div className="space-y-1.5">
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Overview</h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                      Real-time performance and system health metrics.
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                        Performance and system health metrics.
+                      </p>
+                      <div className="h-1 w-1 rounded-full bg-slate-300" />
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">System Live</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex gap-3">
-                    {activeTab === 'dashboard' && (
-                      <button 
-                        onClick={() => setActiveTab('maintenance')}
-                        className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all rounded-none border border-slate-200 dark:border-slate-700"
-                      >
-                        Maintenance
-                      </button>
-                    )}
-                    <button className="w-full sm:w-auto px-5 py-2.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white rounded-none flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                  <div className="flex flex-wrap gap-3">
+                    <button 
+                      onClick={() => setActiveTab('approvals')}
+                      className="px-4 py-2 bg-primary-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-primary-700 transition-all shadow-lg shadow-primary-500/20"
+                    >
+                      Process Approvals
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab('maintenance')}
+                      className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
+                    >
+                      Maintenance
+                    </button>
+                    <button className="hidden sm:flex items-center gap-2 px-5 py-2.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
                       <FileText className="w-4 h-4" />
-                      Export Report
+                      Export
                     </button>
                   </div>
                 </div>
@@ -532,19 +591,20 @@ const AdminDashboard = () => {
                       className="bg-white dark:bg-slate-900 p-3 sm:p-5 lg:p-6 rounded-none border border-slate-200 dark:border-slate-800 flex flex-col transition-colors duration-300 relative group overflow-hidden"
                     >
                       <div className="flex items-start justify-between mb-2 sm:mb-4">
-                        <div className="p-1.5 sm:p-2.5 rounded-none bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-700 transition-transform group-hover:scale-110">
+                        <div className={`p-1.5 sm:p-2.5 rounded-none ${stat.bg} ${stat.color} border border-transparent transition-transform group-hover:scale-110 shadow-sm`}>
                           <stat.icon className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                         </div>
                         {stat.change && (
-                          <div className={`px-1.5 sm:px-2 py-0.5 rounded-none text-[8px] sm:text-[10px] font-bold ${
+                          <div className={`px-1.5 sm:px-2 py-0.5 rounded-none text-[8px] sm:text-[10px] font-bold flex items-center gap-1 ${
                             stat.isUp ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'
                           }`}>
+                            {stat.isUp ? <TrendingUp className="w-2 h-2" /> : <TrendingDown className="w-2 h-2" />}
                             {stat.change}
                           </div>
                         )}
                         {stat.statusBadge && (
                           <div className={`px-1.5 sm:px-2 py-0.5 rounded-none text-[8px] sm:text-[10px] font-bold ${
-                            stat.statusBadge === 'Stable' ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
+                            stat.statusBadge === 'Critical' ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
                           }`}>
                             {stat.statusBadge}
                           </div>
@@ -712,16 +772,19 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Newest Listings Table */}
-                <div className="bg-white dark:bg-slate-900 rounded-none border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors duration-300">
-                   <div className="px-[10px] md:px-6 py-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                    <h3 className="text-xl font-medium text-slate-900 dark:text-white">Newest Listings</h3>
-                    <button 
-                      onClick={() => setActiveTab('listings')}
-                      className="text-xs font-semibold text-slate-900 dark:text-white hover:underline transition-all"
-                    >
-                      See all listings
-                    </button>
-                  </div>
+                <div className="space-y-8">
+                  {/* Listings Table */}
+                  <div className="w-full bg-white dark:bg-slate-900 rounded-none border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors duration-300">
+                    <div className="px-6 py-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                      <h3 className="text-xl font-medium text-slate-900 dark:text-white">Newest Listings</h3>
+                      <button 
+                        onClick={() => setActiveTab('listings')}
+                        className="text-xs font-semibold text-slate-900 dark:text-white hover:underline transition-all"
+                      >
+                        See all
+                      </button>
+                    </div>
+                    {/* ... table content remains same but wrapped ... */}
                   <div className="overflow-hidden md:overflow-x-auto">
                     {/* Mobile Cards View */}
                     <div className="md:hidden flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
@@ -737,13 +800,16 @@ const AdminDashboard = () => {
                                <p className="font-bold text-slate-900 dark:text-white text-sm truncate">{listing.title}</p>
                                <div className="flex justify-between items-center mt-1">
                                   <span className="font-medium text-slate-900 dark:text-white text-sm">₦{listing.priceValue?.toLocaleString() || '0'}</span>
-                                  <span className={`inline-flex px-2 py-0.5 rounded-none text-[9px] font-bold uppercase tracking-wider ${
-                                    (listing.status || 'active') === 'active' 
-                                      ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' 
-                                      : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
-                                  }`}>
-                                     {listing.status || 'ACTIVE'}
-                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    {listing.verified && <ShieldCheck className="w-3 h-3 text-emerald-500" />}
+                                    <span className={`inline-flex px-2 py-0.5 rounded-none text-[9px] font-bold uppercase tracking-wider ${
+                                      (listing.status || 'active') === 'active' 
+                                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' 
+                                        : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
+                                    }`}>
+                                       {listing.status || 'ACTIVE'}
+                                    </span>
+                                  </div>
                                </div>
                             </div>
                             <div className="flex justify-between items-center mt-2">
@@ -782,7 +848,10 @@ const AdminDashboard = () => {
                                   />
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="font-bold text-slate-900 dark:text-white text-[15px] truncate">{listing.title}</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="font-bold text-slate-900 dark:text-white text-[15px] truncate">{listing.title}</p>
+                                    {listing.verified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" title="Verified Property" />}
+                                  </div>
                                   <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">{listing.type}</p>
                                 </div>
                               </div>
@@ -871,6 +940,50 @@ const AdminDashboard = () => {
                     </table>
                   </div>
                 </div>
+
+                  {/* Users / Regions Row */}
+                  <div className="w-full">
+                    {/* Recent Users */}
+                    <div className="w-full bg-white dark:bg-slate-900 rounded-none border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors duration-300">
+                      <div className="px-6 py-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                        <h3 className="text-xl font-medium text-slate-900 dark:text-white">Recent Users</h3>
+                        <button 
+                          onClick={() => setActiveTab('users')}
+                          className="text-xs font-semibold text-slate-900 dark:text-white hover:underline transition-all"
+                        >
+                          All
+                        </button>
+                      </div>
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {users
+                          .filter(u => u.role !== 'admin' && u.role !== 'moderator')
+                          .slice(0, 5)
+                          .map((user) => (
+                          <div key={`dash-user-${user.id}`} className="p-4 flex items-center gap-3 group">
+                            <div className="w-10 h-10 rounded-none bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 overflow-hidden flex-shrink-0">
+                               <img src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name || user.firstName || 'User'}&background=000&color=fff`} className="w-full h-full object-cover" alt="" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-slate-900 dark:text-white text-sm truncate uppercase tracking-tight">{user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Anonymous'}</p>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-0.5">{user.role || 'TENANT'}</p>
+                            </div>
+                            <button 
+                              onClick={() => {
+                                // Potentially open user details
+                                setActiveTab('users');
+                              }}
+                              className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-primary-600 transition-colors"
+                            >
+                               <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Users / Regions Side Panel removed by user request */}
+                  </div>
+                </div>
               </motion.div>
             )}
 
@@ -880,6 +993,8 @@ const AdminDashboard = () => {
                 loading={loading}
                 onReview={openReview}
                 onDelete={handleDeleteListing}
+                onApprove={handleApproveListing}
+                onVerify={handleVerifyListing}
                 onExport={() => {
                   const data = JSON.stringify(listings, null, 2);
                   const blob = new Blob([data], { type: 'application/json' });
@@ -931,7 +1046,14 @@ const AdminDashboard = () => {
               {/* Drawer Header */}
               <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">Listing Review</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Listing Review</h3>
+                    {selectedListing.verified && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-widest rounded-none">
+                        <ShieldCheck className="w-3 h-3" /> Verified
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-1">
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-none">
                       ID: {selectedListing.id}
@@ -1138,21 +1260,46 @@ const AdminDashboard = () => {
               </div>
 
               {/* Drawer Footer */}
-              <div className="p-8 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-4 bg-slate-50/30 dark:bg-slate-950">
-                <button 
-                  onClick={() => setIsReviewOpen(false)}
-                  className="py-3 px-4 rounded-none border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all uppercase tracking-widest"
-                >
-                  Close Review
-                </button>
-                <button 
-                  onClick={() => handleDeleteListing(selectedListing.id)}
-                  disabled={isDeleting}
-                  className="py-3 px-4 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg shadow-red-500/20"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  {isDeleting ? 'Deleting...' : 'Delete Permanently'}
-                </button>
+              <div className="p-8 border-t border-slate-100 dark:border-slate-800 space-y-4 bg-slate-50/30 dark:bg-slate-950">
+                <div className="grid grid-cols-2 gap-4">
+                  {!selectedListing.isApproved && (
+                    <button 
+                      onClick={() => handleApproveListing(selectedListing.id)}
+                      className="py-3 px-4 rounded-none bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg shadow-emerald-500/20"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Approve Listing
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => handleVerifyListing(selectedListing.id, !selectedListing.verified)}
+                    className={`py-3 px-4 rounded-none border text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-widest ${
+                      selectedListing.verified 
+                        ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800' 
+                        : 'bg-indigo-600 text-white border-transparent hover:bg-indigo-700 shadow-lg shadow-indigo-500/20'
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    {selectedListing.verified ? 'Unverify' : 'Verify Property'}
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => setIsReviewOpen(false)}
+                    className="py-3 px-4 rounded-none border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all uppercase tracking-widest"
+                  >
+                    Close Review
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteListing(selectedListing.id)}
+                    disabled={isDeleting}
+                    className="py-3 px-4 rounded-none bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg shadow-red-500/20"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {isDeleting ? 'Deleting...' : 'Delete Permanently'}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, Smile, FileText, CreditCard, ChevronRight, CheckCircle2, ArrowRight } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
   collection, 
   query, 
@@ -81,7 +81,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
             await updateDoc(convRef, {
               [fieldToReset]: 0,
               updatedAt: serverTimestamp()
-            });
+            }).catch(err => handleFirestoreError(err, OperationType.UPDATE, `conversations/${conversationId}`));
           }
         }
       } catch (err) {
@@ -116,18 +116,17 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
                 role: d.role
               });
             }
-          });
+          }, (err) => handleFirestoreError(err, OperationType.GET, `users/${otherId}`));
         }
       }
-    });
+    }, (err) => handleFirestoreError(err, OperationType.GET, `conversations/${conversationId}`));
 
     const messagesRef = collection(db, 'conversations', conversationId, 'messages');
     
-    // For listing messages, we filtering where we are a participant
-    const fieldToFilter = currentUser.role === 'tenant' ? 'tenantId' : 'agentId';
+    // Simplified query: No redundant filtering on subcollection fields to avoid composite index requirements.
+    // Permissions are already checked at the parent conversation level.
     const q = query(
       messagesRef, 
-      where(fieldToFilter, '==', currentUser.id),
       orderBy('createdAt', 'asc')
     );
 
@@ -138,6 +137,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
       })) as Message[];
       setMessages(msgs);
       setIsLoading(false);
+      setError(null); // Clear any transient errors
       
       // Auto scroll to bottom
       setTimeout(() => {
@@ -145,8 +145,14 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
       }, 100);
     }, (err) => {
       console.error("Chat listener error:", err);
+      handleFirestoreError(err, OperationType.LIST, `conversations/${conversationId}/messages`);
+      // Only set error if it's NOT a permission denied on a likely non-existent conversation
+      // If it's a new chat (convData is null), permission-denied is expected from the parent-check rule
       if (err.code === 'permission-denied') {
-        setError("Missing permissions. Please ensure your session is active.");
+        if (convData) {
+          setError("Missing permissions. Please ensure your session is active.");
+        }
+        // If no convData, we just stay in a 'ready to start' state
       } else {
         setError("Failed to load messages.");
       }
@@ -174,7 +180,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
         lastMessage: content,
         updatedAt: serverTimestamp(),
         [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
-      });
+      }).catch(err => handleFirestoreError(err, OperationType.UPDATE, `conversations/${conversationId}`));
 
       // If completing, increment agent's success count
       if (nextStatus === 'completed' && agentId !== 'unknown') {
@@ -182,7 +188,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
         await updateDoc(agentDocRef, {
           completedTxns: increment(1),
           updatedAt: serverTimestamp()
-        }).catch(e => console.warn("Could not increment agent completedTxns:", e));
+        }).catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${agentId}`));
       }
 
       // Add system message
@@ -194,7 +200,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
         type: 'action',
         actionType: actionType,
         createdAt: serverTimestamp()
-      });
+      }).catch(err => handleFirestoreError(err, OperationType.CREATE, `conversations/${conversationId}/messages`));
 
       // Send notification to the OTHER user
       const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
@@ -275,7 +281,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, current
       }
 
       // Add message to subcollection with metadata fields for relational rules
-      const tenantId = currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0];
+      const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
       
       await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
         content: newMessage.trim(),

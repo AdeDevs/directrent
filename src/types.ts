@@ -29,6 +29,9 @@ export interface Listing {
   };
   isFavorite?: boolean;
   coordinates?: [number, number];
+  latitude?: number;
+  longitude?: number;
+  placeId?: string;
   createdAt?: any;
   updatedAt?: any;
   viewCount?: number;

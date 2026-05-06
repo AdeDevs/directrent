@@ -21,6 +21,7 @@ import Footer from '../components/Footer';
 import { FEATURED_LISTINGS } from '../data';
 import { useAuth } from '../context/AuthContext';
 import SafeImage from '../components/SafeImage';
+import CustomCursor from '../components/CustomCursor';
 
 const fadeUpVariant = {
   hidden: { opacity: 0, y: 30 },
@@ -281,14 +282,14 @@ const FeaturedListings = () => {
           </button>
         </div>
         <motion.div 
-          initial="hidden"
+          initial="visible"
           whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
+          viewport={{ once: true, margin: "0px" }}
           variants={staggerContainer}
           className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8"
         >
-          {FEATURED_LISTINGS.slice(0, 3).map((listing) => (
-            <motion.div key={listing.id} variants={fadeUpVariant}>
+          {FEATURED_LISTINGS.slice(0, 3).map((listing, idx) => (
+            <motion.div key={`featured-${listing.id}-${idx}`} variants={fadeUpVariant}>
               <ListingCard 
                 listing={listing} 
                 onViewDetails={handleAction} 
@@ -523,7 +524,8 @@ const Landing = () => {
   };
 
   return (
-    <div className="min-h-screen selection:bg-primary-100 dark:selection:bg-primary-900 selection:text-primary-900 dark:selection:text-primary-100 transition-colors duration-300">
+    <div className="min-h-screen selection:bg-primary-100 dark:selection:bg-primary-900 selection:text-primary-900 dark:selection:text-primary-100 transition-colors duration-300 custom-cursor-area">
+      <CustomCursor />
       <Navbar />
       <main>
         <Hero />

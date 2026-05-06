@@ -24,7 +24,7 @@ interface AuthContextType {
   selectedAgentId: string | null;
   setSelectedAgentId: (agentId: string | null) => void;
   favorites: (string | number)[];
-  toggleFavorite: (listingId: string | number) => Promise<void>;
+  toggleFavorite: (listingId: string | number, agentId?: string) => Promise<void>;
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
 }
@@ -90,6 +90,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return /^\d+$/.test(doc.id) ? parseInt(doc.id) : doc.id;
       });
       setFavorites(favIds);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `users/${user.id}/favorites`);
     });
 
     return () => unsubscribeFavs();
@@ -154,7 +156,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           } else {
             // Self-healing: If user is authenticated but missing a profile document
             // This happens if Firestore write failed during signup
-            const adminEmails = ['adeyemiakinyemi01@gmail.com', 'adeisbatman@gmail.com', 'super@gmail.com'];
+            const adminEmails = ['adeyemiakinyemi01@gmail.com'];
             const isHardcodedAdmin = firebaseUser.email && adminEmails.includes(firebaseUser.email.toLowerCase());
             
             if (isHardcodedAdmin) {
@@ -185,7 +187,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
           setIsLoading(false);
         }, (error) => {
-          console.error("User snapshot error:", error);
+          handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
           setIsLoading(false);
         });
       } else {
@@ -271,7 +273,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const toggleFavorite = async (listingId: string | number) => {
+  const toggleFavorite = async (listingId: string | number, agentId?: string) => {
     if (!user) {
       setAuthMode('login');
       setView('auth');
@@ -281,7 +283,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const listingIdStr = listingId.toString();
     const favDocRef = doc(db, 'users', user.id, 'favorites', listingIdStr);
     const listingRef = doc(db, 'listings', listingIdStr);
-    const { increment, setDoc: fsSetDoc } = await import('firebase/firestore');
+    const { increment, setDoc: fsSetDoc, addDoc } = await import('firebase/firestore');
     
     // Check using string comparison to avoid type issues
     const isAlreadyFavorited = favorites.some(id => id.toString() === listingIdStr);
@@ -299,6 +301,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           listingId: listingIdStr,
           createdAt: serverTimestamp()
         });
+        
+        // Record analytics for the save
+        if (agentId) {
+          await addDoc(collection(db, 'analytics'), {
+            listingId: listingIdStr,
+            type: 'save',
+            userId: user.id,
+            agentId: agentId,
+            createdAt: serverTimestamp()
+          }).catch(err => console.warn("Failed to record save analytics:", err));
+        }
+
         // Increase favorite count on the listing
         await fsSetDoc(listingRef, {
           favoritesCount: increment(1),

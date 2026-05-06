@@ -78,7 +78,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
         </div>
         {!hideHeart && !isAgentView && !isAgent && (
           <button 
-            onClick={(e) => { e.stopPropagation(); toggleFavorite(listing.id); }}
+            onClick={(e) => { e.stopPropagation(); toggleFavorite(listing.id, listing.agent?.id); }}
             className={`absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all cursor-pointer active:scale-90 ${isFav ? 'bg-primary-50 dark:bg-primary-900/40 text-primary-600 shadow-lg shadow-primary-200/50 dark:shadow-none' : 'bg-white/30 dark:bg-slate-800/30 text-white hover:bg-white dark:hover:bg-slate-800 hover:text-primary-600 transition-colors'}`}
           >
             <Bookmark className={`w-3.5 h-3.5 transition-colors ${isFav ? 'fill-current text-primary-600 dark:text-primary-400' : 'text-white'}`} />
@@ -110,7 +110,7 @@ const ListingCard: React.FC<ListingCardProps> = ({
 
         <div className="flex flex-wrap gap-1 mb-4 sm:mb-5">
           {(listing.amenities || []).slice(0, 3).map((amenity, idx) => (
-            <span key={`${amenity}-${idx}`} className="px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-md text-[8px] sm:text-[9px] font-bold uppercase tracking-wider border border-slate-100/50 dark:border-slate-700/50">
+            <span key={`card-amenity-${listing.id}-${amenity}-${idx}`} className="px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-md text-[8px] sm:text-[9px] font-bold uppercase tracking-wider border border-slate-100/50 dark:border-slate-700/50">
               {amenity}
             </span>
           ))}
@@ -166,12 +166,19 @@ const ListingCard: React.FC<ListingCardProps> = ({
               </button>
             </div>
           ) : (
-            <button 
-              onClick={onViewDetails}
-              className="flex-1 h-9 sm:h-11 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-bold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-600 hover:text-white dark:hover:bg-primary-600 dark:hover:text-white uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm border border-primary-100 dark:border-primary-800 cursor-pointer active:scale-[0.98]"
-            >
-              View <span className="hidden sm:inline">Details</span> <ArrowUpRight className="w-3 h-3" />
-            </button>
+            <div className="flex-1 flex gap-2">
+              {!listing.verified && (
+                <div className="flex items-center gap-1 sm:gap-1.5 bg-amber-50 dark:bg-amber-900/10 text-amber-600 dark:text-amber-500 px-2 sm:px-3 h-9 sm:h-11 rounded-lg sm:rounded-xl border border-amber-100 dark:border-amber-900/30 flex-shrink-0" title="Unverified Listing">
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider hidden sm:inline">Unverified</span>
+                </div>
+              )}
+              <button 
+                onClick={onViewDetails}
+                className="flex-1 h-9 sm:h-11 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-bold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-600 hover:text-white dark:hover:bg-primary-600 dark:hover:text-white uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm border border-primary-100 dark:border-primary-800 cursor-pointer active:scale-[0.98]"
+              >
+                View <span className="hidden sm:inline">Details</span> <ArrowUpRight className="w-3 h-3" />
+              </button>
+            </div>
           )}
         </div>
       </div>
