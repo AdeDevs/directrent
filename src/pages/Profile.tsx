@@ -415,17 +415,17 @@ const Profile = () => {
     } catch (error: any) {
       console.error("SMS Error:", error);
       if (error.code === 'auth/invalid-app-credential') {
-        setPhoneError("Invalid app credential. In a preview environment, you MUST add your phone number as a 'Phone number for testing' in your Firebase console to skip reCAPTCHA and real SMS.");
+        setPhoneError("App Verification Failed: Firebase could not verify this site's domain. Ensure your current URL is added to 'Authorized Domains' in your Firebase Authentication settings.");
       } else if (error.code === 'auth/operation-not-allowed') {
-        setPhoneError("Nigeria (+234) is not enabled for SMS in your Firebase Console. Please enable it in Authentication Settings.");
+        setPhoneError("SMS is not enabled for your project region. Please check your Firebase Console Authentication settings.");
       } else if (error.code === 'auth/billing-not-enabled') {
-        setPhoneError("Billing is required for real SMS in Nigeria. WORKAROUND: Add your number as a 'Test Number' in Firebase Console (Authentication > Sign-in method > Phone) to skip billing.");
+        setPhoneError("SMS quotas may be exceeded or billing is required for this region. Use a 'Test Number' in Firebase Console (Settings > Phone) to bypass this during testing.");
       } else if (error.code === 'auth/too-many-requests') {
-        setPhoneError("Too many attempts. Firebase has temporarily blocked this number. Please wait or use a 'Test Number' from your Firebase Console.");
+        setPhoneError("Too many attempts. Firebase has blocked this number temporarily. Use a 'Test Number' in your Firebase Console to continue immediately.");
       } else if (error.code === 'auth/credential-already-in-use' || error.code === 'auth/account-exists-with-different-credential') {
-        setPhoneError("This phone number is already linked to another account. Please use a different number or Sign In with this phone number directly.");
+        setPhoneError("This phone number is already linked to another account.");
       } else {
-        setPhoneError(`(${error.code}) ${error.message || "Failed to send OTP. Please try again."}`);
+        setPhoneError(`Verification Error: ${error.code}. Ensure your domain is authorized in Firebase Console (Auth > Settings).`);
       }
 
       if (window.recaptchaVerifier) {

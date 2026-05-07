@@ -301,9 +301,15 @@ const Auth = () => {
       // Small delay to ensure DOM element is ready
       await new Promise(resolve => setTimeout(resolve, 50));
 
-      // Use the dedicated container ID
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
+      }
+
+      // Use invisible reCAPTCHA for better compatibility in sandboxed/iframe environments
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container-signup', {
-        size: 'normal',
+        size: 'invisible',
         callback: () => {
           // reCAPTCHA solved
         },
@@ -318,8 +324,7 @@ const Auth = () => {
         }
       });
       
-      await window.recaptchaVerifier.render();
-
+      const recaptchaToken = await window.recaptchaVerifier.verify();
       const result = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
       setConfirmationObj(result);
       setIsPhoneVerifying(true);
@@ -334,8 +339,8 @@ const Auth = () => {
       }
       let message = 'Failed to send verification SMS. Please try again.';
       
-      if (error.code === 'auth/invalid-app-credential' || error.message?.includes('-39') || error.code?.includes('-39')) {
-        message = 'Safety Check Failed: In a preview environment, your domain may not be authorized, or you may be using a VPN. PRO TIP: Add your number as a "Phone number for testing" in Firebase Console > Auth > Settings > Phone Numbers to skip this.';
+      if (error.code === 'auth/invalid-app-credential' || error.message?.includes('captcha') || error.code?.includes('captcha')) {
+        message = 'Safety Check Failed: Firebase could not verify your domain. Ensure your current URL is added to "Authorized Domains" in the Firebase Console (Auth > Settings). If you just added it, wait 5-10 mins for propagation.';
       } else if (error.code === 'auth/too-many-requests') {
         message = 'Too many requests. Please try again later or use a different number.';
       } else if (error.message?.includes('recaptcha')) {
@@ -453,7 +458,6 @@ const Auth = () => {
             return;
           }
           
-          // Re-initialize to avoid stale container issues
           if (window.recaptchaVerifier) {
             try {
               window.recaptchaVerifier.clear();
@@ -464,25 +468,23 @@ const Auth = () => {
           // Small delay to ensure DOM is ready
           await new Promise(resolve => setTimeout(resolve, 100));
 
-          if (recaptchaContainerRef.current) {
-            window.recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
-              size: 'normal',
-              callback: () => {},
-              'expired-callback': () => {
-                setErrors({ phone: 'reCAPTCHA expired. Please verify again.' });
-                if (window.recaptchaVerifier) {
-                  try {
-                    window.recaptchaVerifier.clear();
-                  } catch (e) {}
-                  window.recaptchaVerifier = null;
-                }
+          window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+            size: 'invisible',
+            callback: () => {},
+            'expired-callback': () => {
+              setErrors({ phone: 'reCAPTCHA expired. Please verify again.' });
+              if (window.recaptchaVerifier) {
+                try {
+                  window.recaptchaVerifier.clear();
+                } catch (e) {}
+                window.recaptchaVerifier = null;
               }
-            });
-          }
+            }
+          });
           
           if (!window.recaptchaVerifier) throw new Error("Verification container not ready");
           
-          await window.recaptchaVerifier.render();
+          await window.recaptchaVerifier.verify();
           
           sessionStorage.setItem('sms_reset_flow', 'active');
           const result = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
@@ -500,8 +502,8 @@ const Auth = () => {
           }
           let message = 'Failed to send reset SMS. Please check your connection.';
           
-          if (error.code === 'auth/invalid-app-credential' || error.message?.includes('-39') || error.code?.includes('-39')) {
-            message = 'Safety Check Failed: In a preview environment, your domain may not be authorized, or you may be using a VPN. PRO TIP: Add your number as a "Phone number for testing" in Firebase Console > Auth > Settings > Phone Numbers to skip this.';
+          if (error.code === 'auth/invalid-app-credential' || error.message?.includes('captcha') || error.code?.includes('captcha')) {
+            message = 'Verification Failed: Firebase could not verify your domain. Ensure your current URL is added to "Authorized Domains" in the Firebase Console (Auth > Settings). If you just added it, wait 5-10 mins for propagation.';
           } else if (error.code === 'auth/too-many-requests') {
             message = 'Too many requests. Please try again later or use a different number.';
           } else if (error.code === 'auth/invalid-phone-number') {
