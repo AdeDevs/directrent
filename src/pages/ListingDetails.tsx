@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Helmet } from 'react-helmet-async';
 import { 
   ArrowLeft, Bookmark, MapPin, BadgeCheck, Star, 
   ShieldCheck, Share2, MessageCircleMore, LayoutGrid, Droplets,
@@ -678,6 +679,21 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       transition={{ duration: 0.3, ease: "easeOut" }}
       className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col w-full transition-colors duration-300"
     >
+      <Helmet>
+        <title>{`${listing.title} | ${listing.location} | DirectRent`}</title>
+        <meta name="description" content={`Rent this verified ${listing.type} in ${listing.location} for ₦${listing.price.toLocaleString()}. ${listing.description.slice(0, 150)}...`} />
+        
+        {/* Open Graph */}
+        <meta property="og:title" content={`${listing.title} - ₦${listing.price.toLocaleString()} | DirectRent`} />
+        <meta property="og:description" content={`Verified ${listing.type} available for rent in ${listing.location}. Connect directly with agents on DirectRent.`} />
+        <meta property="og:image" content={listing.image} />
+        <meta property="og:url" content={`https://directrent.com.ng/property/${listing.id}`} />
+
+        {/* Twitter */}
+        <meta name="twitter:title" content={`${listing.title} - ₦${listing.price.toLocaleString()} | DirectRent`} />
+        <meta name="twitter:description" content={`Verified ${listing.type} available for rent in ${listing.location}. Connect directly with agents on DirectRent.`} />
+        <meta name="twitter:image" content={listing.image} />
+      </Helmet>
       {/* Fullscreen Gallery Modal */}
       <AnimatePresence>
         {isGalleryOpen && (

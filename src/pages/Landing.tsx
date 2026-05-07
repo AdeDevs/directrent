@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Helmet } from 'react-helmet-async';
 import { 
   Zap, 
   MapPin, 
@@ -525,6 +526,11 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen selection:bg-primary-100 dark:selection:bg-primary-900 selection:text-primary-900 dark:selection:text-primary-100 transition-colors duration-300 custom-cursor-area">
+      <Helmet>
+        <title>DirectRent | Find Verified Apartments & Student Hostels in Nigeria</title>
+        <meta name="description" content="DirectRent is Nigeria's most trusted real estate platform for students and professionals. Find verified self-contains, flats, and office spaces without agent stress." />
+        <link rel="canonical" href="https://directrent.com.ng/" />
+      </Helmet>
       <CustomCursor />
       <Navbar />
       <main>
