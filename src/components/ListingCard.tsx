@@ -17,7 +17,7 @@ interface ListingCardProps {
   isAgentView?: boolean;
 }
 
-const ListingCard: React.FC<ListingCardProps> = ({ 
+const ListingCard: React.FC<ListingCardProps> = React.memo(({ 
   listing, 
   onViewDetails, 
   onEdit, 
@@ -196,6 +196,6 @@ const ListingCard: React.FC<ListingCardProps> = ({
     />
     </>
   );
-};
+});
 
 export default ListingCard;
