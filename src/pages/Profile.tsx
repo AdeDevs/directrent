@@ -1036,7 +1036,16 @@ const Profile = () => {
                           <input 
                             type="tel"
                             value={phone}
-                            onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '');
+                              // Strip leading 0 or 234 if they typed it to keep only 10 digits in state
+                              let clean = val;
+                              if (clean.length > 10) {
+                                if (clean.startsWith('234')) clean = clean.slice(3);
+                                else if (clean.startsWith('0')) clean = clean.slice(1);
+                              }
+                              setPhone(clean.slice(0, 10));
+                            }}
                             placeholder="803 000 0000"
                             className="w-full bg-transparent border-0 px-3 sm:px-4 py-3 sm:py-4 text-sm sm:text-base font-bold text-slate-900 dark:text-white outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 tracking-wide"
                           />
@@ -1084,15 +1093,31 @@ const Profile = () => {
                          </p>
                       </div>
                       
-                      <div className="space-y-2">
+                      <div className="space-y-2 relative">
+                        <div className="flex justify-between gap-2 sm:gap-3">
+                          {[0, 1, 2, 3, 4, 5].map((index) => (
+                            <div 
+                              key={index}
+                              className={`w-10 h-12 sm:w-14 sm:h-16 flex items-center justify-center text-xl sm:text-2xl font-black rounded-xl border-2 transition-all duration-200
+                                ${otp.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-900' : 
+                                  otp[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
+                                  'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50'} 
+                                ${otp[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-600'}`}
+                            >
+                              {otp[index] || '•'}
+                            </div>
+                          ))}
+                        </div>
+                        
                         <input 
-                          type="text"
+                          type="tel"
                           maxLength={6}
                           value={otp}
                           onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                          className="w-full bg-slate-50 dark:bg-slate-800/80 border-2 border-slate-200 dark:border-slate-700 p-3 sm:p-4 text-center text-2xl sm:text-3xl font-black tracking-[0.4em] sm:tracking-[0.6em] rounded-xl sm:rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 dark:text-white transition-all font-mono"
-                          placeholder="------"
+                          className="absolute opacity-0 inset-0 w-full h-full cursor-default"
+                          autoFocus
                         />
+                        
                         {phoneError && (
                           <motion.div 
                             initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}

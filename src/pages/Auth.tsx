@@ -307,9 +307,9 @@ const Auth = () => {
         } catch (e) {}
       }
 
-      // Use invisible reCAPTCHA for better compatibility in sandboxed/iframe environments
+      // Use normal reCAPTCHA for better reliability on dynamic domains/iframes
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container-signup', {
-        size: 'invisible',
+        size: 'normal',
         callback: () => {
           // reCAPTCHA solved
         },
@@ -324,7 +324,6 @@ const Auth = () => {
         }
       });
       
-      const recaptchaToken = await window.recaptchaVerifier.verify();
       const result = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
       setConfirmationObj(result);
       setIsPhoneVerifying(true);
@@ -339,8 +338,8 @@ const Auth = () => {
       }
       let message = 'Failed to send verification SMS. Please try again.';
       
-      if (error.code === 'auth/invalid-app-credential' || error.message?.includes('captcha') || error.code?.includes('captcha')) {
-        message = 'Safety Check Failed: Firebase could not verify your domain. Ensure your current URL is added to "Authorized Domains" in the Firebase Console (Auth > Settings). If you just added it, wait 5-10 mins for propagation.';
+      if (error.code === 'auth/invalid-app-credential' || error.message?.toLowerCase().includes('captcha') || error.code?.includes('captcha')) {
+        message = 'Verification Failed: Firebase could not verify this site. PRO TIP: You MUST add your current domain (e.g., your-site.vercel.app) to "Authorized Domains" in Firebase Console > Authentication > Settings. Propagation can take up to 10 minutes.';
       } else if (error.code === 'auth/too-many-requests') {
         message = 'Too many requests. Please try again later or use a different number.';
       } else if (error.message?.includes('recaptcha')) {
@@ -469,7 +468,7 @@ const Auth = () => {
           await new Promise(resolve => setTimeout(resolve, 100));
 
           window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-            size: 'invisible',
+            size: 'normal',
             callback: () => {},
             'expired-callback': () => {
               setErrors({ phone: 'reCAPTCHA expired. Please verify again.' });
@@ -483,8 +482,6 @@ const Auth = () => {
           });
           
           if (!window.recaptchaVerifier) throw new Error("Verification container not ready");
-          
-          await window.recaptchaVerifier.verify();
           
           sessionStorage.setItem('sms_reset_flow', 'active');
           const result = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
@@ -502,7 +499,7 @@ const Auth = () => {
           }
           let message = 'Failed to send reset SMS. Please check your connection.';
           
-          if (error.code === 'auth/invalid-app-credential' || error.message?.includes('captcha') || error.code?.includes('captcha')) {
+          if (error.code === 'auth/invalid-app-credential' || error.message?.toLowerCase().includes('captcha') || error.code?.includes('captcha')) {
             message = 'Verification Failed: Firebase could not verify your domain. Ensure your current URL is added to "Authorized Domains" in the Firebase Console (Auth > Settings). If you just added it, wait 5-10 mins for propagation.';
           } else if (error.code === 'auth/too-many-requests') {
             message = 'Too many requests. Please try again later or use a different number.';
@@ -871,7 +868,7 @@ const Auth = () => {
                       onChange={handleChange} 
                       type="tel" 
                       placeholder="801 234 5678" 
-                      maxLength={11}
+                      maxLength={15}
                       disabled={isPhoneVerifying || phoneVerified}
                       className="w-full bg-transparent px-3 py-3 text-sm outline-none text-slate-900 dark:text-white placeholder-slate-400" 
                     />
@@ -899,14 +896,29 @@ const Auth = () => {
                         <button type="button" onClick={() => setIsPhoneVerifying(false)} className="text-[10px] font-bold text-slate-300 hover:text-red-500 uppercase transition-colors">Cancel</button>
                       </div>
                       
-                      <div className="space-y-4">
+                      <div className="space-y-4 relative">
+                        <div className="flex justify-between gap-2 px-1">
+                          {[0, 1, 2, 3, 4, 5].map((index) => (
+                            <div 
+                              key={index}
+                              className={`w-10 h-12 flex items-center justify-center text-xl font-black rounded-xl border-2 transition-all duration-200
+                                ${otpCode.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-800' : 
+                                  otpCode[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
+                                  'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'} 
+                                ${otpCode[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-700'}`}
+                            >
+                              {otpCode[index] || '•'}
+                            </div>
+                          ))}
+                        </div>
+                        
                         <input 
-                          type="text" 
+                          type="tel" 
                           maxLength={6}
-                          placeholder="Enter 6-digit code" 
                           value={otpCode}
-                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                          className="w-full bg-slate-50 dark:bg-slate-950 border border-primary-200 dark:border-primary-800 px-4 py-3 rounded-xl text-lg text-center font-black tracking-[0.4em] font-mono outline-none focus:border-primary-500 focus:bg-white dark:text-white transition-all shadow-inner"
+                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          className="absolute opacity-0 inset-0 w-full h-full cursor-default"
+                          autoFocus
                         />
                         
                         <div className="flex flex-col gap-2">
@@ -1014,7 +1026,7 @@ const Auth = () => {
                         </div>
                         <input 
                           type="tel"
-                          maxLength={11}
+                          maxLength={15}
                           placeholder="801 234 5678" 
                           value={resetPhone}
                           onChange={(e) => {
@@ -1037,17 +1049,36 @@ const Auth = () => {
                           Sent to <span className="font-bold text-slate-900 dark:text-white">+234 {resetPhone.replace(/^0/, '')}</span>
                         </p>
                       </div>
-                      <input 
-                        type="text" 
-                        maxLength={6}
-                        placeholder="------" 
-                        value={otpCode}
-                        onChange={(e) => {
-                          setOtpCode(e.target.value.replace(/\D/g, ''));
-                          if (errors.form) setErrors({});
-                        }}
-                        className={`w-full bg-slate-50 dark:bg-slate-900 border-2 px-4 py-4 rounded-xl outline-none transition-all text-2xl text-center font-black tracking-[0.5em] font-mono text-slate-900 dark:text-white ${errors.form ? 'border-red-500 dark:border-red-900 bg-red-50/10' : 'border-slate-200 dark:border-slate-800 focus:border-primary-500 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary-500/10'}`}
-                      />
+                      <div className="relative pb-2">
+                        <div className="flex justify-between gap-2 px-1 mb-4">
+                          {[0, 1, 2, 3, 4, 5].map((index) => (
+                            <div 
+                              key={index}
+                              className={`w-10 h-14 flex items-center justify-center text-2xl font-black rounded-xl border-2 transition-all duration-200
+                                ${otpCode.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-800' : 
+                                  otpCode[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
+                                  'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'} 
+                                ${otpCode[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-700'}
+                                ${errors.form ? 'border-red-500 bg-red-50/10' : ''}`}
+                            >
+                              {otpCode[index] || '•'}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <input 
+                          type="tel" 
+                          maxLength={6}
+                          value={otpCode}
+                          onChange={(e) => {
+                            setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                            if (errors.form) setErrors({});
+                          }}
+                          className="absolute opacity-0 inset-0 w-full h-full cursor-default"
+                          autoFocus
+                        />
+                      </div>
+                      
                       <div className="flex justify-center mt-2">
                         <button
                           type="button"
