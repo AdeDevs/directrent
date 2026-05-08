@@ -394,12 +394,12 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
       </main>
 
       <AnimatePresence>
-        {showChatModal && (
+        {showChatModal && featuredListings.length > 0 && (
           <ChatModal 
             isOpen={showChatModal}
             onClose={() => setShowChatModal(false)}
-            agentId={agentId}
-            agentName={fullName}
+            listing={featuredListings[0]}
+            currentUser={user!}
           />
         )}
       </AnimatePresence>

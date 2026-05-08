@@ -22,6 +22,7 @@ export interface Listing {
   slotsLeft?: number;
   agent?: {
     id?: string;
+    userId?: string;
     name: string;
     rating: number;
     isVerified: boolean;
@@ -67,6 +68,7 @@ declare global {
 export interface User {
   id: string;
   firstName: string;
+  middleName?: string;
   lastName: string;
   name: string;
   email: string;
@@ -74,7 +76,7 @@ export interface User {
   city: string;
   role: UserRole;
   gender?: string;
-  age?: string;
+  dob?: string;
   country: string;
   avatarUrl?: string;
   phoneNumber?: string;
@@ -91,6 +93,10 @@ export interface User {
   about?: string;
   theme?: 'light' | 'dark';
   listingsCount?: number;
+  agent?: {
+    verificationReason?: string | null;
+    isVerified?: boolean;
+  };
 }
 
 export type ConversationStatus = 'inquiry' | 'negotiating' | 'contract_requested' | 'contract_sent' | 'paid' | 'completed';
@@ -111,6 +117,9 @@ export interface Verification {
   id: string;
   userId: string;
   name: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
   idType: string;
   idNumber?: string;
   role?: string;
@@ -118,4 +127,6 @@ export interface Verification {
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: any;
   updatedAt?: any;
+  createdAt?: any;
+  rejectionReason?: string;
 }

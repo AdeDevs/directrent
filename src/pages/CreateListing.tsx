@@ -293,12 +293,12 @@ export default function CreateListing() {
 
       if (isEditMode) {
         const { updateDoc } = await import('firebase/firestore');
-        await updateDoc(doc(db, 'listings', listingId), listingData);
+        await updateDoc(doc(db, 'listings', listingId.toString()), listingData);
       } else {
         const { writeBatch, increment } = await import('firebase/firestore');
         const batch = writeBatch(db);
         
-        batch.set(doc(db, 'listings', listingId), listingData);
+        batch.set(doc(db, 'listings', listingId.toString()), listingData);
         batch.update(doc(db, 'users', user.id), {
           listingsCount: increment(1)
         });

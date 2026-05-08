@@ -912,7 +912,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  toggleFavoriteWithAnalytics(listing.id);
+                  toggleFavoriteWithAnalytics(listing.id.toString());
                 }}
                 className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-sm ${isFavorite ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/40' : 'bg-white/20 text-white hover:bg-white/30'}`}
               >

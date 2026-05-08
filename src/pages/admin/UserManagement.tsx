@@ -63,6 +63,12 @@ const UserManagement: React.FC<UserManagementProps> = () => {
 
   useEffect(() => {
     const fetchUsers = async () => {
+      // Only fetch if we have an authenticated user in the Firebase SDK
+      if (!auth.currentUser) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
         const usersRef = collection(db, 'users');
@@ -89,7 +95,7 @@ const UserManagement: React.FC<UserManagementProps> = () => {
     };
 
     fetchUsers();
-  }, []);
+  }, [auth.currentUser]);
 
   // Calculate Metrics
   const metrics = useMemo(() => {
@@ -342,7 +348,7 @@ const UserManagement: React.FC<UserManagementProps> = () => {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                      {`${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Anonymous User'}
+                      {`${user.firstName || ''} ${user.middleName ? user.middleName + ' ' : ''}${user.lastName || ''}`.trim() || user.name || 'Anonymous User'}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
                   </div>

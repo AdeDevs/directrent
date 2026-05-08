@@ -40,7 +40,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, getDocs, limit, orderBy, doc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { purgeListingData } from '../../utils/adminCleanup';
 import { 
   BarChart,
@@ -243,6 +243,12 @@ const AdminDashboard = () => {
     let unsubscribeListings: (() => void) | null = null;
 
     const fetchData = async () => {
+      // Only fetch data if we have an authenticated user in the Firebase SDK
+      if (!auth.currentUser) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
         const usersQuery = query(collection(db, 'users'), limit(100));
@@ -266,7 +272,7 @@ const AdminDashboard = () => {
         setVerifications(verificationsData);
 
         // Real-time listener for listings
-        const { onSnapshot, getCountFromServer } = await import('firebase/firestore');
+        const { onSnapshot } = await import('firebase/firestore');
         const listingsQuery = query(collection(db, 'listings'), orderBy('createdAt', 'desc'), limit(200));
         
         unsubscribeListings = onSnapshot(listingsQuery, (snapshot) => {
@@ -294,7 +300,7 @@ const AdminDashboard = () => {
           const verificationActivities = verificationsData.map(v => ({
             id: `verification-${v.id}`,
             sourceId: v.id,
-            user: v.firstName ? `${v.firstName} ${v.lastName}` : 'System User',
+            user: v.firstName ? `${v.firstName} ${v.middleName ? v.middleName + ' ' : ''}${v.lastName}` : (v.name || 'System User'),
             action: 'submitted a verification request.',
             type: 'verification',
             timestamp: v.submittedAt?.seconds ? v.submittedAt.seconds * 1000 : Date.now(),
@@ -323,7 +329,7 @@ const AdminDashboard = () => {
     return () => {
       cleanup.then(unsub => unsub?.());
     };
-  }, []);
+  }, [auth.currentUser]);
 
   const handleDeleteListing = (listingId: string) => {
     setListingToDelete(listingId);
@@ -850,7 +856,7 @@ const AdminDashboard = () => {
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-1.5">
                                     <p className="font-bold text-slate-900 dark:text-white text-[15px] truncate">{listing.title}</p>
-                                    {listing.verified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" title="Verified Property" />}
+                                    {listing.verified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />}
                                   </div>
                                   <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">{listing.type}</p>
                                 </div>

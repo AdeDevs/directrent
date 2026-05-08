@@ -63,11 +63,13 @@ const Auth = () => {
   }, [isResetMode]);
   const [formData, setFormData] = useState({
     firstName: '',
+    middleName: '',
     lastName: '',
     email: '',
     phoneNumber: '',
     nin: '',
     city: '',
+    dob: '',
     password: '',
     confirmPassword: ''
   });
@@ -90,7 +92,7 @@ const Auth = () => {
     
     if (name === 'nin') {
       value = value.replace(/\D/g, ''); 
-    } else if (name === 'firstName' || name === 'lastName') {
+    } else if (name === 'firstName' || name === 'lastName' || name === 'middleName') {
       value = value.replace(/[^a-zA-Z\s]/g, '');
       value = capitalize(value);
     } else if (name === 'phoneNumber') {
@@ -165,6 +167,7 @@ const Auth = () => {
       if (!formData.firstName) newErrors.firstName = 'First name is required';
       if (!formData.lastName) newErrors.lastName = 'Last name is required';
       if (!formData.city) newErrors.city = 'Please select a city';
+      if (!formData.dob) newErrors.dob = 'Birthday is required';
       
       if (!formData.phoneNumber) {
         newErrors.phoneNumber = 'Phone number is required';
@@ -225,6 +228,7 @@ const Auth = () => {
       formData.lastName && 
       emailValid && 
       formData.city && 
+      formData.dob && 
       formData.phoneNumber && formData.phoneNumber.length >= 10 &&
       phoneVerified &&
       formData.nin && ninRegex.test(formData.nin) &&
@@ -558,14 +562,16 @@ const Auth = () => {
           const userProfile: any = {
             id: uid,
             firstName: formData.firstName,
+            middleName: formData.middleName || '',
             lastName: formData.lastName,
-            name: `${formData.firstName} ${formData.lastName}`.trim(),
+            name: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim(),
             email: formData.email,
             phoneNumber: `+234${formData.phoneNumber.replace(/^0/, '')}`,
             phoneVerified: phoneVerified,
             verificationLevel: 'none',
             nin: formData.nin,
             city: formData.city,
+            dob: formData.dob || '',
             role: role,
             country: 'Nigeria',
             verificationStatus: 'none',
@@ -757,11 +763,15 @@ const Auth = () => {
 
           {authMode === 'signup' && signupStep === 1 && (
             <>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">First Name</label>
                   <input name="firstName" value={formData.firstName} onChange={handleChange} type="text" placeholder="John" className={getInputClass('firstName')} />
                   <ErrorMsg name="firstName" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Middle</label>
+                  <input name="middleName" value={formData.middleName} onChange={handleChange} type="text" placeholder="K." className={getInputClass('middleName')} />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Last Name</label>
@@ -847,13 +857,19 @@ const Auth = () => {
                     <ErrorMsg name="nin" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">City</label>
-                    <select name="city" value={formData.city} onChange={handleChange} className={getInputClass('city')}>
+                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Birthday</label>
+                    <input name="dob" value={formData.dob} onChange={handleChange} type="date" className={getInputClass('dob')} />
+                    <ErrorMsg name="dob" />
+                  </div>
+                </div>
+
+                <div>
+                   <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">City</label>
+                   <select name="city" value={formData.city} onChange={handleChange} className={getInputClass('city')}>
                       <option value="" className="dark:bg-slate-900">Select City</option>
                       {nigerianCities.map(city => <option key={city} value={city} className="dark:bg-slate-900">{city}</option>)}
                     </select>
                     <ErrorMsg name="city" />
-                  </div>
                 </div>
 
                 <div>

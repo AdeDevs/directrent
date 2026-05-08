@@ -148,9 +148,10 @@ const Profile = () => {
 
   const [profileData, setProfileData] = useState({
     firstName: user?.firstName || "",
+    middleName: user?.middleName || "",
     lastName: user?.lastName || "",
     gender: user?.gender || "",
-    age: user?.age || "",
+    dob: user?.dob || "",
     nin: user?.nin || "",
     city: user?.city || "",
     about: user?.about || "",
@@ -161,9 +162,10 @@ const Profile = () => {
     if (!isEditing && user) {
       setProfileData({
         firstName: user.firstName || "",
+        middleName: user.middleName || "",
         lastName: user.lastName || "",
         gender: user.gender || "",
-        age: user.age || "",
+        dob: user.dob || "",
         nin: user.nin || "",
         city: user.city || "",
         about: user.about || "",
@@ -619,10 +621,12 @@ const Profile = () => {
 
       // 2. Prepare Data
       console.log("Updating Firestore document...");
+      const fullName = `${profileData.firstName} ${profileData.middleName ? profileData.middleName + ' ' : ''}${profileData.lastName}`.trim();
       const updatedData: any = {
         ...profileData,
+        name: fullName,
         avatarUrl: finalAvatarUrl || null,
-        verificationLevel: calculateVerificationLevel({ ...user || {}, ...profileData, avatarUrl: finalAvatarUrl || null })
+        verificationLevel: calculateVerificationLevel({ ...user || {}, ...profileData, name: fullName, avatarUrl: finalAvatarUrl || null })
       };
 
       // 3. Update Firestore using explicit updateDoc + deleteField cleanup
@@ -699,7 +703,7 @@ const Profile = () => {
     },
   ];
 
-  const profileCompletionFields = ['name', 'gender', 'age', 'city', 'nin', 'avatarUrl'];
+  const profileCompletionFields = ['name', 'gender', 'dob', 'city', 'nin', 'avatarUrl'];
   const completionPercentage = useMemo(() => {
     if (!user) return 0;
     const completedCount = profileCompletionFields.filter(field => {
@@ -1258,7 +1262,7 @@ const Profile = () => {
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                               <div className="space-y-1.5 sm:space-y-2">
                                 <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">First Name</label>
                                 <div className="relative group">
@@ -1269,6 +1273,20 @@ const Profile = () => {
                                     value={profileData.firstName}
                                     onChange={handleNameChange}
                                     placeholder="First Name"
+                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1.5 sm:space-y-2">
+                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Middle Name</label>
+                                <div className="relative group">
+                                  <CircleUserRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
+                                  <input
+                                    name="middleName"
+                                    type="text"
+                                    value={profileData.middleName}
+                                    onChange={handleNameChange}
+                                    placeholder="Middle Name (Optional)"
                                     className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
                                   />
                                 </div>
@@ -1289,14 +1307,13 @@ const Profile = () => {
                               </div>
                             </div>
                             
-                            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                             <div className="grid grid-cols-2 gap-3 sm:gap-4">
                               <div className="space-y-1.5 sm:space-y-2">
-                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Current Age</label>
+                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Date of Birth</label>
                                 <input
-                                  type="number"
-                                  value={profileData.age}
-                                  onChange={(e) => setProfileData((prev) => ({ ...prev, age: e.target.value }))}
-                                  placeholder="Age"
+                                  type="date"
+                                  value={profileData.dob}
+                                  onChange={(e) => setProfileData((prev) => ({ ...prev, dob: e.target.value }))}
                                   className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
                                 />
                               </div>

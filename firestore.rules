@@ -4,7 +4,7 @@ service cloud.firestore {
     
     // Default deny - Pillar 0
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isGodMode();
     }
 
     // --- Helpers ---
@@ -12,29 +12,34 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
+  function isGodMode() {
+    return isSignedIn() && 
+           request.auth.token.email.lower() == 'adeyemiakinyemi01@gmail.com';
+  }
 
-    function isValidId(id) {
-       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
+  function isAdmin() {
+    return isGodMode() || (
+      isSignedIn() && 
+      exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'moderator', 'god']
+    );
+  }
 
-    function incoming() {
-      return request.resource.data;
-    }
+  function isOwner(userId) {
+    return isSignedIn() && request.auth.uid == userId;
+  }
 
-    function existing() {
-      return resource.data;
-    }
+  function isValidId(id) {
+     return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+  }
 
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email.lower() == 'adeyemiakinyemi01@gmail.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'moderator']))
-      );
-    }
+  function incoming() {
+    return request.resource.data;
+  }
+
+  function existing() {
+    return resource.data;
+  }
 
     function isValidAnalytics(data) {
       return data.keys().hasAll(['listingId', 'type', 'agentId', 'createdAt']) &&
@@ -263,7 +268,7 @@ service cloud.firestore {
     // Verifications (Pillar 6)
     match /verifications/{verifyId} {
       allow create: if isSignedIn() && incoming().userId == request.auth.uid;
-      allow get, list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow get, list: if isAdmin() || (isSignedIn() && (resource == null || resource.data.userId == request.auth.uid));
       allow update, delete: if isAdmin();
     }
 

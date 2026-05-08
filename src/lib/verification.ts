@@ -32,7 +32,7 @@ export function isProfileComplete(user: Partial<User>): boolean {
     user.lastName &&
     user.phoneVerified &&
     user.gender &&
-    user.age &&
+    user.dob &&
     user.city &&
     user.nin
   );

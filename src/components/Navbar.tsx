@@ -5,8 +5,17 @@ import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const { setView, setAuthMode, setPreselectedRole } = useAuth();
   
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const handleSignIn = () => {
     setAuthMode('login');
     setView('auth');
@@ -19,8 +28,12 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-[100] bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
-      <div className="w-full px-2">
+    <nav className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-300 ${
+      isScrolled 
+        ? 'bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800' 
+        : 'bg-transparent border-b border-transparent'
+    }`}>
+      <div className="w-full px-4 md:px-6">
         <div className="flex justify-between items-center h-16 md:h-20">
           <div className="flex items-center">
             <div 
@@ -53,7 +66,7 @@ const Navbar = () => {
               </button>
               <button 
                 onClick={() => { setAuthMode('signup'); setView('auth'); }}
-                className="text-sm font-medium bg-primary-600 text-white px-5 py-2 rounded-xl hover:bg-primary-700 shadow-md transition-all shadow-primary-200 dark:shadow-none active:scale-95"
+                className="text-sm font-medium bg-primary-600 text-white px-5 py-2 rounded-xl hover:bg-primary-700 transition-all active:scale-95"
               >
                 Sign Up
               </button>
@@ -76,9 +89,9 @@ const Navbar = () => {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border-b border-slate-100 dark:border-slate-800 overflow-hidden shadow-xl shadow-slate-200/20 dark:shadow-none"
+            className="md:hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border-b border-slate-200 dark:border-slate-800 overflow-hidden"
           >
-            <div className="px-4 pt-2 pb-6 flex flex-col space-y-4 shadow-inner shadow-slate-100/50 dark:shadow-none">
+            <div className="px-4 pt-2 pb-6 flex flex-col space-y-4">
               <a 
                 href="#listings" 
                 onClick={() => setIsOpen(false)}

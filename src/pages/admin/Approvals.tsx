@@ -16,7 +16,11 @@ import {
   RotateCw,
   Fingerprint,
   Eye,
-  Maximize2
+  Maximize2,
+  Sparkles,
+  AlertTriangle,
+  BrainCircuit,
+  MessageSquareQuote
 } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import { 
@@ -29,8 +33,14 @@ import {
   addDoc,
   serverTimestamp
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
+import firebaseConfig from '../../../firebase-applet-config.json';
 import { Listing, Verification } from '../../types';
+import { GoogleGenAI } from "@google/genai";
+import ReactMarkdown from 'react-markdown';
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const STORAGE_BUCKET = firebaseConfig.storageBucket;
 
 interface ApprovalsProps {
   // Add any props if needed
@@ -53,6 +63,177 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   const [showRejectionReason, setShowRejectionReason] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState<{ show: boolean, type: 'approval' | 'rejection' | null }>({ show: false, type: null });
+  const [aiReport, setAiReport] = useState<{ analysis: string, recommendation: 'approve' | 'flag' | 'reject' | null, confidence: number, ocrData?: any } | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const fetchImageAsBase64 = async (url: string): Promise<string> => {
+    // Try the Image object approach first (often handles CORS better with crossOrigin='anonymous')
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      
+      const timeout = setTimeout(() => {
+        reject(new Error('Image fetch timed out'));
+      }, 15000);
+
+      img.onload = () => {
+        clearTimeout(timeout);
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Could not get canvas context"));
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          const dataURL = canvas.toDataURL("image/jpeg", 0.8);
+          resolve(dataURL.split(",")[1]);
+        } catch (e) {
+          // If canvas tainted (CORS failure), fallback to standard fetch
+          fetchFallback(url).then(resolve).catch(reject);
+        }
+      };
+
+      img.onerror = () => {
+        clearTimeout(timeout);
+        fetchFallback(url).then(resolve).catch(reject);
+      };
+
+      const fetchFallback = async (fallbackUrl: string): Promise<string> => {
+        try {
+          const response = await fetch(fallbackUrl);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const blob = await response.blob();
+          return new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = reader.result as string;
+              if (base64.includes(',')) res(base64.split(',')[1]);
+              else res(base64);
+            };
+            reader.onerror = rej;
+            reader.readAsDataURL(blob);
+          });
+        } catch (err) {
+          console.error('Final image fetch failure:', err);
+          throw new Error('CORS_ERROR');
+        }
+      };
+
+      img.src = url;
+    });
+  };
+
+  const generateAIAnalysis = async (agent: Verification) => {
+    if (!agent) return;
+    setIsAnalyzing(true);
+    setAiError(null);
+    try {
+      const idUrl = (agent as any).govtIdUrl || (agent as any).idUrl;
+      const selfieUrl = (agent as any).selfieUrl;
+      const dob = (agent as any).dob;
+
+      const parts: any[] = [
+        {
+          text: `
+            You are an AI KYC Assistant for DirectRent, a premium real estate platform in Nigeria.
+            Analyze the following verification data for an agent:
+            
+            Target Name: ${agent.name}
+            Expected Date of Birth: ${dob || 'Not provided'}
+            Stated ID Type: ${agent.idType}
+            Stated ID Number: ${agent.idNumber}
+            Location: ${agent.location || 'Not provided'}
+            
+            MANDATORY TASKS:
+            1. PERFORM OCR: Extract all text from the Government ID image. Look for:
+               - Full Name: Verify if first and last names match "${agent.name}". Note: The ID may contain a middle name while the target name does not; this is acceptable.
+               - ID Number: Does it match ${agent.idNumber}?
+               - Date of Birth: Compare with ${dob || 'the target dob'}.
+               - Expiry Date: Is the ID expired?
+            2. BIOMETRIC AUDIT: Compare the face in the Selfie image with the face photo ON the Government ID. Check for facial similarity.
+            3. FRAUD DETECTION: Look for signs of tampering (fonts mismatch, overlapping text, blurred photo area) on the ID.
+            4. REPORT: Generate a concise report listing extracted details and discrepancies.
+            5. RECOMMENDATION: Output "approve", "flag", or "reject".
+
+            CRITICAL POLICY RULES:
+            - NAME MATCHING: If the target name is "John Doe" and the ID says "John James Doe", this is a VALID match. Do not flag for middle name presence on ID.
+            - LOCATION: DO NOT reject or flag based on location mismatches. People often register IDs in different cities than where they reside. Ignore location discrepancies.
+            - DOB: If the DOB matches within reason (accounting for potential OCR errors or month/day order), consider it a match.
+
+            STRICT JSON OUTPUT FORMAT:
+            {
+              "analysis": "Markdown report here",
+              "recommendation": "approve" | "flag" | "reject",
+              "confidence": number, // 0-100 scale
+              "ocrData": {
+                "extractedName": "Full name found on ID",
+                "extractedId": "Number found on ID",
+                "extractedDob": "DOB found on ID",
+                "expiry": "Expiry date found on ID"
+              }
+            }
+          `
+        }
+      ];
+
+      try {
+        if (idUrl) {
+          const idBase64 = await fetchImageAsBase64(idUrl);
+          parts.push({
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: idBase64
+            }
+          });
+        }
+
+        if (selfieUrl) {
+          const selfieBase64 = await fetchImageAsBase64(selfieUrl);
+          parts.push({
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: selfieBase64
+            }
+          });
+        }
+      } catch (imgErr: any) {
+        if (imgErr.message === 'CORS_ERROR') {
+          console.error("CORS Error: Please configure your storage bucket to allow cross-origin requests.");
+          setAiError("CORS_ERROR");
+          setIsAnalyzing(false);
+          return;
+        }
+        console.warn("Falling back to text analysis due to image error:", imgErr);
+        parts[0].text += "\n\nCRITICAL: ID/Selfie image data could not be parsed. Rely strictly on text metadata.";
+      }
+
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ role: 'user', parts }],
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+
+      const response = JSON.parse(result.text);
+      setAiReport(response);
+    } catch (err) {
+      console.error("AI Analysis Error:", err);
+      setAiError("Analysis failed. Please check your internet connection or use manual verification.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedAgent && !aiReport && !isAnalyzing) {
+      generateAIAnalysis(selectedAgent);
+    }
+  }, [selectedAgent]);
 
   const createNotification = async (userId: string, title: string, message: string, type: 'verification' | 'listing' | 'system') => {
     try {
@@ -82,14 +263,29 @@ const Approvals: React.FC<ApprovalsProps> = () => {
     // Combine and deduplicate by userId
     const map = new Map<string, Verification>();
     
-    // Process verifications collection first
+    // Process verifications collection first (snapshots)
     agentsFromColl.forEach(a => {
       if (a.userId) map.set(a.userId, a);
     });
     
-    // Process user profile applications
+    // Process user profile applications (live data)
     agentsFromUsers.forEach(ua => {
-      if (!map.has(ua.userId)) {
+      const existing = map.get(ua.userId);
+      if (existing) {
+        // Merge: Use User collection for profile info (name, email, avatar, etc.)
+        // but keep verification specific fields from the formal verification doc if they are more specific
+        map.set(ua.userId, {
+          ...existing,
+          ...ua,
+          // Ensure live profile data takes absolute precedence for display
+          name: ua.name || existing.name,
+          email: (ua as any).email || (existing as any).email,
+          avatarUrl: (ua as any).avatarUrl || (existing as any).avatarUrl,
+          location: ua.location || existing.location,
+          // Keep status in sync with user doc if it's explicitly there
+          status: ua.status || existing.status
+        } as Verification);
+      } else {
         map.set(ua.userId, ua);
       }
     });
@@ -101,6 +297,18 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   }, [agentsFromColl, agentsFromUsers, statusFilter]);
 
   useEffect(() => {
+    // Only fetch data if we have an authenticated user in the Firebase SDK
+    // This prevents race conditions where listeners start before the auth token is ready
+    if (!auth.currentUser) {
+      const timeout = setTimeout(() => {
+        if (!auth.currentUser) {
+          console.warn("Approvals: No current user after timeout. Retrying...");
+          setLoading(false);
+        }
+      }, 5000);
+      return () => clearTimeout(timeout);
+    }
+
     setLoading(true);
     
     // Listen for all non-approved listings
@@ -144,7 +352,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         return {
           id: doc.id,
           userId: doc.id,
-          name: userData.name || `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Anonymous Agent',
+          name: `${userData.firstName || ''} ${userData.middleName ? userData.middleName + ' ' : ''}${userData.lastName || ''}`.trim() || userData.name || 'Anonymous Agent',
           email: userData.email,
           avatarUrl: userData.avatarUrl,
           status: status,
@@ -155,6 +363,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
           idType: userData.govtIdType || 'NIN Slip',
           idNumber: userData.nin || userData.idNumber,
           submittedAt: userData.createdAt,
+          dob: userData.dob,
           isFromUsers: true
         } as unknown as Verification;
       }).filter(a => a.status === 'pending' || a.status === 'rejected');
@@ -168,7 +377,25 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       unsubscribeAgents();
       unsubscribeUserAgents();
     };
-  }, []);
+  }, [auth.currentUser]); // Re-run when currentUser changes from null to something else
+
+  // Synchronize selectedAgent with latest data if profile updates while modal is open
+  useEffect(() => {
+    if (!selectedAgent) return;
+    
+    const latest = filteredAgents.find(a => (a.userId || a.id) === (selectedAgent.userId || selectedAgent.id));
+    if (latest) {
+      const hasChanged = 
+        latest.name !== selectedAgent.name || 
+        (latest as any).email !== (selectedAgent as any).email || 
+        (latest as any).avatarUrl !== (selectedAgent as any).avatarUrl ||
+        latest.status !== selectedAgent.status;
+
+      if (hasChanged) {
+        setSelectedAgent(latest);
+      }
+    }
+  }, [filteredAgents, selectedAgent]);
 
   const handleApproveListing = async (id: string) => {
     setProcessingId(id);
@@ -179,9 +406,9 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         updatedAt: serverTimestamp()
       });
       const listing = allListings.find(l => l.id === id);
-      if (listing?.agent?.userId) {
+      if (listing?.agent?.id) {
         await createNotification(
-          listing.agent.userId,
+          listing.agent.id,
           'Listing Approved',
           `Your property listing "${listing.title}" has been approved and is now live!`,
           'listing'
@@ -204,11 +431,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         updatedAt: serverTimestamp()
       });
       const listing = allListings.find(l => l.id === id);
-      if (listing?.agent?.userId) {
+      if (listing?.agent?.id) {
         await createNotification(
-          listing.agent.userId,
+          listing.agent.id,
           'Listing Rejected',
-          `Your property listing "${listing.title}" was not approved. Please review our guidelines.`,
+          `Your property listing "${listing.title}" was not approved.`,
           'listing'
         );
       }
@@ -299,10 +526,10 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         <span className="text-slate-900 dark:text-white">Approvals Queue</span>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
+      <div className="space-y-8">
         
         {/* Main List Section */}
-        <div className="flex-1 space-y-8">
+        <div className="space-y-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Approvals Queue</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Review and manage pending property listings and agent credential verifications.</p>
@@ -579,16 +806,17 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                               <h3 className="font-bold text-slate-900 dark:text-white capitalize">{agent.name}</h3>
                               <p className="text-xs text-slate-500 font-medium mt-0.5">{(agent as any).email || 'No email provided'}</p>
                               <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                                Submitted {agent.createdAt ? new Date(agent.createdAt?.seconds ? agent.createdAt.seconds * 1000 : agent.createdAt).toLocaleDateString() : 'N/A'}
+                                Submitted {agent.submittedAt ? new Date(agent.submittedAt?.seconds ? agent.submittedAt.seconds * 1000 : agent.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
                               </p>
                             </div>
                             <div className="flex gap-2 w-full sm:w-auto">
                                {statusFilter === 'pending' ? (
                                  <button 
                                    onClick={() => setSelectedAgent(agent)}
-                                   className="w-full sm:w-auto px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white text-[11px] font-bold uppercase tracking-widest hover:bg-primary-700 dark:hover:bg-primary-600 transition-all flex justify-center items-center gap-2"
+                                   className="w-full sm:w-auto px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-primary-600 dark:hover:text-white transition-colors"
                                  >
-                                   Review Details
+                                   <Eye className="w-4 h-4" />
+                                   Review
                                  </button>
                                ) : (
                                  <div className="flex flex-col items-start sm:items-end w-full sm:w-auto">
@@ -631,8 +859,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                     <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">User (Agent)</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">Email</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">Agent Identity</th>
                           <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">Date</th>
                           <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">Status</th>
                           <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px] text-right">Actions</th>
@@ -643,13 +870,15 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                           <tr key={`desktop-agent-${agent.userId || agent.id}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
                             <td className="px-4 py-4 align-top">
                               <div className="flex items-center gap-3">
-                                <img src={(agent as any).avatarUrl || `https://ui-avatars.com/api/?name=${agent.name}&background=000&color=fff`} alt="" className="w-10 h-10 rounded border border-slate-200 dark:border-slate-700 object-cover" />
-                                <p className="font-bold text-slate-900 dark:text-white capitalize">{agent.name}</p>
+                                <img src={(agent as any).avatarUrl || `https://ui-avatars.com/api/?name=${agent.name}&background=000&color=fff`} alt="" className="w-10 h-10 rounded border border-slate-200 dark:border-slate-700 object-cover shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="font-bold text-slate-900 dark:text-white capitalize truncate">{agent.name}</p>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-500 font-medium truncate">{(agent as any).email || 'No email provided'}</p>
+                                </div>
                               </div>
                             </td>
-                            <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-slate-400 mt-1">{(agent as any).email || 'N/A'}</td>
                             <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-slate-400 mt-1">
-                              {agent.createdAt ? new Date(agent.createdAt?.seconds ? agent.createdAt.seconds * 1000 : agent.createdAt).toLocaleDateString() : 'N/A'}
+                              {agent.submittedAt ? new Date(agent.submittedAt?.seconds ? agent.submittedAt.seconds * 1000 : agent.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
                             </td>
                             <td className="px-4 py-4 align-top mt-0.5">
                               <span className={`inline-block text-[9px] font-black uppercase tracking-[0.1em] px-2 py-1 border ${
@@ -661,12 +890,18 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                               </span>
                             </td>
                             <td className="px-4 py-4 align-top text-right mt-0.5">
-                               <button 
-                                 onClick={() => setSelectedAgent(agent)}
-                                 className="text-[10px] font-bold text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 px-3 py-1.5 border border-slate-200 dark:border-slate-700 uppercase tracking-widest transition-colors"
-                               >
-                                 {statusFilter === 'pending' ? 'Review Details' : 'View History'}
-                               </button>
+                               <div className="flex justify-end">
+                                 <button 
+                                   onClick={() => setSelectedAgent(agent)}
+                                   className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors flex items-center justify-center gap-2 group"
+                                   title={statusFilter === 'pending' ? 'Review Application' : 'View History'}
+                                 >
+                                   {statusFilter === 'pending' ? <Eye className="w-4 h-4" /> : <RotateCw className="w-4 h-4" />}
+                                   <span className="hidden sm:inline text-[9px] font-black uppercase tracking-[0.1em]">
+                                     {statusFilter === 'pending' ? 'Review' : 'History'}
+                                   </span>
+                                 </button>
+                               </div>
                             </td>
                           </tr>
                         ))}
@@ -681,36 +916,6 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 </div>
               )
             )}
-          </div>
-        </div>
-
-        {/* Sidebar Insights Section - Hidden on mobile as per design requirement */}
-        <div className="hidden lg:block w-80 shrink-0 space-y-6">
-          <div className="bg-white dark:bg-slate-900 p-6 text-slate-900 dark:text-white overflow-hidden border border-slate-200 dark:border-slate-800">
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] mb-6 text-slate-500 dark:text-slate-400">Queue Metrics</h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Queue Total</span>
-                <span className="text-xl font-black">{filteredListings.length + filteredAgents.length}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 p-6 border border-slate-200 dark:border-slate-800">
-            <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-              <Info className="w-4 h-4 text-slate-400" />
-              Review Guidelines
-            </h3>
-            <ul className="space-y-3 text-xs text-slate-500 dark:text-slate-400">
-              <li className="flex gap-2">
-                <div className="w-1 h-1 rounded-full bg-slate-300 mt-1.5 shrink-0" />
-                Ensure all 5+ photos are high resolution.
-              </li>
-              <li className="flex gap-2">
-                <div className="w-1 h-1 rounded-full bg-slate-300 mt-1.5 shrink-0" />
-                Verify license number via state database.
-              </li>
-            </ul>
           </div>
         </div>
 
@@ -737,7 +942,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 <p className="text-xs text-slate-500 mt-1">Cross-check profile information with the submitted government document.</p>
               </div>
               <button 
-                onClick={() => setSelectedAgent(null)}
+                onClick={() => { setSelectedAgent(null); setAiReport(null); setAiError(null); }}
                 className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <X className="w-6 h-6" />
@@ -764,6 +969,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                     <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest border border-slate-200 dark:border-slate-700">
                       ID Number: {selectedAgent.idNumber || 'N/A'}
                     </span>
+                    {(selectedAgent as any).dob && (
+                      <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest border border-slate-200 dark:border-slate-700">
+                        DOB: {new Date((selectedAgent as any).dob).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -863,6 +1073,144 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                       <Eye className="w-3 h-3 text-slate-400" />
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Visual Inspection Required</span>
                    </div>
+                </div>
+              </div>
+
+              {/* AI Insights Panel */}
+              <div className="bg-slate-900 dark:bg-slate-900 border border-slate-800 p-6 relative overflow-hidden group">
+                {/* Hardware deco */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 via-purple-600 to-primary-600 animate-gradient-x" />
+                <div className="absolute top-0 left-4 w-px h-8 bg-slate-700" />
+                <div className="absolute top-0 right-4 w-px h-8 bg-slate-700" />
+                
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary-600/20 border border-primary-600/40 flex items-center justify-center">
+                      <BrainCircuit className="w-4 h-4 text-primary-400 animate-pulse" />
+                    </div>
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Gemini AI Audit Intelligence</h4>
+                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Technical Substrate Analysis Active</p>
+                    </div>
+                  </div>
+                  {isAnalyzing ? (
+                    <div className="flex items-center gap-2 px-3 py-1 bg-primary-500/10 border border-primary-500/20">
+                      <Loader2 className="w-3 h-3 text-primary-500 animate-spin" />
+                      <span className="text-[9px] font-black text-primary-500 uppercase tracking-[0.2em]">Processing Stream...</span>
+                    </div>
+                  ) : aiReport ? (
+                    <div className="flex items-center gap-3">
+                       <div className="flex flex-col items-end">
+                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Confidence Score</span>
+                          <span className="text-xs font-black text-white">
+                            {aiReport.confidence <= 1 ? (aiReport.confidence * 100).toFixed(0) : Math.round(aiReport.confidence)}%
+                          </span>
+                       </div>
+                       <div className={`px-3 py-1 border flex items-center gap-2 ${
+                         aiReport.recommendation === 'approve' 
+                         ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
+                         : aiReport.recommendation === 'flag'
+                         ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                         : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                       }`}>
+                         <Sparkles className="w-3 h-3" />
+                         <span className="text-[9px] font-black uppercase tracking-widest">
+                           AI: {aiReport.recommendation}
+                         </span>
+                       </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="space-y-4">
+                  {isAnalyzing ? (
+                    <div className="space-y-3">
+                      <div className="h-3 bg-slate-800 rounded animate-pulse w-3/4" />
+                      <div className="h-3 bg-slate-800 rounded animate-pulse w-1/2" />
+                      <div className="h-3 bg-slate-800 rounded animate-pulse w-2/3" />
+                    </div>
+                  ) : aiError === 'CORS_ERROR' ? (
+                    <div className="p-4 bg-rose-500/10 border border-slate-700 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                        <div>
+                          <p className="text-[11px] font-black text-white uppercase tracking-widest">Storage Access Denied (CORS)</p>
+                          <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                            The browser cannot access these images for analysis because your Firebase Storage bucket is locked. 
+                            AI OCR and Biometric checks require CORS to be enabled.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="bg-slate-950 p-3 rounded border border-slate-800">
+                        <p className="text-[9px] font-black text-primary-400 uppercase mb-2">Technical Action Required:</p>
+                        <p className="text-[9px] text-slate-500 mb-2">1. Create a <code className="text-white">cors.json</code> file with:</p>
+                        <pre className="text-[8px] bg-slate-900 p-2 border border-slate-800 text-slate-400 mb-2">
+                          {`[\n  {\n    "origin": ["*"],\n    "method": ["GET"],\n    "maxAgeSeconds": 3600\n  }\n]`}
+                        </pre>
+                        <p className="text-[9px] text-slate-500 mb-1">2. Run this command in your terminal:</p>
+                        <code className="text-[9px] text-emerald-400 block break-all font-mono p-2 bg-slate-900 border border-slate-800">
+                          gsutil cors set cors.json gs://{STORAGE_BUCKET}
+                        </code>
+                        <a 
+                          href="https://firebase.google.com/docs/storage/web/download-files#cors_configuration" 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="inline-block mt-3 text-[9px] font-bold text-primary-500 hover:underline"
+                        >
+                          Official Integration Guide →
+                        </a>
+                      </div>
+                      <p className="text-[9px] text-slate-500 italic">Manual verification is recommended until CORS is configured.</p>
+                    </div>
+                  ) : aiError ? (
+                    <div className="p-4 bg-rose-500/10 border border-rose-500/20 flex items-start gap-3">
+                      <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                      <p className="text-[11px] font-medium text-rose-400">{aiError}</p>
+                    </div>
+                  ) : aiReport ? (
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="space-y-4"
+                    >
+                      {aiReport.ocrData && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-slate-800/80 p-2 border border-slate-700/50">
+                            <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">OCR Name</p>
+                            <p className="text-[10px] text-white font-bold truncate">{aiReport.ocrData.extractedName || 'Not Found'}</p>
+                          </div>
+                          <div className="bg-slate-800/80 p-2 border border-slate-700/50">
+                            <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">OCR ID Number</p>
+                            <p className="text-[10px] text-white font-bold truncate">{aiReport.ocrData.extractedId || 'Not Found'}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="bg-slate-800/50 rounded-lg p-5 border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-3 text-slate-400">
+                          <MessageSquareQuote className="w-3 h-3" />
+                          <span className="text-[9px] font-black uppercase tracking-[0.1em]">AI Assistant Report</span>
+                        </div>
+                        <div className="markdown-body prose prose-invert prose-xs max-w-none text-slate-300 text-xs leading-relaxed font-medium">
+                          <ReactMarkdown>{aiReport.analysis}</ReactMarkdown>
+                        </div>
+                        
+                        {/* Interaction hint */}
+                        <div className="mt-4 pt-4 border-t border-slate-700/50 flex items-center gap-2">
+                          <Info className="w-3 h-3 text-slate-500" />
+                          <p className="text-[9px] text-slate-500 italic">This analysis is an aid. Final verification authority resides with the human moderator.</p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <button 
+                      onClick={() => generateAIAnalysis(selectedAgent)}
+                      className="w-full py-4 border-2 border-dashed border-slate-800 hover:border-primary-600 transition-colors flex flex-col items-center justify-center gap-2 group"
+                    >
+                      <Sparkles className="w-5 h-5 text-slate-700 group-hover:text-primary-600 transition-colors" />
+                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Execute AI Audit Protocol</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

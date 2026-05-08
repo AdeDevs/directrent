@@ -486,7 +486,7 @@ const ListingManagement: React.FC<ListingManagementProps> = ({
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1">{listing.title}</span>
-                          {listing.verified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" title="Verified Property" />}
+                          {listing.verified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />}
                         </div>
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">{listing.type}</span>
                       </div>
