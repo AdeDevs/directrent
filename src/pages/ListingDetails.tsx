@@ -388,6 +388,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showTourModal, setShowTourModal] = useState(false);
   const [showDirectionsModal, setShowDirectionsModal] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const [realStats, setRealStats] = useState({ 
     views: listing.viewCount || 0, 
     inquiries: listing.inquiryCount || 0, 
@@ -399,6 +400,38 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       interaction: '0%'
     }
   });
+
+  const handleShare = async () => {
+    setIsSharing(true);
+    const shareData = {
+      title: `DirectRent: ${listing.title}`,
+      text: `Check out this verified ${listing.type} in ${listing.location}. ₦${listing.priceValue?.toLocaleString() || listing.price}/year.`,
+      url: `https://rentbyade.vercel.app/property/${listing.id}`
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        toast.success('Link copied to clipboard!', {
+          icon: '🔗',
+          style: {
+            borderRadius: '1rem',
+            background: '#1e293b',
+            color: '#fff',
+            fontSize: '12px',
+          }
+        });
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error('Error sharing:', err);
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  };
 
   // Keep stats in sync with listing object if it updates (e.g. real-time)
   useEffect(() => {
@@ -680,19 +713,53 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col w-full transition-colors duration-300"
     >
       <Helmet>
-        <title>{`${listing.title} | ${listing.location} | DirectRent`}</title>
-        <meta name="description" content={`Rent this verified ${listing.type} in ${listing.location} for ₦${listing.price.toLocaleString()}. ${listing.description.slice(0, 150)}...`} />
+        <title>{`${listing.title} | ${listing.location} | DirectRent Nigeria`}</title>
+        <meta name="description" content={`Verified ${listing.type} for rent in ${listing.location}, Nigeria. ₦${listing.priceValue?.toLocaleString() || listing.price}/year. ${listing.description?.slice(0, 160)}`} />
+        <meta name="keywords" content={`rent in ${listing.location}, ${listing.type} Nigeria, real estate nigeria, verified listings, local agents nigeria`} />
         
-        {/* Open Graph */}
-        <meta property="og:title" content={`${listing.title} - ₦${listing.price.toLocaleString()} | DirectRent`} />
-        <meta property="og:description" content={`Verified ${listing.type} available for rent in ${listing.location}. Connect directly with agents on DirectRent.`} />
+        {/* Canonical */}
+        <link rel="canonical" href={`https://rentbyade.vercel.app/property/${listing.id}`} />
+
+        {/* Open Graph / Facebook */}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="DirectRent Nigeria" />
+        <meta property="og:title" content={`${listing.title} - ₦${listing.priceValue?.toLocaleString() || listing.price}/yr`} />
+        <meta property="og:description" content={`Verified ${listing.type} available for rent in ${listing.location}. Connect directly with verified agents on DirectRent.`} />
         <meta property="og:image" content={listing.image} />
-        <meta property="og:url" content={`https://directrent.com.ng/property/${listing.id}`} />
+        <meta property="og:url" content={`https://rentbyade.vercel.app/property/${listing.id}`} />
 
         {/* Twitter */}
-        <meta name="twitter:title" content={`${listing.title} - ₦${listing.price.toLocaleString()} | DirectRent`} />
-        <meta name="twitter:description" content={`Verified ${listing.type} available for rent in ${listing.location}. Connect directly with agents on DirectRent.`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${listing.title} - ₦${listing.priceValue?.toLocaleString() || listing.price}/yr`} />
+        <meta name="twitter:description" content={`Verified ${listing.type} available for rent in ${listing.location}. Connect directly with verified agents on DirectRent.`} />
         <meta name="twitter:image" content={listing.image} />
+
+        {/* JSON-LD Structured Data for Google Indexing */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Accommodation",
+            "name": listing.title,
+            "description": listing.description,
+            "image": listing.image,
+            "address": {
+              "@type": "PostalAddress",
+              "addressLocality": listing.location,
+              "addressCountry": "NG"
+            },
+            "offers": {
+              "@type": "Offer",
+              "price": listing.priceValue || 0,
+              "priceCurrency": "NGN",
+              "availability": "https://schema.org/InStock"
+            },
+            "numberOfRooms": listing.beds,
+            "occupancy": {
+              "@type": "QuantitativeValue",
+              "maxValue": listing.beds * 2
+            }
+          })}
+        </script>
       </Helmet>
       {/* Fullscreen Gallery Modal */}
       <AnimatePresence>
@@ -905,7 +972,11 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
             >
               <Flag className="w-4.5 h-4.5" />
             </button>
-            <button className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm">
+            <button 
+              onClick={handleShare}
+              className={`w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-primary-500/80 transition-all cursor-pointer shadow-sm ${isSharing ? 'animate-pulse' : ''}`}
+              title="Share Listing"
+            >
               <Share2 className="w-4.5 h-4.5" />
             </button>
             {!isAgent && (

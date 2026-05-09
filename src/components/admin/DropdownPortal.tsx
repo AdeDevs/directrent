@@ -38,18 +38,23 @@ const DropdownPortal: React.FC<DropdownPortalProps> = ({
   return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <>
-          {/* Overlay to catch clicks outside */}
-          <div 
-            className="fixed inset-0 z-[9998]" 
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
-          />
-          <motion.div
-            ref={menuRef}
-            initial={{ opacity: 0, scale: 0.95, y: openUpwards ? 10 : -10 }}
+        <motion.div
+          key="dropdown-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[9998]" 
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+        />
+      )}
+      {isOpen && (
+        <motion.div
+          key="dropdown-menu"
+          ref={menuRef}
+          initial={{ opacity: 0, scale: 0.95, y: openUpwards ? 10 : -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: openUpwards ? 10 : -10 }}
             style={{ 
@@ -63,7 +68,6 @@ const DropdownPortal: React.FC<DropdownPortalProps> = ({
           >
             {children}
           </motion.div>
-        </>
       )}
     </AnimatePresence>,
     document.body

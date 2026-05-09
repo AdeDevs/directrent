@@ -666,15 +666,18 @@ const UserManagement: React.FC<UserManagementProps> = () => {
       {/* Profile Side Panel */}
       <AnimatePresence>
         {selectedUser && (
-          <>
             <motion.div
+              key="profile-overlay"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedUser(null)}
               className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] h-screen w-screen"
             />
+        )}
+        {selectedUser && (
             <motion.div
+              key="profile-panel"
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
@@ -934,7 +937,6 @@ const UserManagement: React.FC<UserManagementProps> = () => {
                 </div>
               </div>
             </motion.div>
-          </>
         )}
       </AnimatePresence>
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, Smile, FileText, CreditCard, ChevronRight, CheckCircle2, ArrowRight } from 'lucide-react';
+import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, Smile, FileText, CreditCard, ChevronRight, CheckCircle2, ArrowRight, MessageCircle, Video } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
   collection, 
@@ -53,7 +53,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
   const [convStatus, setConvStatus] = useState<ConversationStatus>('inquiry');
   const [convData, setConvData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [otherUser, setOtherUser] = useState<{ name: string; avatarUrl?: string; verificationLevel?: VerificationLevel; role: string } | null>(null);
+  const [showWhatsAppDisclaimer, setShowWhatsAppDisclaimer] = useState(false);
+  const [otherUser, setOtherUser] = useState<{ name: string; avatarUrl?: string; verificationLevel?: VerificationLevel; role: string; phoneNumber?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Stable Conversation ID processing
@@ -112,7 +113,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                 name: d.firstName || d.lastName ? `${d.firstName || ''} ${d.lastName || ''}`.trim() : (d.name || "User"),
                 avatarUrl: d.avatarUrl,
                 verificationLevel: d.verificationLevel === 'verified' ? 'verified' : calculateVerificationLevel(d as any),
-                role: d.role
+                role: d.role,
+                phoneNumber: d.phoneNumber
               });
             }
           }, (err) => handleFirestoreError(err, OperationType.GET, `users/${otherId}`));
@@ -219,6 +221,32 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleWhatsAppTransition = () => {
+    const phoneNumber = otherUser?.phoneNumber || convData?.agentPhone;
+    if (!phoneNumber) {
+      setError("Agent's contact number is not available yet.");
+      return;
+    }
+    setShowWhatsAppDisclaimer(true);
+  };
+
+  const confirmWhatsApp = () => {
+    const phoneNumber = otherUser?.phoneNumber || convData?.agentPhone;
+    if (!phoneNumber) return;
+
+    // Clean phone number: remove non-digits, ensure 234 prefix for Nigeria if needed
+    let cleanPhone = phoneNumber.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '234' + cleanPhone.substring(1);
+    } else if (!cleanPhone.startsWith('234')) {
+      cleanPhone = '234' + cleanPhone;
+    }
+
+    const message = encodeURIComponent(`Hi, I'm interested in your listing: ${listing.title} on DirectRent. Listing Ref: ${listing.id}`);
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+    setShowWhatsAppDisclaimer(false);
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -330,6 +358,48 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
             exit={{ opacity: 0, scale: 0.95 }}
             className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-xl sm:rounded-2xl shadow-2xl flex flex-col h-[90vh] sm:h-[650px] max-h-[95vh] overflow-hidden m-0 sm:m-4 pointer-events-auto"
           >
+            {/* WhatsApp Disclaimer Modal */}
+            <AnimatePresence>
+              {showWhatsAppDisclaimer && (
+                <div className="absolute inset-0 z-[100] flex items-center justify-center p-4">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowWhatsAppDisclaimer(false)}
+                    className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                  />
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                    className="relative w-full max-w-[320px] bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-2xl border border-slate-100 dark:border-slate-800"
+                  >
+                    <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-xl flex items-center justify-center mx-auto mb-4">
+                      <ShieldCheck className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white text-center mb-2 tracking-tight">Security Notice</h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium text-center mb-6 leading-relaxed">
+                      Finalizing terms on WhatsApp? Note that DirectRent can only protect transactions processed through this app.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      <button 
+                        onClick={confirmWhatsApp}
+                        className="w-full bg-emerald-600 text-white py-3 rounded-xl font-black text-xs shadow-lg shadow-emerald-500/20"
+                      >
+                        Connect on WhatsApp
+                      </button>
+                      <button 
+                        onClick={() => setShowWhatsAppDisclaimer(false)}
+                        className="w-full py-3 text-slate-400 dark:text-slate-500 font-black text-[10px] uppercase tracking-widest"
+                      >
+                        Keep it Secure
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
             {/* Header */}
             <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
               <div className="flex items-center gap-2.5 sm:gap-3 text-left">
@@ -393,16 +463,35 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                   {currentUser.role === 'tenant' && (
                     <AnimatePresence mode="popLayout">
                       {(convStatus === 'inquiry' || convStatus === 'negotiating') && (
-                        <motion.button 
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.9, opacity: 0 }}
-                          key="request_contract"
-                          onClick={() => handleAction('contract_requested', 'I\'d like to request a formal contract for this property.', 'contract_requested')}
-                          className="flex items-center gap-2 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors border border-primary-100 dark:border-primary-800 shadow-sm"
+                        <motion.div 
+                          key="tenant-actions"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="flex items-center gap-2"
                         >
-                          <FileText className="w-3.5 h-3.5" /> Request Contract
-                        </motion.button>
+                          <motion.button 
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            key="request_contract"
+                            onClick={() => handleAction('contract_requested', 'I\'d like to request a formal contract for this property.', 'contract_requested')}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors border border-primary-100 dark:border-primary-800 shadow-sm"
+                          >
+                            <FileText className="w-3.5 h-3.5" /> Request Contract
+                          </motion.button>
+                          
+                          <motion.button 
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            key="request_video_tour"
+                            onClick={() => handleAction('negotiating', 'I\'d like to request a live video tour via WhatsApp.', 'negotiating')}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors border border-emerald-100 dark:border-emerald-800 shadow-sm"
+                          >
+                            <Video className="w-3.5 h-3.5" /> WhatsApp Video Tour
+                          </motion.button>
+                        </motion.div>
                       )}
                       {convStatus === 'contract_sent' && (
                         <motion.button 
@@ -448,8 +537,18 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                     </AnimatePresence>
                   )}
                   
-                  <button className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700">
+                  <button 
+                    onClick={() => {/* Custom Negotiation Logic */}}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700"
+                  >
                     Negotiate Rent
+                  </button>
+
+                  <button 
+                    onClick={handleWhatsAppTransition}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-colors border border-emerald-100 dark:border-emerald-800/50"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" /> Continue on WhatsApp
                   </button>
                 </div>
               </motion.div>

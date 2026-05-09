@@ -529,7 +529,7 @@ const Landing = () => {
       <Helmet>
         <title>DirectRent | Find Verified Apartments & Student Hostels in Nigeria</title>
         <meta name="description" content="DirectRent is Nigeria's most trusted real estate platform for students and professionals. Find verified self-contains, flats, and office spaces without agent stress." />
-        <link rel="canonical" href="https://directrent.com.ng/" />
+        <link rel="canonical" href="https://rentbyade.vercel.app/" />
       </Helmet>
       <CustomCursor />
       <Navbar />

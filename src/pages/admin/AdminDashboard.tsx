@@ -1034,15 +1034,18 @@ const AdminDashboard = () => {
       {/* Review Drawer */}
       <AnimatePresence>
         {isReviewOpen && selectedListing && (
-          <>
             <motion.div 
+              key="review-overlay"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsReviewOpen(false)}
               className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-[100] h-screen w-screen"
             />
+        )}
+        {isReviewOpen && selectedListing && (
             <motion.div
+              key="review-drawer"
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
@@ -1308,7 +1311,6 @@ const AdminDashboard = () => {
                 </div>
               </div>
             </motion.div>
-          </>
         )}
       </AnimatePresence>
 

@@ -32,11 +32,13 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
   const isAgent = user?.role === 'agent';
 
   return (
-    <>
-      <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
+      className="h-full"
+    >
+      <div 
       onClick={onViewDetails}
       className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-slate-200/40 dark:hover:shadow-black/20 transition-all duration-300 flex flex-col h-full group cursor-pointer"
     >
@@ -183,7 +185,7 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
         </div>
       </div>
 
-    </motion.div>
+    </div>
     <ConfirmationModal
       isOpen={showDeleteModal}
       onClose={() => setShowDeleteModal(false)}
@@ -194,7 +196,7 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
       cancelText="Keep Listing"
       variant="danger"
     />
-    </>
+    </motion.div>
   );
 });
 
