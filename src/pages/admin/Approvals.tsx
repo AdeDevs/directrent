@@ -55,6 +55,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Verification | null>(null);
+  const [selectedListingForReview, setSelectedListingForReview] = useState<Listing | null>(null);
   const [activeImageTab, setActiveImageTab] = useState<'id' | 'selfie'>('id');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -63,7 +64,17 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   const [showRejectionReason, setShowRejectionReason] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState<{ show: boolean, type: 'approval' | 'rejection' | null }>({ show: false, type: null });
-  const [aiReport, setAiReport] = useState<{ analysis: string, recommendation: 'approve' | 'flag' | 'reject' | null, confidence: number, ocrData?: any } | null>(null);
+  const [aiReport, setAiReport] = useState<{ 
+    analysis: string, 
+    recommendation: 'approve' | 'flag' | 'reject' | null, 
+    confidence: number, 
+    ocrData?: any,
+    assessment?: {
+      pricing?: string;
+      imageQuality?: string;
+      riskLevel?: string;
+    }
+  } | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
@@ -212,7 +223,82 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       }
 
       const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-1.5-flash",
+        contents: [{ role: 'user', parts }],
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+
+      const JSON_RESPONSE = result.text;
+      const response = JSON.parse(JSON_RESPONSE);
+      setAiReport(response);
+    } catch (err) {
+      console.error("AI Analysis Error:", err);
+      setAiError("Analysis failed. Please check your internet connection or use manual verification.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const generateListingAIAnalysis = async (listing: Listing) => {
+    setIsAnalyzing(true);
+    setAiReport(null);
+    setAiError(null);
+
+    try {
+      const parts: any[] = [
+        {
+          text: `
+            ROLE: Senior Real Estate Fraud Analyst
+            TASK: Evaluate a property listing for authenticity, pricing accuracy, and quality.
+            
+            PROPERTY DATA:
+            - Title: ${listing.title}
+            - Price: ${listing.price}
+            - Location: ${listing.location}
+            - Type: ${listing.type}
+            - Details: ${listing.beds} beds, ${listing.baths} baths, ${listing.area} sqft
+            - Description: ${listing.description || 'No description provided'}
+            - Amenities: ${listing.amenities?.join(', ') || 'None'}
+            
+            MANDATORY TASKS:
+            1. IMAGE ANALYSIS: Analyze the provided listing image. Does it match the description? Does it look like a real home or a stock/render? Identify potential red flags (e.g., logo watermarks from other sites).
+            2. PRICING AUDIT: Based on the location (${listing.location}) and type (${listing.type}), is the price (${listing.price}) realistic for the Nigerian market? Flag if suspiciously low or high.
+            3. CONTENT QUALITY: Is the description coherent and professional? 
+            4. RECOMMENDATION: Output "approve", "flag", or "reject".
+            
+            STRICT JSON OUTPUT FORMAT:
+            {
+              "analysis": "Markdown report with pros/cons/red-flags",
+              "recommendation": "approve" | "flag" | "reject",
+              "confidence": number, // 0-100 scale
+              "assessment": {
+                "pricing": "fair" | "high" | "suspiciously_low",
+                "imageQuality": "high" | "average" | "low",
+                "riskLevel": "low" | "medium" | "high"
+              }
+            }
+          `
+        }
+      ];
+
+      if (listing.image) {
+        try {
+          const imgBase64 = await fetchImageAsBase64(listing.image);
+          parts.push({
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: imgBase64
+            }
+          });
+        } catch (imgErr) {
+          console.warn("Could not include image in listing AI analysis:", imgErr);
+        }
+      }
+
+      const result = await ai.models.generateContent({
+        model: "gemini-1.5-flash", // Using stable 1.5 flash for listing analysis
         contents: [{ role: 'user', parts }],
         config: {
           responseMimeType: "application/json"
@@ -222,8 +308,8 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       const response = JSON.parse(result.text);
       setAiReport(response);
     } catch (err) {
-      console.error("AI Analysis Error:", err);
-      setAiError("Analysis failed. Please check your internet connection or use manual verification.");
+      console.error("Listing AI Analysis Error:", err);
+      setAiError("Listing analysis failed. Manual review required.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -234,6 +320,12 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       generateAIAnalysis(selectedAgent);
     }
   }, [selectedAgent]);
+
+  useEffect(() => {
+    if (selectedListingForReview && !aiReport && !isAnalyzing) {
+      generateListingAIAnalysis(selectedListingForReview);
+    }
+  }, [selectedListingForReview]);
 
   const createNotification = async (userId: string, title: string, message: string, type: 'verification' | 'listing' | 'system') => {
     try {
@@ -687,6 +779,13 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                             {statusFilter === 'pending' && (
                               <div className="flex gap-3 w-full sm:w-auto">
                                 <button 
+                                  onClick={() => setSelectedListingForReview(listing)}
+                                  className="flex-1 sm:flex-none px-4 py-2 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-[11px] font-bold uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-center flex items-center justify-center gap-2"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5 text-primary-600" />
+                                  AI Review
+                                </button>
+                                <button 
                                   onClick={() => handleRejectListing(listing.id as string)}
                                   disabled={processingId === listing.id}
                                   className="flex-1 sm:flex-none px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 text-center"
@@ -762,6 +861,9 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                             <td className="px-4 py-4 align-top text-right">
                               {statusFilter === 'pending' ? (
                                 <div className="flex justify-end gap-2">
+                                  <button onClick={() => setSelectedListingForReview(listing)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-primary-600 border border-slate-200 dark:border-slate-700 transition-colors flex items-center justify-center" title="AI Listing Insight">
+                                    <Sparkles className="w-4 h-4" />
+                                  </button>
                                   <button onClick={() => handleRejectListing(listing.id as string)} disabled={processingId === listing.id} className="text-[10px] font-bold text-rose-600 font-black hover:bg-rose-50 dark:hover:bg-rose-900/40 px-3 py-1.5 border border-rose-200 dark:border-rose-900/50 uppercase tracking-widest disabled:opacity-50 transition-colors">Decline</button>
                                   <button onClick={() => handleApproveListing(listing.id as string)} disabled={processingId === listing.id} className="text-[10px] font-bold text-emerald-600 font-black hover:bg-emerald-50 dark:hover:bg-emerald-900/40 px-3 py-1.5 border border-emerald-200 dark:border-emerald-900/50 uppercase tracking-widest disabled:opacity-50 transition-colors">Approve</button>
                                 </div>
@@ -920,6 +1022,172 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         </div>
 
       </div>
+
+      {/* Listing Review Modal */}
+      <AnimatePresence>
+        {selectedListingForReview && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-end">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedListingForReview(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              className="relative w-full max-w-2xl h-full bg-white dark:bg-slate-950 shadow-2xl flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Listing Quality Review</h2>
+                  <p className="text-xs text-slate-500 mt-1">Reviewing property details and verifying information accuracy.</p>
+                </div>
+                <button 
+                  onClick={() => { setSelectedListingForReview(null); setAiReport(null); setAiError(null); }}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 space-y-8">
+                {/* Property Summary */}
+                <div className="flex flex-col sm:flex-row gap-6">
+                  <div className="w-full sm:w-48 h-32 shrink-0 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative group">
+                    <img 
+                      src={selectedListingForReview.image} 
+                      alt="" 
+                      className="w-full h-full object-cover" 
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                       <Maximize2 className="text-white w-5 h-5 cursor-pointer" onClick={() => setIsFullscreen(true)} />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-1">{selectedListingForReview.title}</h3>
+                    <div className="flex items-center gap-2 mb-4">
+                       <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                       <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{selectedListingForReview.location}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest border border-slate-200 dark:border-slate-700">
+                        {selectedListingForReview.type}
+                      </span>
+                      <span className="px-3 py-1 bg-primary-50 dark:bg-primary-900/20 text-[10px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-widest border border-primary-100 dark:border-primary-800/50">
+                        ₦{selectedListingForReview.priceValue?.toLocaleString()}/yr
+                      </span>
+                      <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest border border-slate-200 dark:border-slate-700">
+                         {selectedListingForReview.beds} Beds • {selectedListingForReview.baths} Baths
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI Insights Panel (Reusable Pattern) */}
+                <div className="bg-slate-900 dark:bg-slate-900 border border-slate-800 p-6 relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 via-purple-600 to-primary-600" />
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary-600/20 border border-primary-600/40 flex items-center justify-center">
+                        <BrainCircuit className="w-4 h-4 text-primary-400 animate-pulse" />
+                      </div>
+                      <div>
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Listing Authenticity Audit</h4>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Pricing & Quality Substrate Check</p>
+                      </div>
+                    </div>
+                    {isAnalyzing ? (
+                      <div className="flex items-center gap-2 px-3 py-1 bg-primary-500/10 border border-primary-500/20">
+                        <Loader2 className="w-3 h-3 text-primary-500 animate-spin" />
+                        <span className="text-[9px] font-black text-primary-500 uppercase tracking-[0.2em]">Analyzing...</span>
+                      </div>
+                    ) : aiReport ? (
+                      <div className="flex items-center gap-3">
+                         <div className="flex flex-col items-end">
+                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Confidence</span>
+                            <span className="text-xs font-black text-white">
+                              {aiReport.confidence === undefined ? 'N/A' : (aiReport.confidence <= 1 ? (aiReport.confidence * 100).toFixed(0) : Math.round(aiReport.confidence))}%
+                            </span>
+                         </div>
+                         <div className={`px-3 py-1 border flex items-center gap-2 ${
+                           aiReport.recommendation === 'approve' 
+                           ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
+                           : aiReport.recommendation === 'flag'
+                           ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                           : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                         }`}>
+                           <span className="text-[9px] font-black uppercase tracking-widest">
+                             {aiReport.recommendation}
+                           </span>
+                         </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {aiReport && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-6"
+                    >
+                      <div className="grid grid-cols-3 gap-4">
+                         <div className="p-3 bg-slate-950 border border-slate-800">
+                           <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Pricing</p>
+                           <p className="text-[10px] font-bold text-white capitalize">{aiReport.assessment?.pricing?.replace('_', ' ') || 'N/A'}</p>
+                         </div>
+                         <div className="p-3 bg-slate-950 border border-slate-800">
+                           <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Risk Level</p>
+                           <p className={`text-[10px] font-bold capitalize ${
+                             aiReport.assessment?.riskLevel === 'low' ? 'text-emerald-500' :
+                             aiReport.assessment?.riskLevel === 'medium' ? 'text-amber-500' : 'text-rose-500'
+                           }`}>{aiReport.assessment?.riskLevel || 'N/A'}</p>
+                         </div>
+                         <div className="p-3 bg-slate-950 border border-slate-800">
+                           <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Image QC</p>
+                           <p className="text-[10px] font-bold text-white capitalize">{aiReport.assessment?.imageQuality || 'N/A'}</p>
+                         </div>
+                      </div>
+
+                      <div className="markdown-body p-4 bg-slate-950/50 border border-slate-800 text-[11px] text-slate-400 leading-relaxed font-mono">
+                         <ReactMarkdown>{aiReport.analysis}</ReactMarkdown>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Listing Description Audit</h4>
+                   <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                     {selectedListingForReview.description || 'No description provided by the agent.'}
+                   </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex gap-3">
+                <button 
+                  onClick={() => handleRejectListing(selectedListingForReview.id as string)}
+                  disabled={processingId === selectedListingForReview.id}
+                  className="flex-1 py-4 bg-rose-600 text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
+                >
+                  {processingId === selectedListingForReview.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                  Reject Listing
+                </button>
+                <button 
+                  onClick={() => handleApproveListing(selectedListingForReview.id as string)}
+                  disabled={processingId === selectedListingForReview.id}
+                  className="flex-1 py-4 bg-emerald-600 text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+                >
+                  {processingId === selectedListingForReview.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Approve Publication
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Agent Review Modal */}
       {selectedAgent && (
@@ -1103,7 +1371,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                        <div className="flex flex-col items-end">
                           <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Confidence Score</span>
                           <span className="text-xs font-black text-white">
-                            {aiReport.confidence <= 1 ? (aiReport.confidence * 100).toFixed(0) : Math.round(aiReport.confidence)}%
+                            {aiReport.confidence === undefined ? 'N/A' : (aiReport.confidence <= 1 ? (Math.round(aiReport.confidence * 100)) : Math.round(aiReport.confidence))}%
                           </span>
                        </div>
                        <div className={`px-3 py-1 border flex items-center gap-2 ${

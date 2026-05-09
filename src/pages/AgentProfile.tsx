@@ -23,7 +23,7 @@ import { handleFirestoreError, OperationType } from '../lib/firebase';
 import { Review, Listing } from '../types';
 import SafeImage from '../components/SafeImage';
 import { useAuth } from '../context/AuthContext';
-import ChatModal from '../components/ChatModal';
+import { ChatModal } from '../components/ChatModal';
 
 interface AgentProfileProps {
   agentId: string;

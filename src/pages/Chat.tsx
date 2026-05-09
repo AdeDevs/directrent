@@ -21,7 +21,7 @@ import {
   doc,
 } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
-import ChatModal from "../components/ChatModal";
+import { ChatModal } from "../components/ChatModal";
 import { Listing, VerificationLevel } from "../types";
 import NotificationBadge from "../components/NotificationBadge";
 import VerificationBadge from "../components/VerificationBadge";

@@ -11,7 +11,7 @@ import {
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Listing } from '../types';
 import ListingCard from '../components/ListingCard';
-import ChatModal from '../components/ChatModal';
+import { ChatModal } from '../components/ChatModal';
 import { FEATURED_LISTINGS } from '../data';
 import { useAuth } from '../context/AuthContext';
 import { addDoc, collection, serverTimestamp, query, where, getCountFromServer, doc } from 'firebase/firestore';
