@@ -335,8 +335,8 @@ const UserManagement: React.FC<UserManagementProps> = () => {
       <div className="bg-white dark:bg-slate-900 rounded-none border border-slate-200 dark:border-slate-800 overflow-hidden">
         {/* Mobile View (Cards) - Visible on small screens */}
         <div className="block lg:hidden space-y-4 bg-slate-50 dark:bg-slate-950">
-          {paginatedUsers.map((user) => (
-            <div key={`mobile-user-${user.id}`} className="p-5 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-400 dark:hover:border-slate-600 transition-colors">
+          {paginatedUsers.map((user, idx) => (
+            <div key={`mobile-user-${user.id}-${idx}`} className="p-5 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-400 dark:hover:border-slate-600 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 flex-shrink-0">
@@ -467,8 +467,8 @@ const UserManagement: React.FC<UserManagementProps> = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {paginatedUsers.map((user) => (
-                <tr key={`desktop-user-${user.id}`} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/30 transition-colors group">
+              {paginatedUsers.map((user, idx) => (
+                <tr key={`desktop-user-${user.id}-${idx}`} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/30 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 flex-shrink-0">

@@ -43,24 +43,24 @@ const Navbar = () => {
               <div className="w-8 h-8 bg-primary-600 rounded-md flex items-center justify-center">
                 <Home className="text-white w-5 h-5" />
               </div>
-              <span className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white leading-none">
-                Direct<span className="text-primary-600 dark:text-primary-400">Rent</span>
+              <span className={`text-xl font-semibold tracking-tight leading-none transition-colors duration-300 ${isScrolled ? 'text-slate-900 dark:text-white' : 'text-white'}`}>
+                Direct<span className={isScrolled ? 'text-primary-600 dark:text-primary-400' : 'text-white underline decoration-white/30'}>Rent</span>
               </span>
             </div>
           </div>
           
           <div className="hidden md:flex items-center space-x-6">
-            <a href="#listings" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Browse</a>
+            <a href="#listings" className={`text-sm font-medium transition-colors duration-300 hover:text-primary-600 dark:hover:text-primary-400 ${isScrolled ? 'text-slate-600 dark:text-slate-400' : 'text-white/80'}`}>Browse</a>
             <button 
               onClick={handleListProperty}
-              className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+              className={`text-sm font-medium transition-colors duration-300 ${isScrolled ? 'text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300' : 'text-white hover:text-white/80'}`}
             >
               List Property
             </button>
             <div className="flex items-center gap-3">
               <button 
                 onClick={handleSignIn}
-                className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors px-3 py-2"
+                className={`text-sm font-medium transition-colors duration-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 ${isScrolled ? 'text-slate-600 dark:text-slate-400' : 'text-white/80'}`}
               >
                 Sign In
               </button>
@@ -74,7 +74,7 @@ const Navbar = () => {
           </div>
 
           <div className="md:hidden flex items-center">
-            <button onClick={() => setIsOpen(!isOpen)} className="text-slate-600 dark:text-slate-400 p-2 active:scale-90 transition-transform">
+            <button onClick={() => setIsOpen(!isOpen)} className={`p-2 active:scale-90 transition-all duration-300 ${isScrolled ? 'text-slate-600 dark:text-slate-400' : 'text-white'}`}>
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>

@@ -11,6 +11,7 @@ import {
   Loader2,
   Search,
   ChevronRight,
+  ChevronDown,
   ZoomIn,
   ZoomOut,
   RotateCw,
@@ -20,7 +21,14 @@ import {
   Sparkles,
   AlertTriangle,
   BrainCircuit,
-  MessageSquareQuote
+  MessageSquareQuote,
+  MoreVertical,
+  MoreHorizontal,
+  ChevronLeft,
+  TrendingUp,
+  CheckCircle2,
+  EyeOff,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import { 
@@ -38,6 +46,12 @@ import firebaseConfig from '../../../firebase-applet-config.json';
 import { Listing, Verification } from '../../types';
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
+import DropdownPortal from '../../components/admin/DropdownPortal';
+import { 
+  findNearbyListings, 
+  analyzeDuplicatesWithGemini, 
+  DuplicateAnalysis 
+} from '../../lib/geminiListingService';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const STORAGE_BUCKET = firebaseConfig.storageBucket;
@@ -49,6 +63,11 @@ interface ApprovalsProps {
 const Approvals: React.FC<ApprovalsProps> = () => {
   const [activeTab, setActiveTab] = useState<'listings' | 'agents'>('listings');
   const [statusFilter, setStatusFilter] = useState<'pending' | 'rejected'>('pending');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [regionFilter, setRegionFilter] = useState('All Regions');
+  const [listingCurrentPage, setListingCurrentPage] = useState(1);
+  const [agentCurrentPage, setAgentCurrentPage] = useState(1);
+  const itemsPerPage = 5;
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [agentsFromColl, setAgentsFromColl] = useState<Verification[]>([]);
   const [agentsFromUsers, setAgentsFromUsers] = useState<Verification[]>([]);
@@ -75,8 +94,15 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       riskLevel?: string;
     }
   } | null>(null);
+  const [duplicateReport, setDuplicateReport] = useState<DuplicateAnalysis | null>(null);
+  const [nearbyListings, setNearbyListings] = useState<Listing[]>([]);
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<string | number | null>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const [openUpwards, setOpenUpwards] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   const fetchImageAsBase64 = async (url: string): Promise<string> => {
     // Try the Image object approach first (often handles CORS better with crossOrigin='anonymous')
@@ -245,8 +271,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
     setIsAnalyzing(true);
     setAiReport(null);
     setAiError(null);
+    setDuplicateReport(null);
+    setNearbyListings([]);
 
     try {
+      // 1. Standard Analysis
       const parts: any[] = [
         {
           text: `
@@ -258,7 +287,6 @@ const Approvals: React.FC<ApprovalsProps> = () => {
             - Price: ${listing.price}
             - Location: ${listing.location}
             - Type: ${listing.type}
-            - Details: ${listing.beds} beds, ${listing.baths} baths, ${listing.area} sqft
             - Description: ${listing.description || 'No description provided'}
             - Amenities: ${listing.amenities?.join(', ') || 'None'}
             
@@ -297,21 +325,50 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         }
       }
 
+      console.log("DEBUG: Parts array:", parts);
+
       const result = await ai.models.generateContent({
-        model: "gemini-1.5-flash", // Using stable 1.5 flash for listing analysis
+        model: "gemini-2.0-flash",
         contents: [{ role: 'user', parts }],
         config: {
           responseMimeType: "application/json"
         }
       });
+      
+      console.log("DEBUG: Analysis result:", result);
 
       const response = JSON.parse(result.text);
       setAiReport(response);
+
+      // 2. Duplicate Detection
+      setIsCheckingDuplicates(true);
+      const nearby = await findNearbyListings(listing);
+      setNearbyListings(nearby);
+      
+      console.log("DEBUG: Starting duplicate analysis. Nearby found:", nearby.length);
+      if (nearby.length > 0) {
+        const dupAnalysis = await analyzeDuplicatesWithGemini(listing, nearby, fetchImageAsBase64);
+        console.log("DEBUG: Dup analysis result:", dupAnalysis);
+        setDuplicateReport(dupAnalysis);
+        
+        // If flagged, update listing in DB automatically so it persists
+        if (dupAnalysis.isFlagged && listing.id) {
+          await updateDoc(doc(db, 'listings', String(listing.id)), {
+            duplicateAlert: true,
+            duplicateScore: dupAnalysis.score,
+            duplicateReason: dupAnalysis.reasoning,
+            matchedListingId: dupAnalysis.matchedListingId
+          });
+        }
+      } else {
+        console.log("DEBUG: No nearby listings to analyze for duplicates.");
+      }
     } catch (err) {
       console.error("Listing AI Analysis Error:", err);
       setAiError("Listing analysis failed. Manual review required.");
     } finally {
       setIsAnalyzing(false);
+      setIsCheckingDuplicates(false);
     }
   };
 
@@ -344,12 +401,26 @@ const Approvals: React.FC<ApprovalsProps> = () => {
 
   const filteredListings = useMemo(() => {
     return allListings.filter(listing => {
+      // Status Filter
       if (statusFilter === 'pending') {
-        return listing.isApproved === false && (!listing.status || listing.status === 'pending');
-      }
-      return listing.status === 'rejected';
+        if (!(listing.isApproved === false && (!listing.status || listing.status === 'pending'))) return false;
+      } else if (listing.status !== 'rejected') return false;
+
+      // Search Filter
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery || 
+        listing.title?.toLowerCase().includes(searchLower) || 
+        listing.location?.toLowerCase().includes(searchLower) ||
+        listing.id?.toString().includes(searchLower);
+      
+      if (!matchesSearch) return false;
+
+      // Region Filter
+      if (regionFilter !== 'All Regions' && !listing.location?.toLowerCase().includes(regionFilter.toLowerCase())) return false;
+
+      return true;
     });
-  }, [allListings, statusFilter]);
+  }, [allListings, statusFilter, searchQuery, regionFilter]);
 
   const filteredAgents = useMemo(() => {
     // Combine and deduplicate by userId
@@ -383,10 +454,55 @@ const Approvals: React.FC<ApprovalsProps> = () => {
     });
 
     return Array.from(map.values()).filter(agent => {
-      if (statusFilter === 'pending') return agent.status?.toLowerCase() === 'pending';
-      return agent.status?.toLowerCase() === 'rejected';
+      // Status Filter
+      const statusMatch = statusFilter === 'pending' 
+        ? agent.status?.toLowerCase() === 'pending'
+        : agent.status?.toLowerCase() === 'rejected';
+      
+      if (!statusMatch) return false;
+
+      // Search Filter
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery || 
+        agent.name?.toLowerCase().includes(searchLower) || 
+        (agent as any).email?.toLowerCase().includes(searchLower) ||
+        agent.userId?.toString().includes(searchLower);
+      
+      if (!matchesSearch) return false;
+
+      // Region Filter
+      if (regionFilter !== 'All Regions' && !agent.location?.toLowerCase().includes(regionFilter.toLowerCase())) return false;
+
+      return true;
     });
-  }, [agentsFromColl, agentsFromUsers, statusFilter]);
+  }, [agentsFromColl, agentsFromUsers, statusFilter, searchQuery, regionFilter]);
+
+  const paginatedListings = useMemo(() => {
+    const startIndex = (listingCurrentPage - 1) * itemsPerPage;
+    return filteredListings.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredListings, listingCurrentPage]);
+
+  const paginatedAgents = useMemo(() => {
+    const startIndex = (agentCurrentPage - 1) * itemsPerPage;
+    return filteredAgents.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredAgents, agentCurrentPage]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setListingCurrentPage(1);
+  }, [searchQuery, statusFilter, regionFilter, activeTab]);
+
+  useEffect(() => {
+    setAgentCurrentPage(1);
+  }, [searchQuery, statusFilter, regionFilter, activeTab]);
+
+  // Scroll to top when page changes
+  useEffect(() => {
+    const container = document.getElementById('admin-main-content');
+    if (container) {
+      container.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [listingCurrentPage, agentCurrentPage]);
 
   useEffect(() => {
     // Only fetch data if we have an authenticated user in the Firebase SDK
@@ -660,46 +776,55 @@ const Approvals: React.FC<ApprovalsProps> = () => {
             </button>
           </div>
 
-          {/* Sub-navigation for status */}
-          <div className="flex flex-wrap gap-4">
-            <button 
-              onClick={() => setStatusFilter('pending')}
-              className={`text-[10px] font-black uppercase tracking-[0.2em] px-4 py-2 border ${
-                statusFilter === 'pending' 
-                ? 'bg-primary-600 text-white border-primary-600' 
-                : 'bg-transparent text-slate-500 border-slate-200 dark:border-slate-800 hover:border-slate-400'
-              } transition-all`}
-            >
-              Pending Approval
-            </button>
-            <button 
-              onClick={() => setStatusFilter('rejected')}
-              className={`text-[10px] font-black uppercase tracking-[0.2em] px-4 py-2 border ${
-                statusFilter === 'rejected' 
-                ? 'bg-rose-600 text-white border-rose-600' 
-                : 'bg-transparent text-slate-500 border-slate-200 dark:border-slate-800 hover:border-slate-400'
-              } transition-all`}
-            >
-              Rejected Submissions
-            </button>
-          </div>
-
-          {/* Search + Filters row */}
-          <div className="flex flex-col md:flex-row gap-4 bg-white dark:bg-slate-900 p-4 border border-slate-200 dark:border-slate-800">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder={`Search ${activeTab === 'listings' ? 'listings' : 'agents'}...`} 
-                className="w-full bg-slate-50 dark:bg-slate-800 border-none py-2.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-              />
+          {/* Search + Filters row - RESTYLED TO MATCH LISTING MANAGEMENT */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 w-full lg:w-fit overflow-x-auto no-scrollbar">
+              <button 
+                onClick={() => setStatusFilter('pending')}
+                className={`flex-1 lg:flex-none px-6 py-2 lg:py-1.5 text-xs font-bold transition-all whitespace-nowrap ${
+                  statusFilter === 'pending' 
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                }`}
+              >
+                Pending Approval
+              </button>
+              <button 
+                onClick={() => setStatusFilter('rejected')}
+                className={`flex-1 lg:flex-none px-6 py-2 lg:py-1.5 text-xs font-bold transition-all whitespace-nowrap ${
+                  statusFilter === 'rejected' 
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                }`}
+              >
+                Rejected Submissions
+              </button>
             </div>
-            <div className="flex gap-2 w-full md:w-auto">
-               <select className="w-full md:w-auto bg-slate-50 dark:bg-slate-800 border-none py-2.5 px-4 text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 focus:ring-1 focus:ring-primary-500 outline-none transition-all">
-                 <option>All Regions</option>
-                 <option>Lagos</option>
-                 <option>Abuja</option>
-               </select>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+              <div className="relative w-full lg:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input 
+                  type="text" 
+                  placeholder={`Search ${activeTab === 'listings' ? 'listings' : 'agents'}...`} 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border-none px-10 py-3 lg:py-2 text-xs font-medium focus:ring-1 focus:ring-slate-900 dark:focus:ring-white outline-none rounded-none"
+                />
+              </div>
+              <div className="relative w-full sm:w-auto">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <select 
+                  value={regionFilter}
+                  onChange={(e) => setRegionFilter(e.target.value)}
+                  className="w-full sm:w-auto bg-slate-50 dark:bg-slate-800 border-none pl-10 pr-8 py-3 lg:py-2 text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 focus:ring-1 focus:ring-slate-900 dark:focus:ring-white outline-none transition-all appearance-none cursor-pointer"
+                >
+                  <option>All Regions</option>
+                  <option>Lagos</option>
+                  <option>Abuja</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              </div>
             </div>
           </div>
 
@@ -712,169 +837,202 @@ const Approvals: React.FC<ApprovalsProps> = () => {
             ) : activeTab === 'listings' ? (
               filteredListings.length > 0 ? (
                 <>
-                  {/* Mobile/Tablet Stacked Cards Layout */}
-                  <div className="lg:hidden space-y-4">
-                    {filteredListings.map((listing) => (
-                      <motion.div 
-                        key={`mobile-listing-${listing.id}`}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6 group relative"
-                      >
-                        <div className="w-full sm:w-[200px] h-48 sm:h-[140px] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 relative">
-                          <img src={listing.image} alt="" className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500" />
-                          <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-bold px-3 py-1.5 border border-white/10">
-                             ₦{listing.priceValue?.toLocaleString() || 'NaN'}/mo
+                  <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    {paginatedListings.map((listing, idx) => (
+                      <div key={`listing-approvals-mobile-${listing.id}-${idx}`} className="p-4 space-y-4">
+                        <div className="flex gap-4">
+                          <div className="w-24 h-24 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 relative flex-shrink-0">
+                            <img 
+                              src={listing.image || "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=150&q=80"} 
+                              alt="" 
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-1 left-1">
+                              <span className={`inline-flex px-2 py-0.5 rounded-none text-[8px] font-bold uppercase tracking-wider ${
+                                listing.status === 'rejected' 
+                                ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'
+                                : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
+                              }`}>
+                                {listing.status === 'rejected' ? 'REJECTED' : 'PENDING'}
+                              </span>
+                            </div>
+                            {(listing as any).duplicateAlert && (
+                              <div className="absolute bottom-1 left-1">
+                                <span className="inline-flex px-2 py-0.5 rounded-none text-[8px] font-bold uppercase tracking-wider bg-rose-600 text-white">
+                                  DUPLICATE
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{listing.title || 'Untitled'}</h3>
+                                {listing.verified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />}
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <div className="w-5 h-5 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-200 dark:border-slate-700">
+                                  <img 
+                                    src={listing.agent?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(listing.agent?.name || 'Agent')}&background=000&color=fff`} 
+                                    alt="" 
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 truncate">
+                                  {listing.agent?.name || 'Unknown'}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
+                                <MapPin className="w-2.5 h-2.5" /> {listing.location}
+                              </p>
+                              <p className="text-sm font-bold text-primary-600 dark:text-primary-400 mt-2">
+                                ₦{listing.priceValue?.toLocaleString() || 'NaN'}/mo
+                              </p>
+                            </div>
                           </div>
                         </div>
                         
-                        <div className="flex-1 min-w-0 flex flex-col">
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="min-w-0">
-                              <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate pr-4">{listing.title || 'Untitled Listing'}</h3>
-                              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
-                                <MapPin className="w-3.5 h-3.5" />
-                                {listing.location || 'Location Not Specified'}
-                              </div>
-                            </div>
-                            <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-2.5 py-1.5 border ${
-                              listing.status === 'rejected' 
-                              ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/50'
-                              : 'text-amber-600 bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900/50'
-                            }`}>
-                              {listing.status === 'rejected' ? 'Rejected' : 'Pending Review'}
-                            </span>
-                          </div>
-
-                          <div className="flex gap-6 mt-2 pb-4 border-b border-slate-100 dark:border-slate-800/50">
-                            <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">
-                               <Building2 className="w-3.5 h-3.5" />
-                               <span>{listing.beds || 0} Beds</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">
-                               <div className="w-3.5 h-3.5 border-2 border-current rounded-sm opacity-60" />
-                               <span>{listing.baths || 0} Baths</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">
-                               <MapPin className="w-3.5 h-3.5" />
-                               <span>{listing.area || 'NaN'} sqft</span>
-                            </div>
-                          </div>
-
-                          <div className="mt-auto pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2.5">
-                                 <div className="w-7 h-7 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                   <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(listing.agent?.name || 'Agent')}&background=000&color=fff`} alt="" />
-                                 </div>
-                                 <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                                   Submitted by <span className="font-bold text-slate-900 dark:text-white">{listing.agent?.name || 'Unknown Agent'}</span>
-                                 </span>
-                              </div>
-                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium pl-9.5">
-                                {listing.createdAt ? new Date(listing.createdAt?.seconds ? listing.createdAt.seconds * 1000 : listing.createdAt).toLocaleDateString() : 'N/A'}
-                              </span>
-                            </div>
-                            
-                            {statusFilter === 'pending' && (
-                              <div className="flex gap-3 w-full sm:w-auto">
-                                <button 
-                                  onClick={() => setSelectedListingForReview(listing)}
-                                  className="flex-1 sm:flex-none px-4 py-2 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-[11px] font-bold uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-center flex items-center justify-center gap-2"
-                                >
-                                  <Sparkles className="w-3.5 h-3.5 text-primary-600" />
-                                  AI Review
-                                </button>
-                                <button 
-                                  onClick={() => handleRejectListing(listing.id as string)}
-                                  disabled={processingId === listing.id}
-                                  className="flex-1 sm:flex-none px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 text-center"
-                                >
-                                  Decline
-                                </button>
-                                <button 
-                                  onClick={() => handleApproveListing(listing.id as string)}
-                                  disabled={processingId === listing.id}
-                                  className="flex-1 sm:flex-none px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 text-center"
-                                >
-                                  Approve
-                                </button>
-                              </div>
-                            )}
-
-                            {statusFilter === 'rejected' && (
-                              <button 
-                                 onClick={() => handleApproveListing(listing.id as string)}
-                                 className="w-full sm:w-auto px-6 py-2 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-[11px] font-bold uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-center"
-                              >
-                                Re-evaluate & Approve
-                              </button>
-                            )}
-                          </div>
+                        <div className="flex">
+                          <button 
+                            onClick={() => setSelectedListingForReview(listing)}
+                            className="w-full px-4 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border border-slate-800 dark:border-slate-700 h-10 shadow-lg"
+                          >
+                            <Eye className="w-5 h-5 sm:w-4 sm:h-4" />
+                            <span className="hidden sm:inline">Review Submission</span>
+                          </button>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
 
-                  {/* Desktop Table Layout */}
-                  <div className="hidden lg:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto shadow-sm">
-                    <table className="w-full text-left text-sm">
+                  {/* Desktop/Tablet Table Layout */}
+                  <div className="hidden md:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto">
+                    <table className="w-full text-left min-w-[900px]">
                       <thead>
-                        <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">Item (Listing)</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">Submitted By</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">Date</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">Status</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px] text-right">Actions</th>
+                        <tr className="bg-slate-50/30 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Property</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Agent (Address)</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Price (Annual)</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Status</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                        {filteredListings.map((listing) => (
-                          <tr key={`desktop-listing-${listing.id}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
-                            <td className="px-4 py-4 align-top">
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {paginatedListings.map((listing, idx) => (
+                          <tr key={`desktop-listing-${listing.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all group">
+                            <td className="px-6 py-4 text-slate-900 dark:text-white">
+                              <div className="flex items-center gap-4">
+                                <div className="w-16 h-12 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 flex-shrink-0 relative">
+                                  <img 
+                                    src={listing.image || "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=150&q=80"} 
+                                    alt="" 
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                  />
+                                  <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 mb-0.5">
+                                    <span className="text-sm font-bold truncate">{listing.title || 'Untitled'}</span>
+                                    {listing.verified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />}
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">{listing.type}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
-                                <img src={listing.image} alt="" className="w-16 h-12 rounded bg-slate-100 dark:bg-slate-800 object-cover border border-slate-200 dark:border-slate-700" />
-                                <div>
-                                  <p className="font-bold text-slate-900 dark:text-white truncate max-w-[200px]">{listing.title || 'Untitled'}</p>
-                                  <p className="text-[10px] text-slate-500 font-medium mt-0.5">₦{listing.priceValue?.toLocaleString() || 'NaN'}/mo</p>
+                                <div className="w-8 h-8 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-200 dark:border-slate-700">
+                                  <img 
+                                    src={listing.agent?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(listing.agent?.name || 'Agent')}&background=000&color=fff`} 
+                                    alt="" 
+                                    className="w-full h-full object-cover" 
+                                  />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 truncate">{listing.agent?.name || 'Unknown'}</span>
+                                  <span className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">{listing.location}</span>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-4 py-4 align-top text-xs font-medium text-slate-900 dark:text-slate-300">
-                              <div className="flex items-center gap-2 max-w-[150px]">
-                                <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(listing.agent?.name || 'Agent')}&background=000&color=fff`} alt="" className="w-5 h-5 rounded-full border border-slate-200 dark:border-slate-700" />
-                                <span className="truncate">{listing.agent?.name || 'Unknown'}</span>
+                            <td className="px-6 py-4 text-center">
+                              <span className="text-sm font-bold text-slate-900 dark:text-white">₦{listing.priceValue?.toLocaleString() || 'NaN'}</span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <div className="flex flex-col items-center gap-1.5">
+                                <span className={`inline-flex px-3 py-1 rounded-none text-[10px] font-bold uppercase tracking-wider ${
+                                  listing.status === 'rejected' 
+                                  ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'
+                                  : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
+                                }`}>
+                                  {listing.status === 'rejected' ? 'REJECTED' : 'PENDING'}
+                                </span>
+                                {(listing as any).duplicateAlert && (
+                                  <span className="inline-flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 bg-rose-600 text-white">
+                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                    Duplicate
+                                  </span>
+                                )}
                               </div>
                             </td>
-                            <td className="px-4 py-4 align-top text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap mt-1">
-                              {listing.createdAt ? new Date(listing.createdAt?.seconds ? listing.createdAt.seconds * 1000 : listing.createdAt).toLocaleDateString() : 'N/A'}
-                            </td>
-                            <td className="px-4 py-4 align-top">
-                              <span className={`inline-block mt-0.5 text-[9px] font-black uppercase tracking-[0.1em] px-2 py-1 border ${
-                                listing.status === 'rejected' 
-                                ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/50'
-                                : 'text-amber-600 bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900/50'
-                              }`}>
-                                {listing.status === 'rejected' ? 'Rejected' : 'Pending'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-4 align-top text-right">
-                              {statusFilter === 'pending' ? (
-                                <div className="flex justify-end gap-2">
-                                  <button onClick={() => setSelectedListingForReview(listing)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-primary-600 border border-slate-200 dark:border-slate-700 transition-colors flex items-center justify-center" title="AI Listing Insight">
-                                    <Sparkles className="w-4 h-4" />
-                                  </button>
-                                  <button onClick={() => handleRejectListing(listing.id as string)} disabled={processingId === listing.id} className="text-[10px] font-bold text-rose-600 font-black hover:bg-rose-50 dark:hover:bg-rose-900/40 px-3 py-1.5 border border-rose-200 dark:border-rose-900/50 uppercase tracking-widest disabled:opacity-50 transition-colors">Decline</button>
-                                  <button onClick={() => handleApproveListing(listing.id as string)} disabled={processingId === listing.id} className="text-[10px] font-bold text-emerald-600 font-black hover:bg-emerald-50 dark:hover:bg-emerald-900/40 px-3 py-1.5 border border-emerald-200 dark:border-emerald-900/50 uppercase tracking-widest disabled:opacity-50 transition-colors">Approve</button>
-                                </div>
-                              ) : (
-                                <button onClick={() => handleApproveListing(listing.id as string)} className="text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 px-3 py-1.5 border border-slate-200 dark:border-slate-700 uppercase tracking-widest transition-colors">Re-evaluate</button>
-                              )}
+                            <td className="px-6 py-4 text-right">
+                              <button 
+                                onClick={() => setSelectedListingForReview(listing)}
+                                className="p-2 rounded-none transition-all text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 group-hover:text-primary-600"
+                                title="Review Submission"
+                              >
+                                <Eye className="w-5 h-5" />
+                              </button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Pagination for Listings */}
+                  <div className="px-4 py-4 bg-slate-50 dark:bg-slate-800/30 border-x border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium text-center sm:text-left">
+                      Showing <span className="font-bold text-slate-900 dark:text-white">{(listingCurrentPage - 1) * itemsPerPage + 1} – {Math.min(listingCurrentPage * itemsPerPage, filteredListings.length)}</span> of <span className="font-bold text-slate-900 dark:text-white">{filteredListings.length}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <button 
+                        disabled={listingCurrentPage === 1}
+                        onClick={() => setListingCurrentPage(prev => prev - 1)}
+                        className="p-2 rounded-none border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </button>
+                      
+                      <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
+                        {Array.from({ length: Math.ceil(filteredListings.length / itemsPerPage) }).map((_, i) => {
+                          const pageNum = i + 1;
+                          if (Math.abs(pageNum - listingCurrentPage) > 2 && pageNum !== 1 && pageNum !== Math.ceil(filteredListings.length / itemsPerPage)) return null;
+                          
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setListingCurrentPage(pageNum)}
+                              className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-none text-xs sm:text-sm font-bold transition-all flex-shrink-0 ${
+                                listingCurrentPage === pageNum 
+                                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md' 
+                                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      
+                      <button 
+                        disabled={listingCurrentPage === Math.ceil(filteredListings.length / itemsPerPage) || filteredListings.length === 0}
+                        onClick={() => setListingCurrentPage(prev => prev + 1)}
+                        className="p-2 rounded-none border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </button>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -886,129 +1044,156 @@ const Approvals: React.FC<ApprovalsProps> = () => {
             ) : (
               filteredAgents.length > 0 ? (
                 <>
-                  <div className="lg:hidden space-y-4">
-                    {filteredAgents.map((agent) => (
-                      <motion.div 
-                        key={`mobile-agent-${agent.userId || agent.id}`}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6 group relative"
-                      >
-                        <div className="w-16 h-16 sm:w-16 sm:h-16 bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700">
-                          <img 
-                            src={(agent as any).avatarUrl || `https://ui-avatars.com/api/?name=${agent.name}&background=000&color=fff`} 
-                            alt="" 
-                            className="w-full h-full object-cover" 
-                          />
+                  <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    {paginatedAgents.map((agent, idx) => (
+                      <div key={`agent-approvals-mobile-${agent.userId || agent.id}-${idx}`} className="p-4 space-y-4">
+                        <div className="flex gap-4">
+                          <div className="w-16 h-16 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 relative flex-shrink-0">
+                            <img 
+                              src={(agent as any).avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(agent.name || 'Agent')}&background=000&color=fff`} 
+                              alt="" 
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-1 left-1">
+                              <span className={`inline-flex px-1.5 py-0.5 rounded-none text-[7px] font-bold uppercase tracking-wider ${
+                                statusFilter === 'rejected' 
+                                ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'
+                                : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
+                              }`}>
+                                {statusFilter === 'rejected' ? 'REJECTED' : 'PENDING'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0 flex flex-col justify-center">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate capitalize">{agent.name}</h3>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{(agent as any).email || 'No email provided'}</p>
+                            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-1">
+                              {agent.submittedAt ? new Date(agent.submittedAt?.seconds ? agent.submittedAt.seconds * 1000 : agent.submittedAt).toLocaleDateString() : 'N/A'}
+                            </p>
+                          </div>
                         </div>
+
+                        {agent.rejectionReason && statusFilter === 'rejected' && (
+                          <div className="p-3 bg-rose-50 dark:bg-rose-950/10 border border-rose-100 dark:border-rose-900/20">
+                            <p className="text-[8px] font-bold text-rose-600 uppercase tracking-widest mb-1">Reason:</p>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-400 italic">"{agent.rejectionReason}"</p>
+                          </div>
+                        )}
                         
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                            <div>
-                              <h3 className="font-bold text-slate-900 dark:text-white capitalize">{agent.name}</h3>
-                              <p className="text-xs text-slate-500 font-medium mt-0.5">{(agent as any).email || 'No email provided'}</p>
-                              <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                                Submitted {agent.submittedAt ? new Date(agent.submittedAt?.seconds ? agent.submittedAt.seconds * 1000 : agent.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
-                              </p>
-                            </div>
-                            <div className="flex gap-2 w-full sm:w-auto">
-                               {statusFilter === 'pending' ? (
-                                 <button 
-                                   onClick={() => setSelectedAgent(agent)}
-                                   className="w-full sm:w-auto px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-primary-600 dark:hover:text-white transition-colors"
-                                 >
-                                   <Eye className="w-4 h-4" />
-                                   Review
-                                 </button>
-                               ) : (
-                                 <div className="flex flex-col items-start sm:items-end w-full sm:w-auto">
-                                   <span className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1">Rejected Application</span>
-                                   <button 
-                                     onClick={() => setSelectedAgent(agent)}
-                                     className="text-[10px] font-bold text-slate-400 hover:text-slate-900 dark:hover:text-white underline underline-offset-4"
-                                   >
-                                     View History
-                                   </button>
-                                 </div>
-                               )}
-                            </div>
-                          </div>
-
-                          {agent.rejectionReason && statusFilter === 'rejected' && (
-                            <div className="mt-3 p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30">
-                              <p className="text-[10px] font-black text-rose-600 uppercase tracking-[0.1em] mb-1">Rejection Note:</p>
-                              <p className="text-xs text-slate-600 dark:text-slate-400 italic">"{agent.rejectionReason}"</p>
-                            </div>
-                          )}
-
-                          <div className="mt-4 flex flex-wrap gap-4">
-                            <div className="bg-slate-50 dark:bg-slate-800/50 px-3 py-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border border-slate-100 dark:border-slate-700">
-                               {agent.idType || 'ID'}: {agent.idNumber || 'PENDING'}
-                            </div>
-                            {agent.location && (
-                              <div className="bg-slate-50 dark:bg-slate-800/50 px-3 py-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border border-slate-100 dark:border-slate-700">
-                                 Location: {agent.location}
-                              </div>
-                            )}
-                          </div>
+                        <div className="flex">
+                          <button 
+                            onClick={() => setSelectedAgent(agent)}
+                            className="w-full px-4 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border border-slate-800 dark:border-slate-700 h-10 shadow-lg"
+                          >
+                            <Eye className="w-5 h-5 sm:w-4 sm:h-4" />
+                            <span className="hidden sm:inline">Review Application</span>
+                          </button>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
-                  
-                  {/* Desktop Table Layout */}
-                  <div className="hidden lg:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto shadow-sm">
-                    <table className="w-full text-left text-sm">
+
+                  <div className="hidden md:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto">
+                    <table className="w-full text-left min-w-[800px]">
                       <thead>
-                        <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">Agent Identity</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">Date</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px]">Status</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[10px] text-right">Actions</th>
+                        <tr className="bg-slate-50/30 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Agent Identity</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Submitted Date</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Status</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                        {filteredAgents.map((agent) => (
-                          <tr key={`desktop-agent-${agent.userId || agent.id}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
-                            <td className="px-4 py-4 align-top">
-                              <div className="flex items-center gap-3">
-                                <img src={(agent as any).avatarUrl || `https://ui-avatars.com/api/?name=${agent.name}&background=000&color=fff`} alt="" className="w-10 h-10 rounded border border-slate-200 dark:border-slate-700 object-cover shrink-0" />
-                                <div className="min-w-0">
-                                  <p className="font-bold text-slate-900 dark:text-white capitalize truncate">{agent.name}</p>
-                                  <p className="text-[10px] text-slate-500 dark:text-slate-500 font-medium truncate">{(agent as any).email || 'No email provided'}</p>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {paginatedAgents.map((agent, idx) => (
+                          <tr key={`desktop-agent-${agent.userId || agent.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all group">
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-4">
+                                <div className="w-9 h-9 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-200 dark:border-slate-700">
+                                  <img 
+                                    src={(agent as any).avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(agent.name || 'Agent')}&background=000&color=fff`} 
+                                    alt="" 
+                                    className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500" 
+                                  />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-sm font-bold text-slate-900 dark:text-white truncate capitalize">{agent.name}</span>
+                                  <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate lowercase">{(agent as any).email || 'No email provided'}</span>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-4 py-4 align-top text-xs text-slate-500 dark:text-slate-400 mt-1">
-                              {agent.submittedAt ? new Date(agent.submittedAt?.seconds ? agent.submittedAt.seconds * 1000 : agent.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
-                            </td>
-                            <td className="px-4 py-4 align-top mt-0.5">
-                              <span className={`inline-block text-[9px] font-black uppercase tracking-[0.1em] px-2 py-1 border ${
-                                statusFilter === 'rejected' 
-                                ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/50'
-                                : 'text-amber-600 bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900/50'
-                              }`}>
-                                {statusFilter === 'rejected' ? 'Rejected' : 'Pending'}
+                            <td className="px-6 py-4 text-center">
+                              <span className="text-xs font-bold text-slate-400">
+                                {agent.submittedAt ? new Date(agent.submittedAt?.seconds ? agent.submittedAt.seconds * 1000 : agent.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
                               </span>
                             </td>
-                            <td className="px-4 py-4 align-top text-right mt-0.5">
-                               <div className="flex justify-end">
-                                 <button 
-                                   onClick={() => setSelectedAgent(agent)}
-                                   className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors flex items-center justify-center gap-2 group"
-                                   title={statusFilter === 'pending' ? 'Review Application' : 'View History'}
-                                 >
-                                   {statusFilter === 'pending' ? <Eye className="w-4 h-4" /> : <RotateCw className="w-4 h-4" />}
-                                   <span className="hidden sm:inline text-[9px] font-black uppercase tracking-[0.1em]">
-                                     {statusFilter === 'pending' ? 'Review' : 'History'}
-                                   </span>
-                                 </button>
-                               </div>
+                            <td className="px-6 py-4 text-center">
+                               <span className={`inline-flex px-3 py-1 rounded-none text-[10px] font-bold uppercase tracking-wider ${
+                                  statusFilter === 'rejected' 
+                                  ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'
+                                  : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
+                                }`}>
+                                {statusFilter === 'rejected' ? 'REJECTED' : 'PENDING'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                               <button 
+                                 onClick={() => setSelectedAgent(agent)}
+                                 className="p-2 rounded-none transition-all text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 group-hover:text-primary-600"
+                                 title="Review Application"
+                               >
+                                 <Eye className="w-5 h-5" />
+                               </button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Pagination for Agents */}
+                  <div className="px-4 py-4 bg-slate-50 dark:bg-slate-800/30 border-x border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium text-center sm:text-left">
+                      Showing <span className="font-bold text-slate-900 dark:text-white">{(agentCurrentPage - 1) * itemsPerPage + 1} – {Math.min(agentCurrentPage * itemsPerPage, filteredAgents.length)}</span> of <span className="font-bold text-slate-900 dark:text-white">{filteredAgents.length}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <button 
+                        disabled={agentCurrentPage === 1}
+                        onClick={() => setAgentCurrentPage(prev => prev - 1)}
+                        className="p-2 rounded-none border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </button>
+                      
+                      <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
+                        {Array.from({ length: Math.ceil(filteredAgents.length / itemsPerPage) }).map((_, i) => {
+                          const pageNum = i + 1;
+                          if (Math.abs(pageNum - agentCurrentPage) > 2 && pageNum !== 1 && pageNum !== Math.ceil(filteredAgents.length / itemsPerPage)) return null;
+                          
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setAgentCurrentPage(pageNum)}
+                              className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-none text-xs sm:text-sm font-bold transition-all flex-shrink-0 ${
+                                agentCurrentPage === pageNum 
+                                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md' 
+                                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      
+                      <button 
+                        disabled={agentCurrentPage === Math.ceil(filteredAgents.length / itemsPerPage) || filteredAgents.length === 0}
+                        onClick={() => setAgentCurrentPage(prev => prev + 1)}
+                        className="p-2 rounded-none border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </button>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -1054,115 +1239,200 @@ const Approvals: React.FC<ApprovalsProps> = () => {
               </div>
 
               <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                {/* Property Summary */}
-                <div className="flex flex-col sm:flex-row gap-6">
-                  <div className="w-full sm:w-48 h-32 shrink-0 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative group">
-                    <img 
-                      src={selectedListingForReview.image} 
-                      alt="" 
-                      className="w-full h-full object-cover" 
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                       <Maximize2 className="text-white w-5 h-5 cursor-pointer" onClick={() => setIsFullscreen(true)} />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-1">{selectedListingForReview.title}</h3>
-                    <div className="flex items-center gap-2 mb-4">
-                       <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                       <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{selectedListingForReview.location}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                      <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest border border-slate-200 dark:border-slate-700">
-                        {selectedListingForReview.type}
-                      </span>
-                      <span className="px-3 py-1 bg-primary-50 dark:bg-primary-900/20 text-[10px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-widest border border-primary-100 dark:border-primary-800/50">
-                        ₦{selectedListingForReview.priceValue?.toLocaleString()}/yr
-                      </span>
-                      <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest border border-slate-200 dark:border-slate-700">
-                         {selectedListingForReview.beds} Beds • {selectedListingForReview.baths} Baths
-                      </span>
-                    </div>
+                {/* Property Media */}
+                <div className="aspect-video w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative group overflow-hidden">
+                  <img 
+                    src={selectedListingForReview.image} 
+                    alt="" 
+                    className="w-full h-full object-cover" 
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                     <Maximize2 className="text-white w-8 h-8 cursor-pointer" onClick={() => setIsFullscreen(true)} />
                   </div>
                 </div>
 
-                {/* AI Insights Panel (Reusable Pattern) */}
-                <div className="bg-slate-900 dark:bg-slate-900 border border-slate-800 p-6 relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 via-purple-600 to-primary-600" />
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-primary-600/20 border border-primary-600/40 flex items-center justify-center">
-                        <BrainCircuit className="w-4 h-4 text-primary-400 animate-pulse" />
-                      </div>
-                      <div>
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Listing Authenticity Audit</h4>
-                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Pricing & Quality Substrate Check</p>
-                      </div>
-                    </div>
-                    {isAnalyzing ? (
-                      <div className="flex items-center gap-2 px-3 py-1 bg-primary-500/10 border border-primary-500/20">
-                        <Loader2 className="w-3 h-3 text-primary-500 animate-spin" />
-                        <span className="text-[9px] font-black text-primary-500 uppercase tracking-[0.2em]">Analyzing...</span>
-                      </div>
-                    ) : aiReport ? (
-                      <div className="flex items-center gap-3">
-                         <div className="flex flex-col items-end">
-                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Confidence</span>
-                            <span className="text-xs font-black text-white">
-                              {aiReport.confidence === undefined ? 'N/A' : (aiReport.confidence <= 1 ? (aiReport.confidence * 100).toFixed(0) : Math.round(aiReport.confidence))}%
-                            </span>
-                         </div>
-                         <div className={`px-3 py-1 border flex items-center gap-2 ${
-                           aiReport.recommendation === 'approve' 
-                           ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
-                           : aiReport.recommendation === 'flag'
-                           ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
-                           : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
-                         }`}>
-                           <span className="text-[9px] font-black uppercase tracking-widest">
-                             {aiReport.recommendation}
-                           </span>
-                         </div>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {aiReport && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-6"
-                    >
-                      <div className="grid grid-cols-3 gap-4">
-                         <div className="p-3 bg-slate-950 border border-slate-800">
-                           <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Pricing</p>
-                           <p className="text-[10px] font-bold text-white capitalize">{aiReport.assessment?.pricing?.replace('_', ' ') || 'N/A'}</p>
-                         </div>
-                         <div className="p-3 bg-slate-950 border border-slate-800">
-                           <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Risk Level</p>
-                           <p className={`text-[10px] font-bold capitalize ${
-                             aiReport.assessment?.riskLevel === 'low' ? 'text-emerald-500' :
-                             aiReport.assessment?.riskLevel === 'medium' ? 'text-amber-500' : 'text-rose-500'
-                           }`}>{aiReport.assessment?.riskLevel || 'N/A'}</p>
-                         </div>
-                         <div className="p-3 bg-slate-950 border border-slate-800">
-                           <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Image QC</p>
-                           <p className="text-[10px] font-bold text-white capitalize">{aiReport.assessment?.imageQuality || 'N/A'}</p>
-                         </div>
-                      </div>
-
-                      <div className="markdown-body p-4 bg-slate-950/50 border border-slate-800 text-[11px] text-slate-400 leading-relaxed font-mono">
-                         <ReactMarkdown>{aiReport.analysis}</ReactMarkdown>
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-
+                {/* Listing Information */}
                 <div className="space-y-4">
-                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Listing Description Audit</h4>
-                   <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                     {selectedListingForReview.description || 'No description provided by the agent.'}
+                   <h3 className="text-3xl font-bold text-slate-900 dark:text-white uppercase tracking-tight leading-none">{selectedListingForReview.title}</h3>
+                   <div className="flex items-center gap-4 text-xs font-bold text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-3 py-1.5">
+                        <MapPin className="w-3.5 h-3.5" />
+                        {selectedListingForReview.location}
+                      </div>
+                      <div className="bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 px-3 py-1.5">
+                        ₦{selectedListingForReview.priceValue?.toLocaleString()}/yr
+                      </div>
+                      <div className="bg-slate-100 dark:bg-slate-800 px-3 py-1.5 uppercase">
+                        {selectedListingForReview.type}
+                      </div>
                    </div>
+                   
+                   <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Listing Description</h4>
+                     <div className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-slate-900 p-4 border border-slate-200 dark:border-slate-800">
+                       {selectedListingForReview.description || 'No description provided by the agent.'}
+                     </div>
+                   </div>
+                </div>
+
+                {/* AI Insights & Duplicates below */}
+                <div className="space-y-8">
+                  {/* AI Insights Panel */}
+                  <div className="bg-slate-900 dark:bg-slate-900 border border-slate-800 p-6 relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 via-purple-600 to-primary-600" />
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-primary-600/20 border border-primary-600/40 flex items-center justify-center">
+                          <BrainCircuit className="w-4 h-4 text-primary-400 animate-pulse" />
+                        </div>
+                        <div>
+                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Listing Authenticity Audit</h4>
+                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Pricing & Quality Substrate Check</p>
+                        </div>
+                      </div>
+                      {isAnalyzing ? (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-primary-500/10 border border-primary-500/20">
+                          <Loader2 className="w-3 h-3 text-primary-500 animate-spin" />
+                          <span className="text-[9px] font-black text-primary-500 uppercase tracking-[0.2em]">Analyzing...</span>
+                        </div>
+                      ) : aiReport ? (
+                        <div className="flex items-center gap-3">
+                           <div className="flex flex-col items-end">
+                              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Confidence</span>
+                              <span className="text-xs font-black text-white">
+                                {aiReport.confidence === undefined ? 'N/A' : (aiReport.confidence <= 1 ? (aiReport.confidence * 100).toFixed(0) : Math.round(aiReport.confidence))}%
+                              </span>
+                           </div>
+                           <div className={`px-3 py-1 border flex items-center gap-2 ${
+                             aiReport.recommendation === 'approve' 
+                             ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
+                             : aiReport.recommendation === 'flag'
+                             ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                             : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                           }`}>
+                             <span className="text-[9px] font-black uppercase tracking-widest">
+                               {aiReport.recommendation}
+                             </span>
+                           </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {aiReport && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="space-y-6"
+                      >
+                        <div className="grid grid-cols-3 gap-4">
+                           <div className="p-3 bg-slate-950 border border-slate-800">
+                             <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Pricing</p>
+                             <p className="text-[10px] font-bold text-white capitalize">{aiReport.assessment?.pricing?.replace('_', ' ') || 'N/A'}</p>
+                           </div>
+                           <div className="p-3 bg-slate-950 border border-slate-800">
+                             <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Risk Level</p>
+                             <p className={`text-[10px] font-bold capitalize ${
+                               aiReport.assessment?.riskLevel === 'low' ? 'text-emerald-500' :
+                               aiReport.assessment?.riskLevel === 'medium' ? 'text-amber-500' : 'text-rose-500'
+                             }`}>{aiReport.assessment?.riskLevel || 'N/A'}</p>
+                           </div>
+                           <div className="p-3 bg-slate-950 border border-slate-800">
+                             <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Image QC</p>
+                             <p className="text-[10px] font-bold text-white capitalize">{aiReport.assessment?.imageQuality || 'N/A'}</p>
+                           </div>
+                        </div>
+
+                        <div className="markdown-body p-4 bg-slate-950/50 border border-slate-800 text-[11px] text-slate-300 leading-relaxed font-mono">
+                           <ReactMarkdown>{aiReport.analysis}</ReactMarkdown>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* Duplicate Detection Pipeline */}
+                  <div className="bg-slate-950 border border-slate-800 p-6 relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-600 via-amber-600 to-rose-600" />
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-rose-600/20 border border-rose-600/40 flex items-center justify-center">
+                          <AlertTriangle className="w-4 h-4 text-rose-400" />
+                        </div>
+                        <div>
+                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Duplicate Detection Pipeline</h4>
+                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Cross-Reference Neighborhood Context</p>
+                        </div>
+                      </div>
+                      {isCheckingDuplicates ? (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-rose-500/10 border border-rose-500/20">
+                          <Loader2 className="w-3 h-3 text-rose-500 animate-spin" />
+                          <span className="text-[9px] font-black text-rose-500 uppercase tracking-[0.2em]">Scanning Neighborhood...</span>
+                        </div>
+                      ) : duplicateReport ? (
+                        <div className="flex items-center gap-3">
+                           <div className="flex flex-col items-end">
+                              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Similarity Score</span>
+                              <span className={`text-xs font-black ${duplicateReport.score > 70 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                {duplicateReport.score}%
+                              </span>
+                           </div>
+                           <div className={`px-2 py-1 border flex items-center gap-1 ${
+                             duplicateReport.isFlagged 
+                             ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' 
+                             : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
+                           }`}>
+                             <span className="text-[8px] font-black uppercase tracking-widest">
+                               {duplicateReport.isFlagged ? 'HIGH SIMILARITY' : 'UNIQUE LISTING'}
+                             </span>
+                           </div>
+                        </div>
+                      ) : (
+                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Awaiting Analysis</span>
+                      )}
+                    </div>
+                  
+                    {duplicateReport && (
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="space-y-6"
+                      >
+                        <div className="p-4 bg-slate-900 border border-slate-800 text-[11px] text-slate-400 leading-relaxed font-mono">
+                           <p className="text-white mb-2 font-black uppercase text-[9px] tracking-widest">AI REASONING:</p>
+                           <ReactMarkdown>{duplicateReport.reasoning}</ReactMarkdown>
+                        </div>
+              
+                        {/* Side-by-Side Comparison if duplicate found */}
+                        {duplicateReport.matchedListingId && (
+                          <div className="space-y-3">
+                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest text-center">Visual Side-by-Side Comparison</p>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest text-center">New Submission</p>
+                                <div className="aspect-video bg-slate-900 border-2 border-emerald-500/30 overflow-hidden relative">
+                                  <img src={selectedListingForReview.image} alt="" className="w-full h-full object-cover" />
+                                  <div className="absolute top-2 left-2 bg-black/60 px-2 py-1 text-[8px] font-black text-white uppercase">New</div>
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <p className="text-[8px] font-black text-rose-500 uppercase tracking-widest text-center">Existing Listing</p>
+                                <div className="aspect-video bg-slate-900 border-2 border-rose-500/30 overflow-hidden relative">
+                                  {nearbyListings.find(l => String(l.id) === String(duplicateReport.matchedListingId))?.image ? (
+                                    <img src={nearbyListings.find(l => String(l.id) === String(duplicateReport.matchedListingId))?.image} alt="" className="w-full h-full object-cover opacity-80" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-slate-500 text-[8px] uppercase font-black">Image Unavailable</div>
+                                  )}
+                                  <div className="absolute top-2 left-2 bg-black/60 px-2 py-1 text-[8px] font-black text-white uppercase">Matched</div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="p-3 bg-rose-950/20 border border-rose-900/40 text-center">
+                              <p className="text-[10px] font-bold text-rose-400">Potential Duplicate Detected with Listing: <span className="text-white">{duplicateReport.matchedListingTitle || 'Unknown'}</span></p>
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1172,16 +1442,24 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                   disabled={processingId === selectedListingForReview.id}
                   className="flex-1 py-4 bg-rose-600 text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
                 >
-                  {processingId === selectedListingForReview.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
-                  Reject Listing
+                  {processingId === selectedListingForReview.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                    <>
+                      <X className="w-5 h-5 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline text-center">Decline Listing</span>
+                    </>
+                  )}
                 </button>
                 <button 
                   onClick={() => handleApproveListing(selectedListingForReview.id as string)}
                   disabled={processingId === selectedListingForReview.id}
                   className="flex-1 py-4 bg-emerald-600 text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
                 >
-                  {processingId === selectedListingForReview.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  Approve Publication
+                  {processingId === selectedListingForReview.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                    <>
+                      <Check className="w-5 h-5 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline text-center">Approve Listing</span>
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>
@@ -1557,10 +1835,10 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 <div className="flex gap-4">
                   <button 
                     onClick={() => setShowRejectionReason(true)}
-                    className="flex-1 h-12 bg-white dark:bg-slate-800 border-2 border-rose-100 dark:border-rose-900/30 text-rose-600 text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 h-12 bg-white dark:bg-slate-800 border-2 border-rose-100 dark:border-rose-900/30 text-rose-600 text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-all flex items-center justify-center gap-2 px-4"
                   >
-                    <X className="w-4 h-4" />
-                    Reject Identity
+                    <X className="w-5 h-5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline text-center">Reject Identity</span>
                   </button>
                   <button 
                     onClick={() => {
@@ -1569,14 +1847,16 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                       setChecklist({});
                     }}
                     disabled={Object.values(checklist).filter(v => v).length < 4}
-                    className={`flex-[2] h-12 text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 ${
+                    className={`flex-[2] h-12 text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 px-4 ${
                       Object.values(checklist).filter(v => v).length < 4
                       ? 'bg-slate-400 cursor-not-allowed grayscale'
                       : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
                     }`}
                   >
-                    <Check className="w-4 h-4" />
-                    {Object.values(checklist).filter(v => v).length < 4 ? `Complete Checklist (${Object.values(checklist).filter(v => v).length}/4)` : 'Confirm & Verify Agent'}
+                    <Check className="w-5 h-5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline text-center lowercase">
+                      {Object.values(checklist).filter(v => v).length < 4 ? `Complete Checklist (${Object.values(checklist).filter(v => v).length}/4)` : 'Confirm & Verify Agent'}
+                    </span>
                   </button>
                 </div>
               )}

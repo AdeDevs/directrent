@@ -12,6 +12,7 @@ import {
   Menu,
   Bell,
   Plus,
+  Activity,
   MoreHorizontal,
   TrendingUp,
   TrendingDown,
@@ -560,9 +561,12 @@ const AdminDashboard = () => {
                         Performance and system health metrics.
                       </p>
                       <div className="h-1 w-1 rounded-full bg-slate-300" />
-                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">System Live</span>
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/10 rounded-none">
+                        <Activity className="w-3 h-3 text-emerald-500 animate-pulse" />
+                        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Live</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -795,7 +799,7 @@ const AdminDashboard = () => {
                     {/* Mobile Cards View */}
                     <div className="md:hidden flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
                       {listings.slice(0, 5).map((listing, index) => (
-                        <div key={`mobile-listing-${listing.id}`} className="px-[10px] py-4 flex gap-4">
+                        <div key={`mobile-listing-${listing.id}-${index}`} className="px-[10px] py-4 flex gap-4">
                           <img 
                             src={listing.image || "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=150&q=80"} 
                             alt="" 

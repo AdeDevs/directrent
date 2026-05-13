@@ -305,9 +305,9 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
 
             {featuredListings.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {featuredListings.map(listing => (
+                {featuredListings.map((listing, idx) => (
                   <motion.div 
-                    key={listing.id}
+                    key={`agent-listing-${listing.id}-${idx}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-[#0f172a] rounded-[20px] overflow-hidden border border-slate-200 dark:border-white/5 hover:border-emerald-500/30 transition-all group cursor-pointer shadow-sm"
@@ -363,9 +363,9 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
 
           {reviews.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {reviews.slice(0, 3).map((review) => (
+              {reviews.slice(0, 3).map((review, idx) => (
                 <div 
-                  key={review.id}
+                  key={`agent-review-${review.id}-${idx}`}
                   className="space-y-4 p-6 bg-white dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm"
                 >
                   <div className="flex items-center gap-1 text-amber-500">

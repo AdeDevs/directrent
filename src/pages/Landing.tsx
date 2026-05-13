@@ -56,24 +56,34 @@ const Hero = () => {
   };
 
   return (
-    <section className="relative pt-[64px] pb-16 lg:pt-24 lg:pb-32 overflow-hidden bg-white dark:bg-slate-950 transition-colors duration-300" style={{paddingTop:100}}>
-      <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[500px] h-[500px] bg-primary-50 dark:bg-primary-900/10 rounded-full blur-3xl opacity-50 pointer-events-none" />
-      <div className="absolute bottom-10 left-0 -translate-x-1/2 w-[300px] h-[300px] bg-primary-50 dark:bg-primary-900/10 rounded-full blur-3xl opacity-50 pointer-events-none" />
+    <section className="relative pt-[64px] pb-16 lg:pt-24 lg:pb-0 overflow-hidden bg-slate-900 transition-colors duration-300" style={{paddingTop:70}}>
+      {/* Background Image with Blur and Overlay */}
+      <div className="absolute inset-0 z-0">
+        <SafeImage 
+          src="/dill.jpg" 
+          alt="Hero Background" 
+          className="w-full h-full object-cover scale-105"
+        />
+        <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px] transition-colors duration-300 dark:bg-slate-950/80" />
+      </div>
 
-      <div className="w-full px-[15px] relative">
+      <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[500px] h-[500px] bg-primary-600/20 rounded-full blur-[120px] opacity-30 pointer-events-none" />
+      <div className="absolute bottom-10 left-0 -translate-x-1/2 w-[300px] h-[300px] bg-primary-600/20 rounded-full blur-[100px] opacity-20 pointer-events-none" />
+
+      <div className="w-full px-[15px] py-[100px] relative z-10">
         <div className="max-w-3xl text-center md:text-left mx-auto md:mx-0">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 text-[10px] font-semibold uppercase tracking-wider mb-6 border border-primary-100/50 dark:border-primary-800/50">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/10 dark:bg-primary-900/20 text-white dark:text-primary-400 text-[10px] font-semibold uppercase tracking-wider mb-6 border border-white/20 dark:border-primary-800/50 backdrop-blur-md">
               <Zap className="w-3 h-3 mr-1" /> Built for Nigerian Tenants
             </span>
-            <h1 className="text-3xl lg:text-5xl font-display font-semibold text-slate-900 dark:text-white tracking-tight leading-[1.2] mb-6">
-              Find rental housing across Nigeria <span className="text-primary-600 dark:text-primary-400 underline decoration-primary-100 dark:decoration-primary-900 underline-offset-8">without agent stress.</span>
+            <h1 className="text-3xl lg:text-5xl font-display font-semibold text-white tracking-tight leading-[1.2] mb-6 drop-shadow-sm">
+              Find rental housing across Nigeria <span className="text-primary-400 underline decoration-primary-900 underline-offset-8">without agent stress.</span>
             </h1>
-            <p className="text-base lg:text-lg text-slate-600 dark:text-slate-400 mb-10 leading-relaxed max-w-2xl mx-auto md:mx-0">
+            <p className="text-base lg:text-lg text-slate-200 dark:text-slate-300 mb-10 leading-relaxed max-w-2xl mx-auto md:mx-0 drop-shadow-sm">
               Verified premium listings in top student and residential hubs. Skip the multiple fees and fake agents. 
               Connect directly with trusted property owners and verified agents.
             </p>
@@ -114,14 +124,14 @@ const Hero = () => {
             <div className="flex -space-x-3">
               {[
                 "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80",
-                "https://images.unsplash.com/photo-1567532939803-f4a1801c8763?auto=format&fit=crop&w=100&h=100&q=80",
-                "https://images.unsplash.com/photo-1531123897727-8f129e16fd3c?auto=format&fit=crop&w=100&h=100&q=80"
+                "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80",
+                "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80"
               ].map((src, i) => (
                 <SafeImage key={`img-${i}`} src={src} alt="Tenant" className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 object-cover shadow-sm" />
               ))}
             </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400 text-center sm:text-left">
-              <span className="text-slate-900 dark:text-white font-bold">2,400+ tenants</span> <br className="sm:hidden" /> already found housing this semester.
+            <p className="text-sm text-slate-300 dark:text-slate-400 text-center sm:text-left">
+              <span className="text-white dark:text-white font-bold">2,400+ tenants</span> <br className="sm:hidden" /> already found housing this semester.
             </p>
           </div>
         </div>

@@ -138,7 +138,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 setView('admin');
                 return;
               }
-              if (isProfileComplete(userData)) {
+              
+              const isVerified = userData.verificationStatus === 'verified' || userData.verificationLevel === 'verified';
+              if (isVerified || isProfileComplete(userData)) {
                 setActiveTab("home");
               } else {
                 setActiveTab("profile");
@@ -210,7 +212,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
        if (userData.role === 'admin' || userData.role === 'moderator') {
          setView('admin');
        } else {
-         if (isProfileComplete(userData as User)) {
+         const isVerified = userData.verificationStatus === 'verified' || userData.verificationLevel === 'verified';
+         if (isVerified || isProfileComplete(userData as User)) {
            setActiveTab('home');
            sessionStorage.removeItem('just_logged_in');
          } else {

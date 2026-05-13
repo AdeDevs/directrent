@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
 const InboxBadge = () => {
@@ -8,7 +8,7 @@ const InboxBadge = () => {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     
     // We want the count of conversations where user has unread messages
     const fieldToFilter = user.role === 'tenant' ? 'unreadCount_tenant' : 'unreadCount_agent';
@@ -21,11 +21,11 @@ const InboxBadge = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
         setUnreadCount(snapshot.size);
     }, (error) => {
-        console.error("Inbox badge error:", error);
+        handleFirestoreError(error, OperationType.LIST, "conversations");
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.id, user?.role]);
 
   if (unreadCount === 0) return null;
 

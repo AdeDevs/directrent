@@ -155,9 +155,9 @@ export default function MyListings() {
         {/* Listings List */}
         <section className="space-y-3 sm:space-y-4">
           {filteredListings.length > 0 ? (
-            filteredListings.map((listing) => (
+            filteredListings.map((listing, idx) => (
               <motion.div
-                key={listing.id}
+                key={`my-listing-${listing.id}-${idx}`}
                 layout
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}

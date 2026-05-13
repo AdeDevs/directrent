@@ -104,9 +104,9 @@ const FavoritesPage = () => {
       >
         {savedListings.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6 lg:gap-8">
-            {savedListings.map((listing) => (
+            {savedListings.map((listing, idx) => (
               <motion.div
-                key={`fav-${listing.id}`}
+                key={`fav-${listing.id}-${idx}`}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 whileTap={{ scale: 0.95 }}

@@ -21,7 +21,7 @@ service cloud.firestore {
     return isGodMode() || (
       isSignedIn() && 
       exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'moderator', 'god']
+      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'moderator', 'god', 'admin_staff']
     );
   }
 
@@ -204,9 +204,9 @@ service cloud.firestore {
     }
 
     match /conversations/{convId} {
-      allow read, list: if isSignedIn() && (
-        (resource != null && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid)) ||
-        (resource == null && (convId.matches('.*' + request.auth.uid + '.*'))) ||
+      allow read: if isSignedIn() && (
+        resource.data.tenantId == request.auth.uid || 
+        resource.data.agentId == request.auth.uid || 
         isAdmin()
       );
       
@@ -214,35 +214,25 @@ service cloud.firestore {
                     (incoming().tenantId == request.auth.uid || isAdmin());
       
       allow update: if isSignedIn() && (
-        existing().tenantId == request.auth.uid || 
-        existing().agentId == request.auth.uid || 
+        resource.data.tenantId == request.auth.uid || 
+        resource.data.agentId == request.auth.uid || 
         isAdmin()
       ) && isValidConversation(incoming());
       
       allow delete: if isAdmin();
 
       match /messages/{msgId} {
-        allow read, list: if isSignedIn() && (
-          // Use resource.data if it exists for query validation
-          (resource != null && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid)) ||
-          // Fallback to conversation-level check
-          (exists(/databases/$(database)/documents/conversations/$(convId)) && (
-            get(/databases/$(database)/documents/conversations/$(convId)).data.tenantId == request.auth.uid || 
-            get(/databases/$(database)/documents/conversations/$(convId)).data.agentId == request.auth.uid
-          )) ||
-          // Fallback for new conversations where members are encoded in ID
-          convId.matches('.*' + request.auth.uid + '.*') ||
+        allow read: if isSignedIn() && (
+          resource.data.tenantId == request.auth.uid || 
+          resource.data.agentId == request.auth.uid || 
           isAdmin()
         );
 
         allow create: if isSignedIn() && isValidMessage(incoming()) && 
                       (
-                        (exists(/databases/$(database)/documents/conversations/$(convId)) && (
-                          get(/databases/$(database)/documents/conversations/$(convId)).data.tenantId == request.auth.uid || 
-                          get(/databases/$(database)/documents/conversations/$(convId)).data.agentId == request.auth.uid
-                        )) ||
                         convId.matches('.*' + request.auth.uid + '.*') ||
-                        isAdmin()
+                        isAdmin() ||
+                        exists(/databases/$(database)/documents/conversations/$(convId)) // fallback check
                       );
         
         allow delete: if isAdmin();
@@ -251,30 +241,29 @@ service cloud.firestore {
 
     // Reviews
     match /reviews/{reviewId} {
-      allow list, get: if true;
-      allow create: if isSignedIn() && incoming().tenantId == request.auth.uid && incoming().createdAt == request.time;
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().tenantId == request.auth.uid;
       allow delete: if isAdmin();
     }
 
     // Tours (Pillar 8 Hardening)
     match /tours/{tourId} {
-      allow list: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
-      allow get: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && incoming().tenantId == request.auth.uid && incoming().createdAt == request.time;
-      allow update: if isSignedIn() && (existing().tenantId == request.auth.uid || existing().agentId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && incoming().tenantId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
 
     // Verifications (Pillar 6)
     match /verifications/{verifyId} {
       allow create: if isSignedIn() && incoming().userId == request.auth.uid;
-      allow get, list: if isAdmin() || (isSignedIn() && (resource == null || resource.data.userId == request.auth.uid));
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow update, delete: if isAdmin();
     }
 
     // Notifications (Pillar 8)
     match /notifications/{notifId} {
-      allow list, get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && isValidNotification(incoming());
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid && 
                     incoming().diff(existing()).affectedKeys().hasOnly(['read']);

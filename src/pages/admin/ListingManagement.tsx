@@ -350,8 +350,8 @@ const ListingManagement: React.FC<ListingManagementProps> = ({
       <div className="bg-white dark:bg-slate-900 rounded-none border border-slate-200 dark:border-slate-800">
         {/* Mobile View (Cards) */}
         <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
-          {paginatedListings.map((listing) => (
-            <div key={`listing-management-mobile-${listing.id}`} className="p-4 space-y-4">
+          {paginatedListings.map((listing, idx) => (
+            <div key={`listing-management-mobile-${listing.id}-${idx}`} className="p-4 space-y-4">
               <div className="flex gap-4">
                 <div className="w-24 h-24 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 relative flex-shrink-0">
                   <img 
@@ -459,8 +459,8 @@ const ListingManagement: React.FC<ListingManagementProps> = ({
         </div>
 
         {/* Desktop View (Table) */}
-        <div className="hidden md:block">
-          <table className="w-full text-left">
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-left min-w-[900px]">
             <thead>
               <tr className="bg-slate-50/30 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Property</th>
@@ -471,8 +471,8 @@ const ListingManagement: React.FC<ListingManagementProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {paginatedListings.map((listing) => (
-                <tr key={`listing-management-desktop-${listing.id}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all group">
+              {paginatedListings.map((listing, idx) => (
+                <tr key={`listing-management-desktop-${listing.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
                       <div className="w-16 h-12 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 flex-shrink-0 relative">

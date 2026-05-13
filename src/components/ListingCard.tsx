@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { MapPin, Bookmark, ArrowUpRight, Star, BadgeCheck, ShieldCheck } from 'lucide-react';
+import { MapPin, Bookmark, ArrowUpRight, Star, BadgeCheck, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { Listing } from '../types';
 import { useAuth } from '../context/AuthContext';
 import ConfirmationModal from './ui/ConfirmationModal';
@@ -52,25 +52,35 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
           {(() => {
             const isApproved = listing.isApproved === true || listing.isApproved === undefined;
             const isRecent = listing.isRecentlyAdded || (listing.createdAt && (Date.now() - ((listing.createdAt.seconds || 0) * 1000) < 24 * 60 * 60 * 1000));
-            
+            const badges = [];
+
             if (isApproved && isRecent) {
-              return (
-                <span className="bg-emerald-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm">
+              badges.push(
+                <span key="badge-recent" className="bg-emerald-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm">
                   Just Added
                 </span>
               );
             }
             
+            if (!listing.verified) {
+              badges.push(
+                <span key="badge-unverified" className="bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1">
+                  <ShieldAlert className="w-3 h-3" />
+                  <span>Unverified</span>
+                </span>
+              );
+            }
+
             // If it's the agent's own listing and not approved
             if (user?.id && String(listing.agent?.id) === String(user.id) && listing.isApproved === false) {
-              return (
-                <span className="bg-amber-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm">
+              badges.push(
+                <span key="badge-pending" className="bg-amber-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm">
                   Pending Verification
                 </span>
               );
             }
-            
-            return null;
+
+            return badges;
           })()}
           {listing.slotsLeft && (
             <span className="bg-rose-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm">
@@ -146,7 +156,7 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
           {(!isAgentView && listing.verified) && (
             <div className="flex items-center gap-1 sm:gap-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-2 sm:px-3 h-9 sm:h-11 rounded-lg sm:rounded-xl border border-emerald-100 dark:border-emerald-800 shadow-sm cursor-default" title="Verified Property">
               <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Verified</span>
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">Verified</span>
             </div>
           )}
           {isAgentView ? (
@@ -169,11 +179,6 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
             </div>
           ) : (
             <div className="flex-1 flex gap-2">
-              {!listing.verified && (
-                <div className="flex items-center gap-1 sm:gap-1.5 bg-amber-50 dark:bg-amber-900/10 text-amber-600 dark:text-amber-500 px-2 sm:px-3 h-9 sm:h-11 rounded-lg sm:rounded-xl border border-amber-100 dark:border-amber-900/30 flex-shrink-0" title="Unverified Listing">
-                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider hidden sm:inline">Unverified</span>
-                </div>
-              )}
               <button 
                 onClick={onViewDetails}
                 className="flex-1 h-9 sm:h-11 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-bold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-600 hover:text-white dark:hover:bg-primary-600 dark:hover:text-white uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm border border-primary-100 dark:border-primary-800 cursor-pointer active:scale-[0.98]"
