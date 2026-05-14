@@ -79,7 +79,7 @@ const AppContent = () => {
   }
 
   // Handle views based on AuthContext state
-  const renderView = () => {
+  const ViewComponent = () => {
     switch (view) {
       case 'landing':
         return <Landing />;
@@ -98,7 +98,7 @@ const AppContent = () => {
 
   return (
     <Suspense fallback={<LoadingScreen message="Switching views..." />}>
-      {renderView()}
+      <ViewComponent />
     </Suspense>
   );
 };

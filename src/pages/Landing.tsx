@@ -70,7 +70,7 @@ const Hero = () => {
       <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[500px] h-[500px] bg-primary-600/20 rounded-full blur-[120px] opacity-30 pointer-events-none" />
       <div className="absolute bottom-10 left-0 -translate-x-1/2 w-[300px] h-[300px] bg-primary-600/20 rounded-full blur-[100px] opacity-20 pointer-events-none" />
 
-      <div className="w-full px-[15px] py-[100px] relative z-10">
+      <div className="w-full px-[15px] py-[100px] relative z-10 min-h-[500px]">
         <div className="max-w-3xl text-center md:text-left mx-auto md:mx-0">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -279,7 +279,7 @@ const FeaturedListings = () => {
   };
 
   return (
-    <section id="listings" className="py-24 lg:py-32 relative overflow-hidden transition-colors duration-300">
+    <section id="listings" className="py-24 lg:py-32 relative overflow-hidden transition-colors duration-300 min-h-[600px]">
       <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 -z-10" />
       <div className="w-full px-[15px]">
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
@@ -539,7 +539,6 @@ const Landing = () => {
       <Helmet>
         <title>DirectRent | Find Verified Apartments & Student Hostels in Nigeria</title>
         <meta name="description" content="DirectRent is Nigeria's most trusted real estate platform for students and professionals. Find verified self-contains, flats, and office spaces without agent stress." />
-        <link rel="canonical" href="https://rentbyade.vercel.app/" />
       </Helmet>
       <CustomCursor />
       <Navbar />

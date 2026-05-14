@@ -110,8 +110,8 @@ const AdminDashboard = () => {
         d.setDate(now.getDate() - (6 - i));
         const dayName = days[d.getDay()];
         const count = listings.filter(l => {
-          if (!l.createdAt) return false;
-          const date = new Date(l.createdAt.seconds * 1000);
+          if (!l.createdAt || typeof (l.createdAt as any).seconds === 'undefined') return false;
+          const date = new Date((l.createdAt as any).seconds * 1000);
           return date.toDateString() === d.toDateString();
         }).length;
         return { name: dayName, value: count, highlighted: i === 6 };
@@ -125,8 +125,8 @@ const AdminDashboard = () => {
         d.setMonth(now.getMonth() - (2 - i));
         const monthName = months[d.getMonth()];
         const count = listings.filter(l => {
-          if (!l.createdAt) return false;
-          const date = new Date(l.createdAt.seconds * 1000);
+          if (!l.createdAt || typeof (l.createdAt as any).seconds === 'undefined') return false;
+          const date = new Date((l.createdAt as any).seconds * 1000);
           return date.getMonth() === d.getMonth() && date.getFullYear() === d.getFullYear();
         }).length;
         return { name: monthName, value: count, highlighted: i === 2 };

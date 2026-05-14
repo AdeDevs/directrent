@@ -21,6 +21,7 @@ import { GoogleMapsGuard } from '../components/GoogleMapsGuard';
 import { useMap, useMapsLibrary, Map as GoogleMap, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
 
 import SafeImage from '../components/SafeImage';
+import FullscreenGallery from '../components/FullscreenGallery';
 
 interface ListingDetailsProps {
   listing: Listing;
@@ -265,22 +266,30 @@ const DirectionsDisplay = ({ origin, destination }: { origin: google.maps.LatLng
   const polylinesRef = useRef<google.maps.Polyline[]>([]);
 
   useEffect(() => {
-    if (!routesLib || !map) return;
+    if (!routesLib || !map || !google?.maps) return;
     
-    routesLib.Route.computeRoutes({
-      origin: { location: { latLng: origin } },
-      destination: { location: { latLng: destination } },
-      travelMode: google.maps.TravelMode.DRIVING,
-    } as any).then(({ routes }: any) => {
-      if (routes?.[0]) {
-        const newPolylines = routes[0].createPolylines();
-        newPolylines.forEach(p => p.setMap(map));
-        polylinesRef.current = newPolylines;
-        if (routes[0].viewport) map.fitBounds(routes[0].viewport);
-      }
-    });
+    try {
+      routesLib.Route.computeRoutes({
+        origin: { location: { latLng: origin } },
+        destination: { location: { latLng: destination } },
+        travelMode: google.maps.TravelMode.DRIVING,
+      } as any).then(({ routes }: any) => {
+        if (routes?.[0] && map) {
+          const newPolylines = routes[0].createPolylines();
+          newPolylines.forEach((p: any) => p.setMap(map));
+          polylinesRef.current = newPolylines;
+          if (routes[0].viewport) map.fitBounds(routes[0].viewport);
+        }
+      }).catch((err: any) => console.error("Directions error:", err));
+    } catch (e) {
+      console.error("Route computation failed:", e);
+    }
 
-    return () => polylinesRef.current.forEach(p => p.setMap(null));
+    return () => {
+      if (polylinesRef.current) {
+        polylinesRef.current.forEach(p => p.setMap(null));
+      }
+    };
   }, [routesLib, map, origin, destination]);
 
   return null;
@@ -406,7 +415,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
     const shareData = {
       title: `DirectRent: ${listing.title}`,
       text: `Check out this verified ${listing.type} in ${listing.location}. ₦${listing.priceValue?.toLocaleString() || listing.price}/year.`,
-      url: `https://rentbyade.vercel.app/property/${listing.id}`
+      url: `${window.location.origin}/property/${listing.id}`
     };
 
     try {
@@ -761,101 +770,14 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           })}
         </script>
       </Helmet>
-      {/* Fullscreen Gallery Modal */}
-      <AnimatePresence>
-        {isGalleryOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[2000] bg-black flex flex-col items-center justify-center"
-          >
-            {/* Top Bar */}
-            <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
-              <div className="text-white/70 font-bold text-sm tracking-widest uppercase">
-                {galleryIndex + 1} / {images.length + (listing.video ? 1 : 0)}
-              </div>
-              <button 
-                onClick={() => setIsGalleryOpen(false)}
-                className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer backdrop-blur-xl border border-white/10"
-              >
-                <ArrowLeft className="w-6 h-6 rotate-90 sm:rotate-0" />
-              </button>
-            </div>
-
-            {/* Media Content */}
-            <div className="w-full h-full relative group">
-              <AnimatePresence mode="wait">
-                <motion.div 
-                  key={`gallery-item-${galleryIndex}`}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 1.05 }}
-                  transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                  className="w-full h-full flex items-center justify-center p-4 sm:p-20"
-                >
-                  {galleryIndex < images.length ? (
-                    <img 
-                      src={images[galleryIndex]} 
-                      className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" 
-                      alt="" 
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-full h-full max-w-5xl aspect-video flex items-center justify-center">
-                      <video 
-                        src={listing.video} 
-                        className="w-full max-h-full rounded-2xl shadow-2xl border border-white/10" 
-                        controls 
-                        autoPlay
-                      />
-                    </div>
-                  )}
-                </motion.div>
-              </AnimatePresence>
-
-              {/* Navigation Arrows */}
-              <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-4 sm:px-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                <button 
-                  onClick={() => setGalleryIndex(prev => Math.max(0, prev - 1))}
-                  disabled={galleryIndex === 0}
-                  className="w-14 h-14 rounded-full bg-black/50 text-white flex items-center justify-center backdrop-blur-md border border-white/10 transition-all hover:scale-110 disabled:opacity-0 pointer-events-auto cursor-pointer"
-                >
-                  <ArrowLeft className="w-8 h-8" />
-                </button>
-                <button 
-                  onClick={() => setGalleryIndex(prev => Math.min(images.length + (listing.video ? 0 : -1), prev + 1))}
-                  disabled={galleryIndex === images.length + (listing.video ? 0 : -1)}
-                  className="w-14 h-14 rounded-full bg-black/50 text-white flex items-center justify-center backdrop-blur-md border border-white/10 transition-all hover:scale-110 disabled:opacity-0 pointer-events-auto cursor-pointer"
-                >
-                  <ArrowLeft className="w-8 h-8 rotate-180" />
-                </button>
-              </div>
-            </div>
-
-            {/* Bottom Strip */}
-            <div className="absolute bottom-0 left-0 right-0 p-8 flex justify-center gap-3 overflow-x-auto scrollbar-none z-50 bg-gradient-to-t from-black/80 to-transparent">
-              {images.map((img, i) => (
-                <button 
-                  key={`gallery-thumb-${i}`}
-                  onClick={() => setGalleryIndex(i)}
-                  className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${galleryIndex === i ? 'border-primary-500 scale-110 shadow-lg shadow-primary-500/30' : 'border-transparent opacity-50'}`}
-                >
-                  <SafeImage src={img} className="w-full h-full object-cover" />
-                </button>
-              ))}
-              {listing.video && (
-                <button 
-                  onClick={() => setGalleryIndex(images.length)}
-                  className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 bg-slate-800 flex items-center justify-center ${galleryIndex === images.length ? 'border-primary-500 scale-110' : 'border-transparent opacity-50'}`}
-                >
-                  <Video className="w-6 h-6 text-white" />
-                </button>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Fullscreen Gallery Modal replacement */}
+      <FullscreenGallery 
+        isOpen={isGalleryOpen}
+        onClose={() => setIsGalleryOpen(false)}
+        images={images}
+        video={listing.video}
+        initialIndex={galleryIndex}
+      />
 
       {/* Chat Modal Integration */}
       {user && (
@@ -954,27 +876,27 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
         )}
       </AnimatePresence>
 
-      {/* Media Carousel (Header) */}
-      <div className="relative w-full aspect-[4/3] md:aspect-[21/9] bg-slate-900 overflow-hidden shadow-sm">
-        {/* Top Header Buttons overlay */}
-        <div className="absolute top-0 left-0 right-0 p-4 px-2 pt-2 md:pt-3 z-20 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent">
+      {/* Media Gallery / Header */}
+      <div className="relative w-full bg-slate-100 dark:bg-slate-900 overflow-hidden shadow-sm pt-2 md:pt-4">
+        {/* Top Header Buttons overlay (Moved outside relative so it stays top) */}
+        <div className="absolute top-0 left-0 right-0 p-4 px-2 pt-2 md:pt-6 z-40 flex justify-between items-center pointer-events-none">
           <button 
             onClick={onBack}
-            className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/30 transition-all cursor-pointer shadow-sm"
+            className="w-10 h-10 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md flex items-center justify-center text-slate-900 dark:text-white hover:bg-white dark:hover:bg-slate-700 transition-all cursor-pointer shadow-md pointer-events-auto border border-white/20"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 pointer-events-auto">
             <button 
               onClick={handleReportClick}
-              className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-rose-500/80 transition-all cursor-pointer shadow-sm"
+              className="w-10 h-10 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md flex items-center justify-center text-slate-500 hover:text-rose-500 transition-all cursor-pointer shadow-md border border-white/20"
               title="Report Listing"
             >
               <Flag className="w-4.5 h-4.5" />
             </button>
             <button 
               onClick={handleShare}
-              className={`w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-primary-500/80 transition-all cursor-pointer shadow-sm ${isSharing ? 'animate-pulse' : ''}`}
+              className={`w-10 h-10 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md flex items-center justify-center text-slate-500 hover:text-primary-500 transition-all cursor-pointer shadow-md border border-white/20 ${isSharing ? 'animate-pulse' : ''}`}
               title="Share Listing"
             >
               <Share2 className="w-4.5 h-4.5" />
@@ -985,7 +907,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                   e.stopPropagation();
                   toggleFavoriteWithAnalytics(listing.id.toString());
                 }}
-                className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-sm ${isFavorite ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/40' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-md border border-white/20 ${isFavorite ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/40' : 'bg-white/80 dark:bg-slate-800/80 text-slate-500 hover:text-primary-500'}`}
               >
                 <Bookmark className={`w-4.5 h-4.5 ${isFavorite ? 'fill-current text-white' : ''}`} />
               </button>
@@ -993,31 +915,81 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           </div>
         </div>
 
-        {/* Snap Scrolling Row */}
-        <div 
-          className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none"
-          onScroll={(e) => {
-            const el = e.currentTarget;
-            const idx = Math.round(el.scrollLeft / el.clientWidth);
-            if(idx !== activeMedia) setActiveMedia(idx);
-          }}
-        >
-          {images.map((img, idx) => (
+        <div className="max-w-[1400px] mx-auto px-[15px]">
+          {/* Desktop Mosaic Gallery */}
+          <div className="hidden md:grid grid-cols-4 grid-rows-2 gap-2 h-[500px] rounded-3xl overflow-hidden cursor-pointer group/mosaic relative">
             <div 
-              key={`carousel-item-${idx}`} 
-              className="w-full h-full flex-shrink-0 snap-center relative cursor-zoom-in"
-              onClick={() => handleMediaClick(idx)}
+              className="col-span-2 row-span-2 relative overflow-hidden" 
+              onClick={() => handleMediaClick(0)}
             >
-              <SafeImage src={img} className="w-full h-full object-cover" />
+              <SafeImage src={images[0]} className="w-full h-full object-cover hover:scale-105 transition-transform duration-700" />
+              <div className="absolute inset-0 bg-black/0 group-hover/mosaic:bg-black/10 transition-colors pointer-events-none" />
             </div>
-          ))}
-        </div>
-        
-        {/* Pagination Dots */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1.5 rounded-full bg-black/30 backdrop-blur-sm z-20">
-           {images.map((_, idx) => (
-             <div key={`pagination-dot-${idx}`} className={`h-1.5 rounded-full transition-all ${idx === activeMedia ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
-           ))}
+            {images.slice(1, 5).map((img, idx) => (
+              <div 
+                key={`mosaic-item-${idx}`} 
+                className="relative overflow-hidden"
+                onClick={() => handleMediaClick(idx + 1)}
+              >
+                <SafeImage src={img} className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
+                <div className="absolute inset-0 bg-black/0 group-hover/mosaic:bg-black/10 transition-colors pointer-events-none" />
+                {idx === 3 && images.length > 5 && (
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center text-white flex-col gap-1">
+                    <span className="text-xl font-black">+{images.length - 5}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">More Photos</span>
+                  </div>
+                )}
+              </div>
+            ))}
+            {/* Fallback for listings with fewer than 5 images */}
+            {images.length < 5 && Array.from({ length: 4 - (images.length - 1) }).map((_, idx) => (
+              <div key={`mosaic-placeholder-${idx}`} className="bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center">
+                <LayoutGrid className="w-8 h-8 text-slate-200 dark:text-slate-800" />
+              </div>
+            ))}
+            
+            <button 
+              onClick={() => handleMediaClick(0)}
+              className="absolute bottom-6 right-6 px-4 py-2 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-all active:scale-95 z-10"
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Show All Photos
+            </button>
+          </div>
+
+          {/* Mobile Snap Carousel */}
+          <div className="md:hidden relative aspect-[4/3] rounded-2xl overflow-hidden -mx-1 group/mobile-carousel">
+            <div 
+              className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none"
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                const idx = Math.round(el.scrollLeft / el.clientWidth);
+                if(idx !== activeMedia) setActiveMedia(idx);
+              }}
+            >
+              {images.map((img, idx) => (
+                <div 
+                  key={`carousel-item-${idx}`} 
+                  className="w-full h-full flex-shrink-0 snap-center relative cursor-zoom-in"
+                  onClick={() => handleMediaClick(idx)}
+                >
+                  <SafeImage src={img} className="w-full h-full object-cover" />
+                </div>
+              ))}
+            </div>
+            
+            {/* Pagination Dots */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1.5 rounded-full bg-black/30 backdrop-blur-sm z-20">
+              {images.map((_, idx) => (
+                <div key={`pagination-dot-${idx}`} className={`h-1.5 rounded-full transition-all ${idx === activeMedia ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
+              ))}
+            </div>
+
+            {/* Mobile Photo Count */}
+            <div className="absolute top-4 right-4 px-2 py-1 bg-black/40 backdrop-blur-md rounded-lg text-[10px] font-bold text-white uppercase tracking-tight z-20">
+              {activeMedia + 1} / {images.length}
+            </div>
+          </div>
         </div>
       </div>
 

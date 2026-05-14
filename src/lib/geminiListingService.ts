@@ -1,9 +1,7 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { Listing } from "../types";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "./firebase";
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export interface DuplicateAnalysis {
   score: number;
@@ -54,7 +52,7 @@ export const findNearbyListings = async (targetListing: Listing): Promise<Listin
 };
 
 /**
- * Uses Gemini to compare a new listing with potential duplicates
+ * Uses the frontend Gemini SDK to compare a new listing with potential duplicates
  */
 export const analyzeDuplicatesWithGemini = async (
   newListing: Listing, 
@@ -71,87 +69,81 @@ export const analyzeDuplicatesWithGemini = async (
     };
   }
 
-  try {
-    const parts: any[] = [
-      {
-        text: `
-          ROLE: Real Estate Anti-Fraud System
-          TASK: Compare a NEW listing with EXISTING neighborhood listings to detect duplicates or "re-listings".
-          
-          NEW LISTING DATA:
-          - Title: ${newListing.title}
-          - Price: ${newListing.price}
-          - Location: ${newListing.location}
-          - Description: ${newListing.description || 'N/A'}
-          
-          EXISTING LISTINGS TO COMPARE:
-          ${existingListings.map((l, i) => `
-            LISTING #${i} (ID: ${l.id}):
-            - Title: ${l.title}
-            - Price: ${l.price}
-            - Description: ${l.description || 'N/A'}
-          `).join('\n')}
-          
-          INSTRUCTIONS:
-          1. SCENE UNDERSTANDING: Analyze the images of the NEW listing and the EXISTING listings.
-          2. LOOK FOR: Matching interior fixtures (cabinets, tiling), window views, architectural layouts, or watermarks.
-          3. LOGIC: Even if the price or description is slightly different, if the images show the same physical unit, it's a duplicate.
-          4. RETURN: A similarity score (0-100) and specific reasoning.
-          
-          STRICT JSON OUTPUT:
-          {
-            "score": number, // 0-100
-            "reasoning": "Explain why they match or don't match (e.g., 'Marble pattern in kitchen is identical to Listing #XYZ')",
-            "matchedListingId": "string or null",
-            "matchedListingTitle": "string or null",
-            "isFlagged": boolean // true if score > 75
-          }
-        `
-      }
-    ];
+  const prompt = `
+    ROLE: Real Estate Anti-Fraud System
+    TASK: Compare a NEW listing with EXISTING neighborhood listings to detect duplicates or "re-listings".
+    
+    NEW LISTING DATA:
+    - Title: ${newListing.title}
+    - Price: ${newListing.price}
+    - Location: ${newListing.location}
+    - Description: ${newListing.description || 'N/A'}
+    
+    EXISTING LISTINGS TO COMPARE:
+    ${existingListings.map((l, i) => `
+      LISTING #${i} (ID: ${l.id}):
+      - Title: ${l.title}
+      - Price: ${l.price}
+      - Description: ${l.description || 'N/A'}
+    `).join('\n')}
+    
+    INSTRUCTIONS:
+    1. SCENE UNDERSTANDING: Analyze the images of the NEW listing and the EXISTING listings.
+    2. LOOK FOR: Matching interior fixtures (cabinets, tiling), window views, architectural layouts, or watermarks.
+    3. LOGIC: Even if the price or description is slightly different, if the images show the same physical unit, it's a duplicate.
+    4. RETURN: A similarity score (0-100) and specific reasoning.
+    
+    STRICT JSON OUTPUT:
+    {
+      "score": number, // 0-100
+      "reasoning": "Explain why they match or don't match (e.g., 'Marble pattern in kitchen is identical to Listing #XYZ')",
+      "matchedListingId": "string or null",
+      "matchedListingTitle": "string or null",
+      "isFlagged": boolean // true if score > 75
+    }
+  `;
 
+  try {
+    const images: any[] = [];
+    
     // Add new listing image
     if (newListing.image) {
       try {
-        const base64 = await fetchImageAsBase64(newListing.image);
-        parts.push({
-          inlineData: { mimeType: "image/jpeg", data: base64 }
-        });
+        const data = await fetchImageAsBase64(newListing.image);
+        images.push({ inlineData: { mimeType: "image/jpeg", data } });
       } catch (e) { console.warn("New listing image fail", e); }
     }
 
-    // Add up to 3 existing listing images to compare (to avoid token limits)
+    // Add up to 3 existing listing images to compare
     for (const l of existingListings.slice(0, 3)) {
       if (l.image) {
         try {
-          const base64 = await fetchImageAsBase64(l.image);
-          parts.push({
-            inlineData: { mimeType: "image/jpeg", data: base64 }
-          });
+          const data = await fetchImageAsBase64(l.image);
+          images.push({ inlineData: { mimeType: "image/jpeg", data } });
         } catch (e) { console.warn("Existing listing image fail", e); }
       }
     }
 
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      console.warn("GEMINI_API_KEY is not defined. AI features will be disabled.");
+      return {
+        score: 0,
+        reasoning: "AI analysis unavailable: Missing API Key.",
+        matchedListingId: null,
+        matchedListingTitle: null,
+        isFlagged: false
+      };
+    }
+    
+    const ai = new GoogleGenAI({ apiKey: key });
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: [{ role: 'user', parts }],
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            score: { type: Type.NUMBER },
-            reasoning: { type: Type.STRING },
-            matchedListingId: { type: Type.STRING },
-            matchedListingTitle: { type: Type.STRING },
-            isFlagged: { type: Type.BOOLEAN }
-          },
-          required: ["score", "reasoning", "isFlagged"]
-        }
-      }
+      model: "gemini-3-flash-preview",
+      contents: { parts: [{ text: prompt }, ...images] },
+      config: { responseMimeType: "application/json" }
     });
 
-    return JSON.parse(response.text);
+    return JSON.parse(response.text || '{}');
   } catch (error) {
     console.error("Gemini Duplicate Detection Error:", error);
     throw error;

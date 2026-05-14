@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { MapPin, Bookmark, ArrowUpRight, Star, BadgeCheck, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { MapPin, Bookmark, ArrowUpRight, Star, BadgeCheck, ShieldCheck, ShieldAlert, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
 import { Listing } from '../types';
 import { useAuth } from '../context/AuthContext';
 import ConfirmationModal from './ui/ConfirmationModal';
+import FullscreenGallery from './FullscreenGallery';
 
 import SafeImage from './SafeImage';
 
@@ -28,8 +29,23 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
 }) => {
   const { user, favorites, toggleFavorite } = useAuth();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const isFav = favorites.includes(listing.id);
   const isAgent = user?.role === 'agent';
+
+  const images = listing.images && listing.images.length > 0 ? listing.images : [listing.image];
+  const hasMultipleImages = images.length > 1;
+
+  const nextImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
 
   return (
     <motion.div
@@ -42,12 +58,61 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
       onClick={onViewDetails}
       className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-slate-200/40 dark:hover:shadow-black/20 transition-all duration-300 flex flex-col h-full group cursor-pointer"
     >
-      <div className="relative aspect-[4/3] overflow-hidden">
-        <SafeImage 
-          src={listing.image} 
-          alt={listing.title} 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-        />
+      <div className="relative aspect-[4/3] overflow-hidden group/image">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentImageIndex}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="w-full h-full"
+          >
+            <SafeImage 
+              src={images[currentImageIndex]} 
+              alt={listing.title} 
+              className="w-full h-full object-cover"
+            />
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Mini Gallery Controls */}
+        {hasMultipleImages && (
+          <>
+            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover/image:opacity-100 transition-opacity" />
+            
+            <button 
+              onClick={prevImage}
+              className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/40 text-white rounded-full backdrop-blur-sm opacity-0 group-hover/image:opacity-100 transition-all hover:bg-black/60 z-10"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <button 
+              onClick={nextImage}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/40 text-white rounded-full backdrop-blur-sm opacity-0 group-hover/image:opacity-100 transition-all hover:bg-black/60 z-10"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Pagination Dots */}
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+              {images.map((_, idx) => (
+                <div 
+                  key={idx}
+                  className={`w-1 h-1 rounded-full bg-white transition-all ${idx === currentImageIndex ? 'scale-125' : 'opacity-40'}`}
+                />
+              ))}
+            </div>
+
+            {/* Image Count Chip */}
+            <div 
+              onClick={(e) => { e.stopPropagation(); setIsGalleryOpen(true); }}
+              className="absolute top-3 right-12 px-2 py-1 bg-black/60 backdrop-blur-md rounded-lg text-[8px] font-bold text-white uppercase tracking-tighter opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center gap-1.5 hover:bg-black/80 ring-1 ring-white/10"
+            >
+              <Maximize2 className="w-2.5 h-2.5" />
+              {currentImageIndex + 1} / {images.length} Photos
+            </div>
+          </>
+        )}
         <div className="absolute top-3 left-3 flex flex-col items-start gap-2">
           {(() => {
             const isApproved = listing.isApproved === true || listing.isApproved === undefined;
@@ -200,6 +265,13 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
       confirmText="Delete Now"
       cancelText="Keep Listing"
       variant="danger"
+    />
+    <FullscreenGallery 
+      isOpen={isGalleryOpen}
+      onClose={() => setIsGalleryOpen(false)}
+      images={images}
+      video={listing.video}
+      initialIndex={currentImageIndex}
     />
     </motion.div>
   );

@@ -32,7 +32,7 @@ interface ListingManagementProps {
   onExport?: () => void;
 }
 
-const ListingManagement: React.FC<ListingManagementProps> = ({ 
+const ListingManagement: React.FC<ListingManagementProps> = React.memo(({ 
   listings, 
   loading, 
   onReview, 
@@ -641,6 +641,6 @@ const ListingManagement: React.FC<ListingManagementProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default ListingManagement;

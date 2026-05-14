@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { GoogleGenAI } from '@google/genai';
 import { 
   ShieldCheck, 
   Check, 
@@ -44,7 +45,6 @@ import {
 import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
 import firebaseConfig from '../../../firebase-applet-config.json';
 import { Listing, Verification } from '../../types';
-import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import DropdownPortal from '../../components/admin/DropdownPortal';
 import { 
@@ -53,7 +53,6 @@ import {
   DuplicateAnalysis 
 } from '../../lib/geminiListingService';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const STORAGE_BUCKET = firebaseConfig.storageBucket;
 
 interface ApprovalsProps {
@@ -75,6 +74,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Verification | null>(null);
   const [selectedListingForReview, setSelectedListingForReview] = useState<Listing | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [activeImageTab, setActiveImageTab] = useState<'id' | 'selfie'>('id');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -83,11 +83,16 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   const [showRejectionReason, setShowRejectionReason] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState<{ show: boolean, type: 'approval' | 'rejection' | null }>({ show: false, type: null });
-  const [aiReport, setAiReport] = useState<{ 
+  const [agentAiReport, setAgentAiReport] = useState<{ 
     analysis: string, 
     recommendation: 'approve' | 'flag' | 'reject' | null, 
     confidence: number, 
-    ocrData?: any,
+    ocrData?: any
+  } | null>(null);
+  const [listingAiReport, setListingAiReport] = useState<{ 
+    analysis: string, 
+    recommendation: 'approve' | 'flag' | 'reject' | null, 
+    confidence: number, 
     assessment?: {
       pricing?: string;
       imageQuality?: string;
@@ -97,12 +102,24 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   const [duplicateReport, setDuplicateReport] = useState<DuplicateAnalysis | null>(null);
   const [nearbyListings, setNearbyListings] = useState<Listing[]>([]);
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
+  const [isAnalyzingAgent, setIsAnalyzingAgent] = useState(false);
+  const [isAnalyzingListing, setIsAnalyzingListing] = useState(false);
+  const [agentAiError, setAgentAiError] = useState<string | null>(null);
+  const [listingAiError, setListingAiError] = useState<string | null>(null);
   const [activeDropdown, setActiveDropdown] = useState<string | number | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
-  const [openUpwards, setOpenUpwards] = useState(false);
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  // Use Refs for comparison to avoid stale closure issues in async functions
+  const selectedListingIdRef = useRef<string | null>(null);
+  const selectedAgentIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedListingIdRef.current = selectedListingForReview?.id ? String(selectedListingForReview.id) : null;
+  }, [selectedListingForReview?.id]);
+
+  useEffect(() => {
+    const aid = selectedAgent?.id || (selectedAgent as any)?.userId;
+    selectedAgentIdRef.current = aid ? String(aid) : null;
+  }, [selectedAgent?.id, (selectedAgent as any)?.userId]);
 
   const fetchImageAsBase64 = async (url: string): Promise<string> => {
     // Try the Image object approach first (often handles CORS better with crossOrigin='anonymous')
@@ -166,18 +183,17 @@ const Approvals: React.FC<ApprovalsProps> = () => {
 
   const generateAIAnalysis = async (agent: Verification) => {
     if (!agent) return;
-    setIsAnalyzing(true);
-    setAiError(null);
+    const currentId = agent.id || (agent as any).userId;
+    setIsAnalyzingAgent(true);
+    setAgentAiError(null);
     try {
       const idUrl = (agent as any).govtIdUrl || (agent as any).idUrl;
       const selfieUrl = (agent as any).selfieUrl;
       const dob = (agent as any).dob;
 
-      const parts: any[] = [
-        {
-          text: `
-            You are an AI KYC Assistant for DirectRent, a premium real estate platform in Nigeria.
-            Analyze the following verification data for an agent:
+      const prompt = `
+            You are an AI KYC Assistant for DirectRent.
+            Analyze verification data for: ${agent.name} (Ref: ${currentId})
             
             Target Name: ${agent.name}
             Expected Date of Birth: ${dob || 'Not provided'}
@@ -213,77 +229,66 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 "expiry": "Expiry date found on ID"
               }
             }
-          `
-        }
-      ];
+          `;
 
+      const images: any[] = [];
       try {
         if (idUrl) {
-          const idBase64 = await fetchImageAsBase64(idUrl);
-          parts.push({
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: idBase64
-            }
-          });
+          const data = await fetchImageAsBase64(idUrl);
+          images.push({ inlineData: { mimeType: "image/jpeg", data } });
         }
-
         if (selfieUrl) {
-          const selfieBase64 = await fetchImageAsBase64(selfieUrl);
-          parts.push({
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: selfieBase64
-            }
-          });
+          const data = await fetchImageAsBase64(selfieUrl);
+          images.push({ inlineData: { mimeType: "image/jpeg", data } });
         }
       } catch (imgErr: any) {
         if (imgErr.message === 'CORS_ERROR') {
           console.error("CORS Error: Please configure your storage bucket to allow cross-origin requests.");
-          setAiError("CORS_ERROR");
-          setIsAnalyzing(false);
+          setAgentAiError("CORS_ERROR");
+          setIsAnalyzingAgent(false);
           return;
         }
         console.warn("Falling back to text analysis due to image error:", imgErr);
-        parts[0].text += "\n\nCRITICAL: ID/Selfie image data could not be parsed. Rely strictly on text metadata.";
       }
 
-      const result = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: [{ role: 'user', parts }],
-        config: {
-          responseMimeType: "application/json"
-        }
+      const key = process.env.GEMINI_API_KEY;
+      if (!key) {
+        setAgentAiError("AI Configuration Error: Missing API Key.");
+        setIsAnalyzingAgent(false);
+        return;
+      }
+      
+      const ai = new GoogleGenAI({ apiKey: key });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: { parts: [{ text: prompt }, ...images] },
+        config: { responseMimeType: "application/json" }
       });
 
-      const JSON_RESPONSE = result.text;
-      const response = JSON.parse(JSON_RESPONSE);
-      setAiReport(response);
+      const report = JSON.parse(response.text || '{}');
+      
+      // Ensure we are still looking at the same agent before setting state
+      if (selectedAgentIdRef.current === currentId) {
+        setAgentAiReport(report);
+      }
     } catch (err) {
       console.error("AI Analysis Error:", err);
-      setAiError("Analysis failed. Please check your internet connection or use manual verification.");
+      setAgentAiError("Analysis failed. Please check your internet connection or use manual verification.");
     } finally {
-      setIsAnalyzing(false);
+      setIsAnalyzingAgent(false);
     }
   };
 
   const generateListingAIAnalysis = async (listing: Listing) => {
-    setIsAnalyzing(true);
-    setAiReport(null);
-    setAiError(null);
-    setDuplicateReport(null);
-    setNearbyListings([]);
-
+    const currentId = listing.id;
+    setIsAnalyzingListing(true);
+    
     try {
-      // 1. Standard Analysis
-      const parts: any[] = [
-        {
-          text: `
+      const prompt = `
             ROLE: Senior Real Estate Fraud Analyst
-            TASK: Evaluate a property listing for authenticity, pricing accuracy, and quality.
+            TASK: Evaluate property listing: "${listing.title}" (ID: ${currentId})
             
             PROPERTY DATA:
-            - Title: ${listing.title}
             - Price: ${listing.price}
             - Location: ${listing.location}
             - Type: ${listing.type}
@@ -293,8 +298,9 @@ const Approvals: React.FC<ApprovalsProps> = () => {
             MANDATORY TASKS:
             1. IMAGE ANALYSIS: Analyze the provided listing image. Does it match the description? Does it look like a real home or a stock/render? Identify potential red flags (e.g., logo watermarks from other sites).
             2. PRICING AUDIT: Based on the location (${listing.location}) and type (${listing.type}), is the price (${listing.price}) realistic for the Nigerian market? Flag if suspiciously low or high.
-            3. CONTENT QUALITY: Is the description coherent and professional? 
-            4. RECOMMENDATION: Output "approve", "flag", or "reject".
+            3. FRAUD DETECTION: Look for serious red flags (e.g., requests for direct payment in description, stolen watermarked images, price-to-location impossibility).
+            4. NOTE ON STYLE: Ignore informal language, lack of capitalization, or generic titles (like "Ajala Homes"). These are acceptable on the platform. focusing only on actual fraud or extreme price deviations.
+            5. RECOMMENDATION: Output "approve", "flag", or "reject".
             
             STRICT JSON OUTPUT FORMAT:
             {
@@ -307,49 +313,53 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 "riskLevel": "low" | "medium" | "high"
               }
             }
-          `
-        }
-      ];
+          `;
 
+      const images: any[] = [];
       if (listing.image) {
         try {
-          const imgBase64 = await fetchImageAsBase64(listing.image);
-          parts.push({
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: imgBase64
-            }
-          });
+          const data = await fetchImageAsBase64(listing.image);
+          images.push({ inlineData: { mimeType: "image/jpeg", data } });
         } catch (imgErr) {
           console.warn("Could not include image in listing AI analysis:", imgErr);
         }
       }
 
-      console.log("DEBUG: Parts array:", parts);
-
-      const result = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: [{ role: 'user', parts }],
-        config: {
-          responseMimeType: "application/json"
-        }
-      });
+      const key = process.env.GEMINI_API_KEY;
+      if (!key) {
+        setListingAiError("AI Configuration Error: Missing API Key.");
+        setIsAnalyzingListing(false);
+        return;
+      }
       
-      console.log("DEBUG: Analysis result:", result);
+      const ai = new GoogleGenAI({ apiKey: key });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: { parts: [{ text: prompt }, ...images] },
+        config: { responseMimeType: "application/json" }
+      });
 
-      const response = JSON.parse(result.text);
-      setAiReport(response);
+      const report = JSON.parse(response.text || '{}');
+      if (selectedListingIdRef.current === currentId) {
+        setListingAiReport(report);
+      }
 
       // 2. Duplicate Detection
       setIsCheckingDuplicates(true);
       const nearby = await findNearbyListings(listing);
-      setNearbyListings(nearby);
+      
+      if (selectedListingIdRef.current === currentId) {
+        setNearbyListings(nearby);
+      }
       
       console.log("DEBUG: Starting duplicate analysis. Nearby found:", nearby.length);
       if (nearby.length > 0) {
         const dupAnalysis = await analyzeDuplicatesWithGemini(listing, nearby, fetchImageAsBase64);
         console.log("DEBUG: Dup analysis result:", dupAnalysis);
-        setDuplicateReport(dupAnalysis);
+        
+        if (selectedListingIdRef.current === currentId) {
+          setDuplicateReport(dupAnalysis);
+        }
         
         // If flagged, update listing in DB automatically so it persists
         if (dupAnalysis.isFlagged && listing.id) {
@@ -365,24 +375,30 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       }
     } catch (err) {
       console.error("Listing AI Analysis Error:", err);
-      setAiError("Listing analysis failed. Manual review required.");
+      setListingAiError("Listing analysis failed. Manual review required.");
     } finally {
-      setIsAnalyzing(false);
+      setIsAnalyzingListing(false);
       setIsCheckingDuplicates(false);
     }
   };
 
   useEffect(() => {
-    if (selectedAgent && !aiReport && !isAnalyzing) {
+    if (selectedAgent) {
+      setAgentAiReport(null);
+      setAgentAiError(null);
       generateAIAnalysis(selectedAgent);
     }
-  }, [selectedAgent]);
+  }, [selectedAgent?.id, (selectedAgent as any)?.userId]);
 
   useEffect(() => {
-    if (selectedListingForReview && !aiReport && !isAnalyzing) {
+    if (selectedListingForReview) {
+      setListingAiReport(null);
+      setListingAiError(null);
+      setDuplicateReport(null);
+      setNearbyListings([]);
       generateListingAIAnalysis(selectedListingForReview);
     }
-  }, [selectedListingForReview]);
+  }, [selectedListingForReview?.id]);
 
   const createNotification = async (userId: string, title: string, message: string, type: 'verification' | 'listing' | 'system') => {
     try {
@@ -745,7 +761,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
 
           <div className="flex items-center gap-4 sm:gap-8 border-b border-slate-200 dark:border-slate-800 overflow-x-auto whitespace-nowrap scrollbar-none">
             <button 
-              onClick={() => setActiveTab('listings')}
+              onClick={() => {
+                setActiveTab('listings');
+                setSelectedAgent(null);
+                setSelectedListingForReview(null);
+              }}
               className={`pb-4 text-sm font-bold flex items-center gap-2 relative transition-colors flex-shrink-0 ${
                 activeTab === 'listings' ? 'text-slate-900 dark:text-white' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
@@ -759,7 +779,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
               )}
             </button>
             <button 
-              onClick={() => setActiveTab('agents')}
+              onClick={() => {
+                setActiveTab('agents');
+                setSelectedAgent(null);
+                setSelectedListingForReview(null);
+              }}
               className={`pb-4 text-sm font-bold flex items-center gap-2 relative transition-colors flex-shrink-0 ${
                 activeTab === 'agents' ? 'text-slate-900 dark:text-white' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
@@ -894,7 +918,13 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                         
                         <div className="flex">
                           <button 
-                            onClick={() => setSelectedListingForReview(listing)}
+                            onClick={() => {
+                              setSelectedListingForReview(listing);
+                              setCurrentImageIndex(0); // Reset gallery
+                              setSelectedAgent(null); // Clear other modal
+                              setListingAiReport(null); // Reset report for new item
+                              setListingAiError(null);
+                            }}
                             className="w-full px-4 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border border-slate-800 dark:border-slate-700 h-10 shadow-lg"
                           >
                             <Eye className="w-5 h-5 sm:w-4 sm:h-4" />
@@ -976,7 +1006,13 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                             </td>
                             <td className="px-6 py-4 text-right">
                               <button 
-                                onClick={() => setSelectedListingForReview(listing)}
+                                onClick={() => {
+                                  setSelectedListingForReview(listing);
+                                  setCurrentImageIndex(0); // Reset gallery
+                                  setSelectedAgent(null); // Clear other modal
+                                  setListingAiReport(null); // Reset report for new item
+                                  setListingAiError(null);
+                                }}
                                 className="p-2 rounded-none transition-all text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 group-hover:text-primary-600"
                                 title="Review Submission"
                               >
@@ -1082,7 +1118,12 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                         
                         <div className="flex">
                           <button 
-                            onClick={() => setSelectedAgent(agent)}
+                            onClick={() => {
+                              setSelectedAgent(agent);
+                              setSelectedListingForReview(null); // Clear other modal
+                              setAgentAiReport(null); // Reset report for new item
+                              setAgentAiError(null);
+                            }}
                             className="w-full px-4 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border border-slate-800 dark:border-slate-700 h-10 shadow-lg"
                           >
                             <Eye className="w-5 h-5 sm:w-4 sm:h-4" />
@@ -1137,7 +1178,12 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                             </td>
                             <td className="px-6 py-4 text-right">
                                <button 
-                                 onClick={() => setSelectedAgent(agent)}
+                                 onClick={() => {
+                                   setSelectedAgent(agent);
+                                   setSelectedListingForReview(null); // Clear other modal
+                                   setAgentAiReport(null); // Reset report for new item
+                                   setAgentAiError(null);
+                                 }}
                                  className="p-2 rounded-none transition-all text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 group-hover:text-primary-600"
                                  title="Review Application"
                                >
@@ -1216,7 +1262,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setSelectedListingForReview(null)}
+              onClick={() => {
+                setSelectedListingForReview(null);
+                setListingAiReport(null);
+                setListingAiError(null);
+              }}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
             <motion.div 
@@ -1231,7 +1281,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                   <p className="text-xs text-slate-500 mt-1">Reviewing property details and verifying information accuracy.</p>
                 </div>
                 <button 
-                  onClick={() => { setSelectedListingForReview(null); setAiReport(null); setAiError(null); }}
+                  onClick={() => { setSelectedListingForReview(null); setListingAiReport(null); setListingAiError(null); }}
                   className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   <X className="w-6 h-6" />
@@ -1241,13 +1291,60 @@ const Approvals: React.FC<ApprovalsProps> = () => {
               <div className="flex-1 overflow-y-auto p-8 space-y-8">
                 {/* Property Media */}
                 <div className="aspect-video w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative group overflow-hidden">
-                  <img 
-                    src={selectedListingForReview.image} 
-                    alt="" 
-                    className="w-full h-full object-cover" 
-                  />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                     <Maximize2 className="text-white w-8 h-8 cursor-pointer" onClick={() => setIsFullscreen(true)} />
+                  <AnimatePresence mode="wait">
+                    <motion.img 
+                      key={currentImageIndex}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      src={
+                        selectedListingForReview.images && selectedListingForReview.images.length > 0
+                        ? selectedListingForReview.images[currentImageIndex]
+                        : selectedListingForReview.image
+                      } 
+                      alt="" 
+                      className="w-full h-full object-cover" 
+                    />
+                  </AnimatePresence>
+
+                  {/* Gallery Navigation Controls */}
+                  {selectedListingForReview.images && selectedListingForReview.images.length > 1 && (
+                    <>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentImageIndex(prev => (prev === 0 ? selectedListingForReview.images!.length - 1 : prev - 1));
+                        }}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white hover:bg-black/70 transition-colors z-10"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentImageIndex(prev => (prev === selectedListingForReview.images!.length - 1 ? 0 : prev + 1));
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white hover:bg-black/70 transition-colors z-10"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                      
+                      {/* Image Indicators */}
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
+                        {selectedListingForReview.images.map((_, i) => (
+                          <div 
+                            key={i} 
+                            className={`w-1.5 h-1.5 rounded-full transition-all ${
+                              i === currentImageIndex ? 'bg-white w-4' : 'bg-white/40'
+                            }`} 
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                     <Maximize2 className="text-white w-8 h-8 cursor-pointer pointer-events-auto" onClick={() => setIsFullscreen(true)} />
                   </div>
                 </div>
 
@@ -1290,35 +1387,35 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Pricing & Quality Substrate Check</p>
                         </div>
                       </div>
-                      {isAnalyzing ? (
+                      {isAnalyzingListing ? (
                         <div className="flex items-center gap-2 px-3 py-1 bg-primary-500/10 border border-primary-500/20">
                           <Loader2 className="w-3 h-3 text-primary-500 animate-spin" />
                           <span className="text-[9px] font-black text-primary-500 uppercase tracking-[0.2em]">Analyzing...</span>
                         </div>
-                      ) : aiReport ? (
+                      ) : listingAiReport ? (
                         <div className="flex items-center gap-3">
                            <div className="flex flex-col items-end">
                               <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Confidence</span>
                               <span className="text-xs font-black text-white">
-                                {aiReport.confidence === undefined ? 'N/A' : (aiReport.confidence <= 1 ? (aiReport.confidence * 100).toFixed(0) : Math.round(aiReport.confidence))}%
+                                {listingAiReport.confidence === undefined ? 'N/A' : (listingAiReport.confidence <= 1 ? (listingAiReport.confidence * 100).toFixed(0) : Math.round(listingAiReport.confidence))}%
                               </span>
                            </div>
                            <div className={`px-3 py-1 border flex items-center gap-2 ${
-                             aiReport.recommendation === 'approve' 
+                             listingAiReport.recommendation === 'approve' 
                              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
-                             : aiReport.recommendation === 'flag'
+                             : listingAiReport.recommendation === 'flag'
                              ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
                              : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
                            }`}>
                              <span className="text-[9px] font-black uppercase tracking-widest">
-                               {aiReport.recommendation}
+                               {listingAiReport.recommendation}
                              </span>
                            </div>
                         </div>
                       ) : null}
                     </div>
 
-                    {aiReport && (
+                    {listingAiReport && (
                       <motion.div 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -1327,23 +1424,23 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                         <div className="grid grid-cols-3 gap-4">
                            <div className="p-3 bg-slate-950 border border-slate-800">
                              <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Pricing</p>
-                             <p className="text-[10px] font-bold text-white capitalize">{aiReport.assessment?.pricing?.replace('_', ' ') || 'N/A'}</p>
+                             <p className="text-[10px] font-bold text-white capitalize">{listingAiReport.assessment?.pricing?.replace('_', ' ') || 'N/A'}</p>
                            </div>
                            <div className="p-3 bg-slate-950 border border-slate-800">
                              <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Risk Level</p>
                              <p className={`text-[10px] font-bold capitalize ${
-                               aiReport.assessment?.riskLevel === 'low' ? 'text-emerald-500' :
-                               aiReport.assessment?.riskLevel === 'medium' ? 'text-amber-500' : 'text-rose-500'
-                             }`}>{aiReport.assessment?.riskLevel || 'N/A'}</p>
+                               listingAiReport.assessment?.riskLevel === 'low' ? 'text-emerald-500' :
+                               listingAiReport.assessment?.riskLevel === 'medium' ? 'text-amber-500' : 'text-rose-500'
+                             }`}>{listingAiReport.assessment?.riskLevel || 'N/A'}</p>
                            </div>
                            <div className="p-3 bg-slate-950 border border-slate-800">
                              <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Image QC</p>
-                             <p className="text-[10px] font-bold text-white capitalize">{aiReport.assessment?.imageQuality || 'N/A'}</p>
+                             <p className="text-[10px] font-bold text-white capitalize">{listingAiReport.assessment?.imageQuality || 'N/A'}</p>
                            </div>
                         </div>
 
                         <div className="markdown-body p-4 bg-slate-950/50 border border-slate-800 text-[11px] text-slate-300 leading-relaxed font-mono">
-                           <ReactMarkdown>{aiReport.analysis}</ReactMarkdown>
+                           <ReactMarkdown>{listingAiReport.analysis}</ReactMarkdown>
                         </div>
                       </motion.div>
                     )}
@@ -1474,7 +1571,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setSelectedAgent(null)}
+            onClick={() => {
+              setSelectedAgent(null);
+              setAgentAiReport(null);
+              setAgentAiError(null);
+            }}
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
           />
           <motion.div 
@@ -1488,7 +1589,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 <p className="text-xs text-slate-500 mt-1">Cross-check profile information with the submitted government document.</p>
               </div>
               <button 
-                onClick={() => { setSelectedAgent(null); setAiReport(null); setAiError(null); }}
+                onClick={() => { setSelectedAgent(null); setAgentAiReport(null); setAgentAiError(null); }}
                 className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <X className="w-6 h-6" />
@@ -1639,29 +1740,29 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                       <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Technical Substrate Analysis Active</p>
                     </div>
                   </div>
-                  {isAnalyzing ? (
+                  {isAnalyzingAgent ? (
                     <div className="flex items-center gap-2 px-3 py-1 bg-primary-500/10 border border-primary-500/20">
                       <Loader2 className="w-3 h-3 text-primary-500 animate-spin" />
                       <span className="text-[9px] font-black text-primary-500 uppercase tracking-[0.2em]">Processing Stream...</span>
                     </div>
-                  ) : aiReport ? (
+                  ) : agentAiReport ? (
                     <div className="flex items-center gap-3">
                        <div className="flex flex-col items-end">
                           <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Confidence Score</span>
                           <span className="text-xs font-black text-white">
-                            {aiReport.confidence === undefined ? 'N/A' : (aiReport.confidence <= 1 ? (Math.round(aiReport.confidence * 100)) : Math.round(aiReport.confidence))}%
+                            {agentAiReport.confidence === undefined ? 'N/A' : (agentAiReport.confidence <= 1 ? (Math.round(agentAiReport.confidence * 100)) : Math.round(agentAiReport.confidence))}%
                           </span>
                        </div>
                        <div className={`px-3 py-1 border flex items-center gap-2 ${
-                         aiReport.recommendation === 'approve' 
+                         agentAiReport.recommendation === 'approve' 
                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
-                         : aiReport.recommendation === 'flag'
+                         : agentAiReport.recommendation === 'flag'
                          ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
                          : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
                        }`}>
                          <Sparkles className="w-3 h-3" />
                          <span className="text-[9px] font-black uppercase tracking-widest">
-                           AI: {aiReport.recommendation}
+                           AI: {agentAiReport.recommendation}
                          </span>
                        </div>
                     </div>
@@ -1669,13 +1770,13 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 </div>
 
                 <div className="space-y-4">
-                  {isAnalyzing ? (
+                  {isAnalyzingAgent ? (
                     <div className="space-y-3">
                       <div className="h-3 bg-slate-800 rounded animate-pulse w-3/4" />
                       <div className="h-3 bg-slate-800 rounded animate-pulse w-1/2" />
                       <div className="h-3 bg-slate-800 rounded animate-pulse w-2/3" />
                     </div>
-                  ) : aiError === 'CORS_ERROR' ? (
+                  ) : agentAiError === 'CORS_ERROR' ? (
                     <div className="p-4 bg-rose-500/10 border border-slate-700 space-y-3">
                       <div className="flex items-start gap-3">
                         <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
@@ -1708,26 +1809,26 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                       </div>
                       <p className="text-[9px] text-slate-500 italic">Manual verification is recommended until CORS is configured.</p>
                     </div>
-                  ) : aiError ? (
+                  ) : agentAiError ? (
                     <div className="p-4 bg-rose-500/10 border border-rose-500/20 flex items-start gap-3">
                       <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-                      <p className="text-[11px] font-medium text-rose-400">{aiError}</p>
+                      <p className="text-[11px] font-medium text-rose-400">{agentAiError}</p>
                     </div>
-                  ) : aiReport ? (
+                  ) : agentAiReport ? (
                     <motion.div 
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       className="space-y-4"
                     >
-                      {aiReport.ocrData && (
+                      {agentAiReport.ocrData && (
                         <div className="grid grid-cols-2 gap-2">
                           <div className="bg-slate-800/80 p-2 border border-slate-700/50">
                             <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">OCR Name</p>
-                            <p className="text-[10px] text-white font-bold truncate">{aiReport.ocrData.extractedName || 'Not Found'}</p>
+                            <p className="text-[10px] text-white font-bold truncate">{agentAiReport.ocrData.extractedName || 'Not Found'}</p>
                           </div>
                           <div className="bg-slate-800/80 p-2 border border-slate-700/50">
                             <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">OCR ID Number</p>
-                            <p className="text-[10px] text-white font-bold truncate">{aiReport.ocrData.extractedId || 'Not Found'}</p>
+                            <p className="text-[10px] text-white font-bold truncate">{agentAiReport.ocrData.extractedId || 'Not Found'}</p>
                           </div>
                         </div>
                       )}
@@ -1738,7 +1839,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                           <span className="text-[9px] font-black uppercase tracking-[0.1em]">AI Assistant Report</span>
                         </div>
                         <div className="markdown-body prose prose-invert prose-xs max-w-none text-slate-300 text-xs leading-relaxed font-medium">
-                          <ReactMarkdown>{aiReport.analysis}</ReactMarkdown>
+                          <ReactMarkdown>{agentAiReport.analysis}</ReactMarkdown>
                         </div>
                         
                         {/* Interaction hint */}
@@ -1916,7 +2017,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
 
       {/* Fullscreen Preview */}
       <AnimatePresence>
-        {isFullscreen && selectedAgent && (
+        {isFullscreen && (selectedAgent || selectedListingForReview) && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1929,7 +2030,10 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 <div className="flex flex-col">
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Audit Scope</span>
                   <span className="text-slate-900 dark:text-white text-xs font-bold uppercase">
-                    {activeImageTab === 'id' ? `Identity Audit: ${selectedAgent.idType}` : 'Biometric Selfie Match'}
+                    {selectedAgent 
+                      ? (activeImageTab === 'id' ? `Identity Audit: ${selectedAgent.idType}` : 'Biometric Selfie Match')
+                      : `Listing Asset Audit: ${selectedListingForReview?.title}`
+                    }
                   </span>
                 </div>
                 <div className="h-8 w-px bg-slate-300 dark:bg-white/10" />
@@ -1965,20 +2069,40 @@ const Approvals: React.FC<ApprovalsProps> = () => {
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="flex p-1 bg-slate-200/50 dark:bg-white/5 border border-slate-300 dark:border-white/10">
-                  <button 
-                    onClick={() => setActiveImageTab('id')}
-                    className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all ${activeImageTab === 'id' ? 'bg-slate-900 text-white dark:bg-white dark:text-black shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
-                  >
-                    ID
-                  </button>
-                  <button 
-                    onClick={() => setActiveImageTab('selfie')}
-                    className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all ${activeImageTab === 'selfie' ? 'bg-slate-900 text-white dark:bg-white dark:text-black shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
-                  >
-                    Selfie
-                  </button>
-                </div>
+                {selectedAgent ? (
+                  <div className="flex p-1 bg-slate-200/50 dark:bg-white/5 border border-slate-300 dark:border-white/10">
+                    <button 
+                      onClick={() => setActiveImageTab('id')}
+                      className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all ${activeImageTab === 'id' ? 'bg-slate-900 text-white dark:bg-white dark:text-black shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
+                    >
+                      ID
+                    </button>
+                    <button 
+                      onClick={() => setActiveImageTab('selfie')}
+                      className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all ${activeImageTab === 'selfie' ? 'bg-slate-900 text-white dark:bg-white dark:text-black shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}
+                    >
+                      Selfie
+                    </button>
+                  </div>
+                ) : selectedListingForReview?.images && selectedListingForReview.images.length > 1 && (
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => setCurrentImageIndex(prev => (prev === 0 ? selectedListingForReview!.images!.length - 1 : prev - 1))}
+                      className="w-9 h-9 flex items-center justify-center bg-slate-200/50 hover:bg-slate-300/50 text-slate-700 dark:bg-white/5 dark:hover:bg-white/15 dark:text-white border border-slate-300 dark:border-white/10 transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                      {currentImageIndex + 1} / {selectedListingForReview.images.length}
+                    </span>
+                    <button 
+                      onClick={() => setCurrentImageIndex(prev => (prev === selectedListingForReview!.images!.length - 1 ? 0 : prev + 1))}
+                      className="w-9 h-9 flex items-center justify-center bg-slate-200/50 hover:bg-slate-300/50 text-slate-700 dark:bg-white/5 dark:hover:bg-white/15 dark:text-white border border-slate-300 dark:border-white/10 transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
                 <button 
                   onClick={() => {
                     setIsFullscreen(false);
@@ -2007,7 +2131,12 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 className={`relative shadow-[0_0_100px_rgba(0,0,0,0.8)] ${zoomLevel > 1 ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
               >
                 <img 
-                  src={activeImageTab === 'id' ? (selectedAgent as any).govtIdUrl : (selectedAgent as any).selfieUrl} 
+                  src={selectedAgent 
+                    ? (activeImageTab === 'id' ? (selectedAgent as any).govtIdUrl : (selectedAgent as any).selfieUrl)
+                    : (selectedListingForReview?.images && selectedListingForReview.images.length > 0 
+                        ? selectedListingForReview.images[currentImageIndex] 
+                        : selectedListingForReview?.image)
+                  } 
                   alt="Inspection Source" 
                   className="max-w-[80vw] max-h-[70vh] object-contain"
                   onDragStart={(e) => e.preventDefault()}
@@ -2022,15 +2151,30 @@ const Approvals: React.FC<ApprovalsProps> = () => {
 
             {/* Status Footer */}
             <div className="h-16 px-8 flex items-center justify-between bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-white/5">
-            <div className="flex gap-8">
-                 <div className="flex flex-col">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Document Status</span>
-                    <span className="text-emerald-600 dark:text-emerald-500 text-[10px] font-black uppercase tracking-widest">Source Verified</span>
-                 </div>
-                 <div className="flex flex-col">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Entry Audit ID</span>
-                    <span className="text-slate-900 dark:text-white text-[10px] font-mono tracking-widest">{selectedAgent.id.slice(-12).toUpperCase()}</span>
-                 </div>
+              <div className="flex gap-8">
+                {selectedAgent ? (
+                  <>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Document Status</span>
+                      <span className="text-emerald-600 dark:text-emerald-500 text-[10px] font-black uppercase tracking-widest">Source Verified</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Entry Audit ID</span>
+                      <span className="text-slate-900 dark:text-white text-[10px] font-mono tracking-widest">{selectedAgent.id.slice(-12).toUpperCase()}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Listing Asset</span>
+                      <span className="text-primary-600 dark:text-primary-500 text-[10px] font-black uppercase tracking-widest">Media Verification</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Property ID</span>
+                      <span className="text-slate-900 dark:text-white text-[10px] font-mono tracking-widest">{selectedListingForReview?.id?.toString().slice(-12).toUpperCase()}</span>
+                    </div>
+                  </>
+                )}
               </div>
               <p className="text-[10px] text-slate-500 font-medium">Use mouse drag to pan when zoomed. Audit view session is logged.</p>
             </div>

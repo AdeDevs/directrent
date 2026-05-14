@@ -45,7 +45,7 @@ interface UserManagementProps {
   onReview?: (user: User) => void;
 }
 
-const UserManagement: React.FC<UserManagementProps> = () => {
+const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'tenant' | 'agent'>('all');
@@ -986,6 +986,6 @@ const UserManagement: React.FC<UserManagementProps> = () => {
       </AnimatePresence>
     </div>
   );
-};
+});
 
 export default UserManagement;
