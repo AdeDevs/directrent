@@ -10,8 +10,27 @@ import fs from "fs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+// Safe config loading
+let firebaseConfig: any = {};
+try {
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  } else {
+    // Fallback values for basic operation if file is missing on Vercel
+    firebaseConfig = {
+      projectId: "gen-lang-client-0583982573",
+      firestoreDatabaseId: "ai-studio-ffc8f15f-494e-4acb-9dab-489a4a819320"
+    };
+  }
+} catch (err) {
+  console.error("Warning: Failed to load firebase-applet-config.json:", err);
+  // Last resort hardcoded fallbacks
+  firebaseConfig = firebaseConfig.projectId ? firebaseConfig : {
+    projectId: "gen-lang-client-0583982573",
+    firestoreDatabaseId: "ai-studio-ffc8f15f-494e-4acb-9dab-489a4a819320"
+  };
+}
 
 // Lazy init admin
 let adminApp: admin.app.App | null = null;
@@ -58,14 +77,28 @@ app.use(express.json({ limit: '10mb' }));
 app.get("/api/health", (req, res) => {
   try {
     const adminApp = getAdmin();
+    const files = fs.readdirSync(process.cwd());
     res.json({ 
       status: "healthy", 
       timestamp: new Date().toISOString(),
       projectId: adminApp.options.projectId,
-      env: process.env.VERCEL ? 'vercel' : 'ais'
+      env: {
+        vercel: !!process.env.VERCEL,
+        node: process.version,
+        cwd: process.cwd(),
+        files: files.slice(0, 10) // Only first 10 for brevity
+      },
+      configLoaded: !!firebaseConfig.projectId,
+      dbId: firebaseConfig.firestoreDatabaseId
     });
   } catch (err: any) {
-    res.status(500).json({ status: "unhealthy", error: err.message });
+    console.error("Health check failed:", err.message);
+    res.status(500).json({ 
+      status: "unhealthy", 
+      error: err.message,
+      env: process.env.VERCEL ? 'vercel' : 'ais',
+      stack: err.stack ? err.stack.split('\n')[0] : null
+    });
   }
 });
 
