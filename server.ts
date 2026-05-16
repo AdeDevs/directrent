@@ -49,24 +49,25 @@ function getDb() {
     : getFirestore(currentAdmin);
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+export const app = express();
 
-  app.use(express.json({ limit: '10mb' }));
+const PORT = 3000;
 
-  app.get("/api/health", (req, res) => {
-    try {
-      const adminApp = getAdmin();
-      res.json({ 
-        status: "healthy", 
-        timestamp: new Date().toISOString(),
-        projectId: adminApp.options.projectId
-      });
-    } catch (err: any) {
-      res.status(500).json({ status: "unhealthy", error: err.message });
-    }
-  });
+app.use(express.json({ limit: '10mb' }));
+
+app.get("/api/health", (req, res) => {
+  try {
+    const adminApp = getAdmin();
+    res.json({ 
+      status: "healthy", 
+      timestamp: new Date().toISOString(),
+      projectId: adminApp.options.projectId,
+      env: process.env.VERCEL ? 'vercel' : 'ais'
+    });
+  } catch (err: any) {
+    res.status(500).json({ status: "unhealthy", error: err.message });
+  }
+});
 
   app.get("/api/admin/debug-user/:userId", async (req, res) => {
     try {
@@ -169,7 +170,8 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
+// Vite/Static middleware setup
+async function configureApp() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -178,15 +180,27 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        const indexPath = path.join(distPath, "index.html");
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          res.status(404).send("Frontend build not found");
+        }
+      });
+    }
   }
+}
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+// Start if run directly or in AIS
+if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+  configureApp().then(() => {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
   });
 }
 
-startServer();
+export default app;
