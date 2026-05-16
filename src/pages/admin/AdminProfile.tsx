@@ -3,7 +3,8 @@ import { motion } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
 import { db, storage } from '../../lib/firebase';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { safeDeleteStorageFile } from '../../utils/storageCleanup';
 import { 
   Edit3,
   User, 
@@ -70,31 +71,15 @@ const AdminProfile = () => {
       // Handle Storage Upload if new file selected
       if (selectedFile) {
         // Cleanup old image if it was a storage URL
-        if (user.avatarUrl && user.avatarUrl.includes('firebasestorage.googleapis.com')) {
-          try {
-            const oldRef = ref(storage, user.avatarUrl);
-            await deleteObject(oldRef);
-          } catch (delErr: any) {
-            if (delErr.code !== 'storage/object-not-found') {
-              console.warn("Could not delete old admin avatar:", delErr);
-            }
-          }
-        }
+        await safeDeleteStorageFile(user.avatarUrl);
 
         const fileName = `avatars/admin_${user.id}_${Date.now()}.jpg`;
         const storageRef = ref(storage, fileName);
         const snapshot = await uploadBytes(storageRef, selectedFile);
         finalAvatarUrl = await getDownloadURL(snapshot.ref);
-      } else if (!formData.avatarUrl && user.avatarUrl && user.avatarUrl.includes('firebasestorage.googleapis.com')) {
+      } else if (!formData.avatarUrl && user.avatarUrl) {
         // Reset to default/Delete case
-        try {
-          const oldRef = ref(storage, user.avatarUrl);
-          await deleteObject(oldRef);
-        } catch (delErr: any) {
-          if (delErr.code !== 'storage/object-not-found') {
-            console.warn("Could not delete old admin avatar:", delErr);
-          }
-        }
+        await safeDeleteStorageFile(user.avatarUrl);
       }
 
       const userRef = doc(db, 'users', user.id);

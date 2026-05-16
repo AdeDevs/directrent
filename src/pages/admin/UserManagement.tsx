@@ -37,7 +37,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
-import { User } from '../../types';
+import { User, Verification } from '../../types';
 import DropdownPortal from '../../components/admin/DropdownPortal';
 import { purgeUserData } from '../../utils/adminCleanup';
 
@@ -45,8 +45,10 @@ interface UserManagementProps {
   onReview?: (user: User) => void;
 }
 
+type UserWithVerification = User & { verification?: Verification };
+
 const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<UserWithVerification[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'tenant' | 'agent'>('all');
   const [statusFilter, setStatusFilter] = useState('All Statuses');
@@ -61,6 +63,27 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
+  const getStatus = (user: UserWithVerification) => {
+    if ((user as any).isSuspended) return { text: 'SUSPENDED', color: 'text-rose-600', dot: 'bg-rose-500', bg: 'bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-800' };
+    
+    if (user.role === 'tenant') {
+      return user.phoneVerified 
+        ? { text: 'VERIFIED', color: 'text-emerald-600', dot: 'bg-emerald-500', bg: 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800' }
+        : { text: 'PENDING OTP', color: 'text-amber-600', dot: 'bg-amber-500', bg: 'bg-amber-50 border-amber-100 dark:bg-amber-900/20 dark:border-amber-800' };
+    }
+    
+    // Agent status
+    if (user.verificationStatus === 'verified') return { text: 'VERIFIED', color: 'text-emerald-600', dot: 'bg-emerald-500', bg: 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800' };
+    if (user.verificationStatus === 'pending') return { text: 'PENDING REVIEW', color: 'text-amber-600', dot: 'bg-amber-500', bg: 'bg-amber-50 border-amber-100 dark:bg-amber-900/20 dark:border-amber-800' };
+    
+    // Check for rejection (if status none, but there's a reason)
+    if (user.verificationStatus === 'none' && user.agent?.verificationReason) {
+      return { text: 'REJECTED', color: 'text-rose-600', dot: 'bg-rose-500', bg: 'bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-800' };
+    }
+    
+    return { text: 'NOT SUBMITTED', color: 'text-slate-500', dot: 'bg-slate-500', bg: 'bg-slate-50 border-slate-100 dark:bg-slate-800/20 dark:border-slate-800' };
+  };
+
   useEffect(() => {
     const fetchUsers = async () => {
       // Only fetch if we have an authenticated user in the Firebase SDK
@@ -72,15 +95,31 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
       setLoading(true);
       try {
         const usersRef = collection(db, 'users');
-        // Fetch all users without orderBy to ensure we don't miss those without createdAt field
-        const snapshot = await getDocs(usersRef);
-        const userData = snapshot.docs.map(doc => ({
+        const verificationsRef = collection(db, 'verifications');
+        
+        const [usersSnap, verificationsSnap] = await Promise.all([
+          getDocs(usersRef),
+          getDocs(verificationsRef)
+        ]);
+        
+        const userData = usersSnap.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         } as User));
+
+        const verificationsData = verificationsSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Verification));
+
+        // Join
+        const usersWithVerifications = userData.map(user => ({
+          ...user,
+          verification: verificationsData.find(v => v.userId === user.id)
+        }));
         
         // Sort in memory by joined date (recent first)
-        const sortedData = [...userData].sort((a, b) => {
+        const sortedData = [...usersWithVerifications].sort((a, b) => {
           const dateA = (a as any).createdAt?.toDate?.() || new Date(0);
           const dateB = (b as any).createdAt?.toDate?.() || new Date(0);
           return dateB - dateA;
@@ -424,23 +463,9 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className={`w-1.5 h-1.5 rounded-full ${
-                    (user as any).isSuspended ? 'bg-rose-500' :
-                    (user.role === 'tenant' ? user.phoneVerified : user.verificationStatus === 'verified') 
-                      ? 'bg-emerald-500' 
-                      : 'bg-amber-500'
-                  }`} />
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                    (user as any).isSuspended ? 'text-rose-600' :
-                    (user.role === 'tenant' ? user.phoneVerified : user.verificationStatus === 'verified')
-                      ? 'text-emerald-600' 
-                      : 'text-amber-600'
-                  }`}>
-                    {(user as any).isSuspended 
-                      ? 'SUSPENDED' 
-                      : (user.role === 'tenant' 
-                          ? (user.phoneVerified ? 'VERIFIED' : 'PENDING OTP') 
-                          : (user.verificationStatus === 'verified' ? 'VERIFIED' : 'PENDING REVIEW'))}
+                  <div className={`w-1.5 h-1.5 rounded-full ${getStatus(user).dot}`} />
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${getStatus(user).color}`}>
+                    {getStatus(user).text}
                   </span>
                 </div>
                 <button 
@@ -507,23 +532,9 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <div className={`w-1.5 h-1.5 rounded-full ${
-                        (user as any).isSuspended ? 'bg-rose-500' :
-                        (user.role === 'tenant' ? user.phoneVerified : user.verificationStatus === 'verified') 
-                          ? 'bg-emerald-500' 
-                          : 'bg-amber-500'
-                      }`} />
-                      <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                        (user as any).isSuspended ? 'text-rose-600' :
-                        (user.role === 'tenant' ? user.phoneVerified : user.verificationStatus === 'verified')
-                          ? 'text-emerald-600' 
-                          : 'text-amber-600'
-                      }`}>
-                        {(user as any).isSuspended 
-                          ? 'SUSPENDED' 
-                          : (user.role === 'tenant' 
-                              ? (user.phoneVerified ? 'VERIFIED' : 'PENDING OTP') 
-                              : (user.verificationStatus === 'verified' ? 'VERIFIED' : 'PENDING REVIEW'))}
+                      <div className={`w-1.5 h-1.5 rounded-full ${getStatus(user).dot}`} />
+                      <span className={`text-[10px] font-bold uppercase tracking-wider ${getStatus(user).color}`}>
+                        {getStatus(user).text}
                       </span>
                     </div>
                   </td>
@@ -732,23 +743,9 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                     </div>
                     
                     <div className="flex flex-wrap gap-2">
-                      <div className={`flex items-center gap-2 px-3 py-1 text-[10px] font-bold uppercase tracking-wider border ${
-                        (selectedUser as any).isSuspended ? 'bg-rose-50 border-rose-100 text-rose-600 dark:bg-rose-900/20 dark:border-rose-800' :
-                        (selectedUser.role === 'tenant' ? selectedUser.phoneVerified : selectedUser.verificationStatus === 'verified')
-                          ? 'bg-emerald-50 border-emerald-100 text-emerald-600 dark:bg-emerald-900/20 dark:border-emerald-800' 
-                          : 'bg-amber-50 border-amber-100 text-amber-600 dark:bg-amber-900/20 dark:border-amber-800'
-                      }`}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${
-                          (selectedUser as any).isSuspended ? 'bg-rose-500' :
-                          (selectedUser.role === 'tenant' ? selectedUser.phoneVerified : selectedUser.verificationStatus === 'verified')
-                            ? 'bg-emerald-500' 
-                            : 'bg-amber-500 animate-pulse'
-                        }`} />
-                        {(selectedUser as any).isSuspended 
-                          ? 'Suspended' 
-                          : (selectedUser.role === 'tenant' 
-                              ? (selectedUser.phoneVerified ? 'Verified Tenant' : 'Awaiting Phone-Verified') 
-                              : (selectedUser.verificationStatus === 'verified' ? 'Verified Agent' : 'Awaiting ID Review'))}
+                      <div className={`flex items-center gap-2 px-3 py-1 text-[10px] font-bold uppercase tracking-wider border ${getStatus(selectedUser as UserWithVerification).bg}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${getStatus(selectedUser as UserWithVerification).dot}`} />
+                        {getStatus(selectedUser as UserWithVerification).text}
                       </div>
                     </div>
                   </div>

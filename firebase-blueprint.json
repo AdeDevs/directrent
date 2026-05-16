@@ -199,6 +199,20 @@
       },
       "required": ["userId", "name", "idType", "status"]
     },
+    "ModeratorLog": {
+      "title": "Moderator Log",
+      "description": "Logs of actions taken by moderators.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "moderatorId": { "type": "string" },
+        "action": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["moderatorId", "action", "targetType", "targetId", "createdAt"]
+    },
     "Analytics": {
       "title": "Listing Awareness",
       "description": "Granular events for tracking listing performance.",
@@ -256,6 +270,10 @@
     "/notifications/{notifId}": {
       "schema": "Notification",
       "description": "User notifications."
+    },
+    "/moderatorLogs/{logId}": {
+      "schema": "ModeratorLog",
+      "description": "Logs of moderator actions."
     }
   }
 }

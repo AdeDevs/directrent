@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useEffect, useState, lazy, Suspense, useMemo } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { Listing } from './types';
@@ -65,21 +65,8 @@ const AppContent = () => {
   const { view, isLoading } = useAuth();
   const path = window.location.pathname;
 
-  if (isLoading) {
-    return <LoadingScreen message="Initializing DirectRent..." />;
-  }
-
-  // Priority: If path is listing detail, show it regardless of view state
-  if (path.startsWith('/listings/') && path.split('/').length >= 3) {
-    return (
-      <Suspense fallback={<LoadingScreen message="Loading property..." />}>
-        <ListingPreviewHandler />
-      </Suspense>
-    );
-  }
-
   // Handle views based on AuthContext state
-  const ViewComponent = () => {
+  const ViewComponent = useMemo(() => {
     switch (view) {
       case 'landing':
         return <Landing />;
@@ -94,11 +81,24 @@ const AppContent = () => {
       default:
         return <Landing />;
     }
-  };
+  }, [view]);
+
+  if (isLoading) {
+    return <LoadingScreen message="Initializing DirectRent..." />;
+  }
+
+  // Priority: If path is listing detail, show it regardless of view state
+  if (path.startsWith('/listings/') && path.split('/').length >= 3) {
+    return (
+      <Suspense fallback={<LoadingScreen message="Loading property..." />}>
+        <ListingPreviewHandler />
+      </Suspense>
+    );
+  }
 
   return (
     <Suspense fallback={<LoadingScreen message="Switching views..." />}>
-      <ViewComponent />
+      {ViewComponent}
     </Suspense>
   );
 };

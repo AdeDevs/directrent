@@ -1,6 +1,8 @@
 import { collection, getDocs, deleteDoc, doc, writeBatch, query, limit, updateDoc, where, getDoc } from 'firebase/firestore';
-import { ref, deleteObject } from 'firebase/storage';
-import { db, storage, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { getIdToken } from 'firebase/auth';
+import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { logModeratorAction } from '../lib/auditLogger';
+import { safeDeleteStorageFile } from './storageCleanup';
 
 export const purgeAllChats = async () => {
   try {
@@ -212,34 +214,21 @@ export const purgeListingData = async (listingId: string) => {
       }
 
       for (const imgUrl of imagesToDelete) {
-        if (imgUrl && typeof imgUrl === 'string' && imgUrl.includes('firebasestorage.googleapis.com')) {
-          try {
-            const imageRef = ref(storage, imgUrl);
-            await deleteObject(imageRef);
-          } catch (e: any) {
-            // Ignore if object doesn't exist anymore
-            if (e.code !== 'storage/object-not-found') {
-              console.warn(`Could not delete storage object: ${imgUrl}`, e.message);
-            }
-          }
-        }
+        await safeDeleteStorageFile(imgUrl);
       }
       
       // Purge listing video from storage
-      if (listing.videoUrl && listing.videoUrl.includes('firebasestorage.googleapis.com')) {
-        try {
-          const videoRef = ref(storage, listing.videoUrl);
-          await deleteObject(videoRef);
-        } catch (e: any) {
-          if (e.code !== 'storage/object-not-found') {
-            console.warn(`Could not delete storage object: ${listing.videoUrl}`, e.message);
-          }
-        }
+      if (listing.video) {
+        await safeDeleteStorageFile(listing.video);
+      }
+      if (listing.videoUrl) {
+        await safeDeleteStorageFile(listing.videoUrl);
       }
     }
     
     // Finally delete the document
     const { writeBatch, increment } = await import('firebase/firestore');
+    await logModeratorAction('delete', 'listing', listingId);
     const batch = writeBatch(db);
     batch.delete(listingRef);
     
@@ -299,15 +288,7 @@ export const purgeUserData = async (userId: string) => {
         ];
 
         for (const fileUrl of filesToClean) {
-          if (fileUrl && typeof fileUrl === 'string' && fileUrl.includes('firebasestorage.googleapis.com')) {
-            try { 
-              await deleteObject(ref(storage, fileUrl)); 
-            } catch (e: any) {
-              if (e.code !== 'storage/object-not-found') {
-                console.warn(`Could not delete verification file: ${fileUrl}`, e);
-              }
-            }
-          }
+          await safeDeleteStorageFile(fileUrl);
         }
         verificationsBatch.delete(vDoc.ref);
       }
@@ -320,15 +301,7 @@ export const purgeUserData = async (userId: string) => {
       userData?.selfieUrl
     ];
     for (const fileUrl of userFilesToClean) {
-      if (fileUrl && typeof fileUrl === 'string' && fileUrl.includes('firebasestorage.googleapis.com')) {
-        try { 
-          await deleteObject(ref(storage, fileUrl)); 
-        } catch (e: any) {
-          if (e.code !== 'storage/object-not-found') {
-            console.warn(`Could not delete user file: ${fileUrl}`, e);
-          }
-        }
-      }
+      await safeDeleteStorageFile(fileUrl);
     }
 
     // 4. Reviews (Tenant or Agent)
@@ -367,17 +340,34 @@ export const purgeUserData = async (userId: string) => {
     }
 
     // 7. Cleanup User Avatar from Storage
-    if (userData?.avatarUrl && userData.avatarUrl.includes('firebasestorage.googleapis.com')) {
-      try { 
-        await deleteObject(ref(storage, userData.avatarUrl)); 
-      } catch (e: any) {
-        if (e.code !== 'storage/object-not-found') {
-          console.warn(`Could not delete user avatar: ${userData.avatarUrl}`, e);
+    await safeDeleteStorageFile(userData?.avatarUrl);
+
+    // 8. Delete the user from Auth via backend
+    try {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        const token = await getIdToken(currentUser);
+        const response = await fetch(`/api/admin/users/${userId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.warn(`Auth deletion for user ${userId} returned ${response.status}: ${errorData.error}`);
+        } else {
+          console.log(`Successfully deleted auth record for user ${userId}`);
         }
       }
+    } catch (authErr) {
+      console.error("Failed to delete user from Auth:", authErr);
+      // We continue since we already cleaned up the data
     }
 
-    // 8. Delete the user profile document
+    // 9. Delete the user profile document
+    await logModeratorAction('delete', 'user', userId);
     await deleteDoc(doc(db, 'users', userId));
     return { success: true };
   } catch (error) {

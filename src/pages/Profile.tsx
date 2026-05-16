@@ -43,7 +43,8 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider
 } from "firebase/auth";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { safeDeleteStorageFile } from "../utils/storageCleanup";
 import { doc, updateDoc, deleteField, collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc } from "firebase/firestore";
 import { auth, storage, db } from "../lib/firebase";
 import { useAuth } from "../context/AuthContext";
@@ -220,14 +221,7 @@ const Profile = () => {
     try {
       await deleteDoc(doc(db, 'vault', docId));
       if (url.includes("firebasestorage")) {
-        const fileRef = ref(storage, url);
-        try {
-          await deleteObject(fileRef);
-        } catch (delErr: any) {
-          if (delErr.code !== 'storage/object-not-found') {
-            console.error("Delete doc storage cleanup failed:", delErr);
-          }
-        }
+        await safeDeleteStorageFile(url);
       }
     } catch (err) {
       console.error("Delete doc failed:", err);
@@ -257,16 +251,7 @@ const Profile = () => {
     setIsLoading(true);
     try {
       // Try to delete from Storage if it's a firebase storage URL
-      if (user.avatarUrl.includes("firebasestorage.googleapis.com")) {
-        try {
-          const photoRef = ref(storage, user.avatarUrl);
-          await deleteObject(photoRef);
-        } catch (storageErr: any) {
-          if (storageErr.code !== 'storage/object-not-found') {
-            console.error("Storage delete failed:", storageErr);
-          }
-        }
-      }
+      await safeDeleteStorageFile(user.avatarUrl);
       
       await updateProfile({ avatarUrl: deleteField() });
       setPreviewUrl(null);
@@ -550,17 +535,7 @@ const Profile = () => {
         console.log("Image selected, starting upload process...");
         
         // CLEANUP PREVIOUS IMAGE FROM STORAGE IF IT EXISTS
-        if (user.avatarUrl && user.avatarUrl.includes("firebasestorage.googleapis.com")) {
-          try {
-            console.log("Cleaning up previous profile image from storage...");
-            const oldPhotoRef = ref(storage, user.avatarUrl);
-            await deleteObject(oldPhotoRef);
-          } catch (delErr: any) {
-            if (delErr.code !== 'storage/object-not-found') {
-              console.warn("Could not delete old profile image:", delErr);
-            }
-          }
-        }
+        await safeDeleteStorageFile(user.avatarUrl);
         
         try {
           // Compress the image (using a slightly smaller size for even better reliability)

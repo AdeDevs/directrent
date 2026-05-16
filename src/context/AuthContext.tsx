@@ -39,6 +39,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const [user, setUser] = useState<User | null>(null);
+  const userRefForEffect = React.useRef<User | null>(null);
+  
+  useEffect(() => {
+    userRefForEffect.current = user;
+  }, [user]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   
@@ -110,21 +116,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeUserRef.current = onSnapshot(userRef, (docSnap) => {
           if (docSnap.exists()) {
             const userData = { ...docSnap.data(), id: firebaseUser.uid } as User;
-            setUser(userData);
             
             // Sync theme from user profile (only once per user session to avoid feedback loops)
-            if (userData.theme && themeSyncedFromProfile.current !== firebaseUser.uid) {
+            if (userData.theme && themeSyncedFromProfile.current !== firebaseUser.uid && userData.theme !== theme) {
               setTheme(userData.theme);
             }
             themeSyncedFromProfile.current = firebaseUser.uid;
+            lastFirestoreTheme.current = userData.theme || null;
             
-            // Redirect logic (only run once on login)
+            // Redirect logic (only run once on login or if role changes)
             const justLoggedIn = sessionStorage.getItem("just_logged_in") === "true";
             
+            // Check if redirect is necessary: only on login or role change
+            const roleChanged = userRefForEffect.current?.role !== userData.role;
+            const needsRedirect = justLoggedIn || roleChanged;
+            
             // If the user doc was just created locally, wait briefly until it syncs to server 
-            // before redirecting. Otherwise, backend rules will reject dashboard fetches.
-            // Safety: Only wait if it's very fresh (hasPendingWrites) and we AREN'T just logging in.
-            // If justLoggedIn is true, we want to proceed to the redirect logic ASAP.
             const isLocalOnly = docSnap.metadata.hasPendingWrites && !docSnap.metadata.fromCache;
             if (isLocalOnly && (userData.role === 'admin' || userData.role === 'moderator') && !justLoggedIn) {
               console.log("Admin profile has pending writes. Waiting for server sync...");
@@ -136,25 +143,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               sessionStorage.removeItem("just_logged_in");
               if (userData.role === 'admin' || userData.role === 'moderator') {
                 setView('admin');
-                return;
-              }
-              
-              const isVerified = userData.verificationStatus === 'verified' || userData.verificationLevel === 'verified';
-              if (isVerified || isProfileComplete(userData)) {
-                setActiveTab("home");
               } else {
-                setActiveTab("profile");
+                const isVerified = userData.verificationStatus === 'verified' || userData.verificationLevel === 'verified';
+                if (isVerified || isProfileComplete(userData)) {
+                  setActiveTab("home");
+                } else {
+                  setActiveTab("profile");
+                }
+                setView('app');
+              }
+            } else if (roleChanged) {
+              // Only switch to app view if we are on landing or auth pages
+              if (sessionStorage.getItem("sms_reset_flow") !== "active") {
+                if (userData.role === 'admin' || userData.role === 'moderator') {
+                  if (view === "landing" || view === "auth" || view === "admin-auth") {
+                    setView("admin");
+                  }
+                } else {
+                  if (view === "landing" || view === "auth") {
+                    setView("app");
+                  }
+                }
               }
             }
-            
-            // Only switch to app view if we are on landing or auth pages
-            if (sessionStorage.getItem("sms_reset_flow") !== "active") {
-              if (userData.role === 'admin' || userData.role === 'moderator') {
-                setView(prev => (prev === "landing" || prev === "auth" || prev === "admin-auth") ? "admin" : prev);
-              } else {
-                setView(prev => (prev === "landing" || prev === "auth") ? "app" : prev);
-              }
-            }
+            setUser(userData);
           } else {
             // Self-healing: If user is authenticated but missing a profile document
             // This happens if Firestore write failed during signup

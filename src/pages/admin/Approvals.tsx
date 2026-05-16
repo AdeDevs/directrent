@@ -43,6 +43,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { logModeratorAction } from '../../lib/auditLogger';
 import firebaseConfig from '../../../firebase-applet-config.json';
 import { Listing, Verification } from '../../types';
 import ReactMarkdown from 'react-markdown';
@@ -444,7 +445,12 @@ const Approvals: React.FC<ApprovalsProps> = () => {
     
     // Process verifications collection first (snapshots)
     agentsFromColl.forEach(a => {
-      if (a.userId) map.set(a.userId, a);
+      if (a.userId) {
+        const existing = map.get(a.userId);
+        if (!existing || (a.submittedAt?.seconds || 0) > (existing.submittedAt?.seconds || 0)) {
+          map.set(a.userId, a);
+        }
+      }
     });
     
     // Process user profile applications (live data)
@@ -624,6 +630,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   const handleApproveListing = async (id: string) => {
     setProcessingId(id);
     try {
+      await logModeratorAction('approve', 'listing', id);
       await updateDoc(doc(db, 'listings', id), {
         isApproved: true,
         status: 'active',
@@ -649,6 +656,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
     if (!window.confirm("Are you sure you want to REJECT this listing?")) return;
     setProcessingId(id);
     try {
+      await logModeratorAction('reject', 'listing', id, { reason: 'manual rejection' });
       await updateDoc(doc(db, 'listings', id), {
         isApproved: false,
         status: 'rejected',
@@ -673,6 +681,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   const handleApproveAgent = async (id: string, userId: string, isFromUsers?: boolean) => {
     setProcessingId(id);
     try {
+      await logModeratorAction('approve', 'agent', userId);
       if (!isFromUsers) {
         await updateDoc(doc(db, 'verifications', id), {
           status: 'approved',
@@ -707,6 +716,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   const handleRejectAgent = async (id: string, userId: string, reason: string, isFromUsers?: boolean) => {
     setProcessingId(id);
     try {
+      await logModeratorAction('reject', 'agent', userId, { reason: reason });
       if (!isFromUsers) {
         await updateDoc(doc(db, 'verifications', id), {
           status: 'rejected',
@@ -738,6 +748,19 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       console.error("Error rejecting agent:", err);
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handleResetVerification = async (userId: string) => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        verificationStatus: 'pending',
+        'agent.verificationReason': null,
+        updatedAt: serverTimestamp()
+      });
+      setSelectedAgent(null);
+    } catch (err) {
+      console.error("Error resetting verification:", err);
     }
   };
 
@@ -824,6 +847,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 Rejected Submissions
               </button>
             </div>
+
 
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
               <div className="relative w-full lg:w-64">
@@ -1288,7 +1312,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8 space-y-8">
+              <div className="flex-1 overflow-y-auto p-[15px] space-y-8">
                 {/* Property Media */}
                 <div className="aspect-video w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative group overflow-hidden">
                   <AnimatePresence mode="wait">
@@ -1366,7 +1390,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                    
                    <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Listing Description</h4>
-                     <div className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-slate-900 p-4 border border-slate-200 dark:border-slate-800">
+                     <div className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-slate-900 p-[10px] border border-slate-200 dark:border-slate-800">
                        {selectedListingForReview.description || 'No description provided by the agent.'}
                      </div>
                    </div>
@@ -1375,7 +1399,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 {/* AI Insights & Duplicates below */}
                 <div className="space-y-8">
                   {/* AI Insights Panel */}
-                  <div className="bg-slate-900 dark:bg-slate-900 border border-slate-800 p-6 relative overflow-hidden group">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-[15px] relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 via-purple-600 to-primary-600" />
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-3">
@@ -1383,7 +1407,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                           <BrainCircuit className="w-4 h-4 text-primary-400 animate-pulse" />
                         </div>
                         <div>
-                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Listing Authenticity Audit</h4>
+                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 dark:text-white">Listing Authenticity Audit</h4>
                           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Pricing & Quality Substrate Check</p>
                         </div>
                       </div>
@@ -1396,7 +1420,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                         <div className="flex items-center gap-3">
                            <div className="flex flex-col items-end">
                               <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Confidence</span>
-                              <span className="text-xs font-black text-white">
+                              <span className="text-xs font-black text-slate-900 dark:text-white">
                                 {listingAiReport.confidence === undefined ? 'N/A' : (listingAiReport.confidence <= 1 ? (listingAiReport.confidence * 100).toFixed(0) : Math.round(listingAiReport.confidence))}%
                               </span>
                            </div>
@@ -1422,24 +1446,24 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                         className="space-y-6"
                       >
                         <div className="grid grid-cols-3 gap-4">
-                           <div className="p-3 bg-slate-950 border border-slate-800">
+                           <div className="p-[10px] bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                              <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Pricing</p>
-                             <p className="text-[10px] font-bold text-white capitalize">{listingAiReport.assessment?.pricing?.replace('_', ' ') || 'N/A'}</p>
+                             <p className="text-[10px] font-bold text-slate-900 dark:text-white capitalize">{listingAiReport.assessment?.pricing?.replace('_', ' ') || 'N/A'}</p>
                            </div>
-                           <div className="p-3 bg-slate-950 border border-slate-800">
+                           <div className="p-[10px] bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                              <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Risk Level</p>
                              <p className={`text-[10px] font-bold capitalize ${
                                listingAiReport.assessment?.riskLevel === 'low' ? 'text-emerald-500' :
                                listingAiReport.assessment?.riskLevel === 'medium' ? 'text-amber-500' : 'text-rose-500'
                              }`}>{listingAiReport.assessment?.riskLevel || 'N/A'}</p>
                            </div>
-                           <div className="p-3 bg-slate-950 border border-slate-800">
+                           <div className="p-[10px] bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                              <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Image QC</p>
-                             <p className="text-[10px] font-bold text-white capitalize">{listingAiReport.assessment?.imageQuality || 'N/A'}</p>
+                             <p className="text-[10px] font-bold text-slate-900 dark:text-white capitalize">{listingAiReport.assessment?.imageQuality || 'N/A'}</p>
                            </div>
                         </div>
 
-                        <div className="markdown-body p-4 bg-slate-950/50 border border-slate-800 text-[11px] text-slate-300 leading-relaxed font-mono">
+                        <div className="markdown-body p-[15px] bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-mono">
                            <ReactMarkdown>{listingAiReport.analysis}</ReactMarkdown>
                         </div>
                       </motion.div>
@@ -1447,7 +1471,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                   </div>
 
                   {/* Duplicate Detection Pipeline */}
-                  <div className="bg-slate-950 border border-slate-800 p-6 relative overflow-hidden group">
+                  <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-[15px] relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-600 via-amber-600 to-rose-600" />
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-3">
@@ -1455,7 +1479,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                           <AlertTriangle className="w-4 h-4 text-rose-400" />
                         </div>
                         <div>
-                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Duplicate Detection Pipeline</h4>
+                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 dark:text-white">Duplicate Detection Pipeline</h4>
                           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Cross-Reference Neighborhood Context</p>
                         </div>
                       </div>
@@ -1493,8 +1517,8 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                         animate={{ opacity: 1 }}
                         className="space-y-6"
                       >
-                        <div className="p-4 bg-slate-900 border border-slate-800 text-[11px] text-slate-400 leading-relaxed font-mono">
-                           <p className="text-white mb-2 font-black uppercase text-[9px] tracking-widest">AI REASONING:</p>
+                        <div className="p-[10px] mb-[15px] bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed font-mono">
+                           <p className="text-slate-900 dark:text-white mb-2 font-black uppercase text-[9px] tracking-widest">AI REASONING:</p>
                            <ReactMarkdown>{duplicateReport.reasoning}</ReactMarkdown>
                         </div>
               
@@ -1505,14 +1529,14 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest text-center">New Submission</p>
-                                <div className="aspect-video bg-slate-900 border-2 border-emerald-500/30 overflow-hidden relative">
+                                <div className="aspect-video bg-slate-100 dark:bg-slate-900 border-2 border-emerald-500/30 overflow-hidden relative">
                                   <img src={selectedListingForReview.image} alt="" className="w-full h-full object-cover" />
                                   <div className="absolute top-2 left-2 bg-black/60 px-2 py-1 text-[8px] font-black text-white uppercase">New</div>
                                 </div>
                               </div>
                               <div className="space-y-2">
                                 <p className="text-[8px] font-black text-rose-500 uppercase tracking-widest text-center">Existing Listing</p>
-                                <div className="aspect-video bg-slate-900 border-2 border-rose-500/30 overflow-hidden relative">
+                                <div className="aspect-video bg-slate-100 dark:bg-slate-900 border-2 border-rose-500/30 overflow-hidden relative">
                                   {nearbyListings.find(l => String(l.id) === String(duplicateReport.matchedListingId))?.image ? (
                                     <img src={nearbyListings.find(l => String(l.id) === String(duplicateReport.matchedListingId))?.image} alt="" className="w-full h-full object-cover opacity-80" />
                                   ) : (
@@ -1522,8 +1546,8 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                                 </div>
                               </div>
                             </div>
-                            <div className="p-3 bg-rose-950/20 border border-rose-900/40 text-center">
-                              <p className="text-[10px] font-bold text-rose-400">Potential Duplicate Detected with Listing: <span className="text-white">{duplicateReport.matchedListingTitle || 'Unknown'}</span></p>
+                            <div className="p-3 bg-rose-100 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 text-center">
+                              <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400">Potential Duplicate Detected with Listing: <span className="text-slate-900 dark:text-white">{duplicateReport.matchedListingTitle || 'Unknown'}</span></p>
                             </div>
                           </div>
                         )}
@@ -1585,8 +1609,14 @@ const Approvals: React.FC<ApprovalsProps> = () => {
           >
             <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Verify Agent Identity</h2>
-                <p className="text-xs text-slate-500 mt-1">Cross-check profile information with the submitted government document.</p>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  {selectedAgent.status === 'rejected' ? 'Rejected Application Review' : 'Verify Agent Identity'}
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  {selectedAgent.status === 'rejected' 
+                    ? 'Reviewing the rejection details for this agent application.'
+                    : 'Cross-check profile information with the submitted government document.'}
+                </p>
               </div>
               <button 
                 onClick={() => { setSelectedAgent(null); setAgentAiReport(null); setAgentAiError(null); }}
@@ -1625,7 +1655,8 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 </div>
               </div>
 
-              {/* Document Review Section */}
+              {selectedAgent.status !== 'rejected' && (
+              /* Document Review Section */
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex bg-slate-100 dark:bg-slate-900 p-1 border border-slate-200 dark:border-slate-800">
@@ -1716,252 +1747,277 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                   </div>
                 </div>
                 <div className="flex items-center justify-center gap-4 py-2 border-y border-slate-100 dark:border-slate-800/50">
-                   <div className="flex items-center gap-2">
-                      <Eye className="w-3 h-3 text-slate-400" />
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Visual Inspection Required</span>
-                   </div>
+                    <div className="flex items-center gap-2">
+                       <Eye className="w-3 h-3 text-slate-400" />
+                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Visual Inspection Required</span>
+                    </div>
                 </div>
               </div>
+            )}
 
-              {/* AI Insights Panel */}
-              <div className="bg-slate-900 dark:bg-slate-900 border border-slate-800 p-6 relative overflow-hidden group">
-                {/* Hardware deco */}
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 via-purple-600 to-primary-600 animate-gradient-x" />
-                <div className="absolute top-0 left-4 w-px h-8 bg-slate-700" />
-                <div className="absolute top-0 right-4 w-px h-8 bg-slate-700" />
-                
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-primary-600/20 border border-primary-600/40 flex items-center justify-center">
-                      <BrainCircuit className="w-4 h-4 text-primary-400 animate-pulse" />
-                    </div>
-                    <div>
-                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Gemini AI Audit Intelligence</h4>
-                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Technical Substrate Analysis Active</p>
-                    </div>
-                  </div>
-                  {isAnalyzingAgent ? (
-                    <div className="flex items-center gap-2 px-3 py-1 bg-primary-500/10 border border-primary-500/20">
-                      <Loader2 className="w-3 h-3 text-primary-500 animate-spin" />
-                      <span className="text-[9px] font-black text-primary-500 uppercase tracking-[0.2em]">Processing Stream...</span>
-                    </div>
-                  ) : agentAiReport ? (
-                    <div className="flex items-center gap-3">
-                       <div className="flex flex-col items-end">
-                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Confidence Score</span>
-                          <span className="text-xs font-black text-white">
-                            {agentAiReport.confidence === undefined ? 'N/A' : (agentAiReport.confidence <= 1 ? (Math.round(agentAiReport.confidence * 100)) : Math.round(agentAiReport.confidence))}%
-                          </span>
-                       </div>
-                       <div className={`px-3 py-1 border flex items-center gap-2 ${
-                         agentAiReport.recommendation === 'approve' 
-                         ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
-                         : agentAiReport.recommendation === 'flag'
-                         ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
-                         : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
-                       }`}>
-                         <Sparkles className="w-3 h-3" />
-                         <span className="text-[9px] font-black uppercase tracking-widest">
-                           AI: {agentAiReport.recommendation}
-                         </span>
-                       </div>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="space-y-4">
-                  {isAnalyzingAgent ? (
-                    <div className="space-y-3">
-                      <div className="h-3 bg-slate-800 rounded animate-pulse w-3/4" />
-                      <div className="h-3 bg-slate-800 rounded animate-pulse w-1/2" />
-                      <div className="h-3 bg-slate-800 rounded animate-pulse w-2/3" />
-                    </div>
-                  ) : agentAiError === 'CORS_ERROR' ? (
-                    <div className="p-4 bg-rose-500/10 border border-slate-700 space-y-3">
-                      <div className="flex items-start gap-3">
-                        <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+              {/* AI Insights & Checklist - Only for non-rejected */}
+              {selectedAgent.status !== 'rejected' && (
+                <>
+                  {/* AI Insights Panel */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 relative overflow-hidden group">
+                    {/* Hardware deco */}
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 via-purple-600 to-primary-600 animate-gradient-x" />
+                    <div className="absolute top-0 left-4 w-px h-8 bg-slate-200 dark:bg-slate-700" />
+                    <div className="absolute top-0 right-4 w-px h-8 bg-slate-200 dark:bg-slate-700" />
+                    
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-primary-600/20 border border-primary-600/40 flex items-center justify-center">
+                          <BrainCircuit className="w-4 h-4 text-primary-600 dark:text-primary-400 animate-pulse" />
+                        </div>
                         <div>
-                          <p className="text-[11px] font-black text-white uppercase tracking-widest">Storage Access Denied (CORS)</p>
-                          <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
-                            The browser cannot access these images for analysis because your Firebase Storage bucket is locked. 
-                            AI OCR and Biometric checks require CORS to be enabled.
-                          </p>
+                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 dark:text-white">Gemini AI Audit Intelligence</h4>
+                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Technical Substrate Analysis Active</p>
                         </div>
                       </div>
-                      <div className="bg-slate-950 p-3 rounded border border-slate-800">
-                        <p className="text-[9px] font-black text-primary-400 uppercase mb-2">Technical Action Required:</p>
-                        <p className="text-[9px] text-slate-500 mb-2">1. Create a <code className="text-white">cors.json</code> file with:</p>
-                        <pre className="text-[8px] bg-slate-900 p-2 border border-slate-800 text-slate-400 mb-2">
-                          {`[\n  {\n    "origin": ["*"],\n    "method": ["GET"],\n    "maxAgeSeconds": 3600\n  }\n]`}
-                        </pre>
-                        <p className="text-[9px] text-slate-500 mb-1">2. Run this command in your terminal:</p>
-                        <code className="text-[9px] text-emerald-400 block break-all font-mono p-2 bg-slate-900 border border-slate-800">
-                          gsutil cors set cors.json gs://{STORAGE_BUCKET}
-                        </code>
-                        <a 
-                          href="https://firebase.google.com/docs/storage/web/download-files#cors_configuration" 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="inline-block mt-3 text-[9px] font-bold text-primary-500 hover:underline"
+                      {isAnalyzingAgent ? (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-primary-500/10 border border-primary-500/20">
+                          <Loader2 className="w-3 h-3 text-primary-600 dark:text-primary-500 animate-spin" />
+                          <span className="text-[9px] font-black text-primary-600 dark:text-primary-500 uppercase tracking-[0.2em]">Processing Stream...</span>
+                        </div>
+                      ) : agentAiReport ? (
+                        <div className="flex items-center gap-3">
+                           <div className="flex flex-col items-end">
+                              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Confidence Score</span>
+                              <span className="text-xs font-black text-slate-900 dark:text-white">
+                                {agentAiReport.confidence === undefined ? 'N/A' : (agentAiReport.confidence <= 1 ? (Math.round(agentAiReport.confidence * 100)) : Math.round(agentAiReport.confidence))}%
+                              </span>
+                           </div>
+                           <div className={`px-3 py-1 border flex items-center gap-2 ${
+                             agentAiReport.recommendation === 'approve' 
+                             ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500' 
+                             : agentAiReport.recommendation === 'flag'
+                             ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-500'
+                             : 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-500'
+                           }`}>
+                             <Sparkles className="w-3 h-3" />
+                             <span className="text-[9px] font-black uppercase tracking-widest">
+                               AI: {agentAiReport.recommendation}
+                             </span>
+                           </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="space-y-4">
+                      {isAnalyzingAgent ? (
+                        <div className="space-y-3">
+                          <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded animate-pulse w-3/4" />
+                          <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded animate-pulse w-1/2" />
+                          <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded animate-pulse w-2/3" />
+                        </div>
+                      ) : agentAiError === 'CORS_ERROR' ? (
+                        <div className="p-4 bg-rose-50 border border-slate-200 dark:border-slate-700 space-y-3">
+                          <div className="flex items-start gap-3">
+                            <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-500 shrink-0" />
+                            <div>
+                              <p className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Storage Access Denied (CORS)</p>
+                              <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                                The browser cannot access these images for analysis because your Firebase Storage bucket is locked. 
+                                AI OCR and Biometric checks require CORS to be enabled.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="bg-white dark:bg-slate-950 p-3 rounded border border-slate-200 dark:border-slate-800">
+                            <p className="text-[9px] font-black text-primary-700 dark:text-primary-400 uppercase mb-2">Technical Action Required:</p>
+                            <p className="text-[9px] text-slate-600 dark:text-slate-500 mb-2">1. Create a <code className="text-slate-900 dark:text-white">cors.json</code> file with:</p>
+                            <pre className="text-[8px] bg-slate-100 dark:bg-slate-900 p-2 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 mb-2">
+                              {`[\n  {\n    "origin": ["*"],\n    "method": ["GET"],\n    "maxAgeSeconds": 3600\n  }\n]`}
+                            </pre>
+                            <p className="text-[9px] text-slate-600 dark:text-slate-500 mb-1">2. Run this command in your terminal:</p>
+                            <code className="text-[9px] text-emerald-700 dark:text-emerald-400 block break-all font-mono p-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                              gsutil cors set cors.json gs://{STORAGE_BUCKET}
+                            </code>
+                            <a 
+                              href="https://firebase.google.com/docs/storage/web/download-files#cors_configuration" 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="inline-block mt-3 text-[9px] font-bold text-primary-700 dark:text-primary-500 hover:underline"
+                            >
+                              Official Integration Guide →
+                            </a>
+                          </div>
+                          <p className="text-[9px] text-slate-500 italic">Manual verification is recommended until CORS is configured.</p>
+                        </div>
+                      ) : agentAiError ? (
+                        <div className="p-4 bg-rose-50 dark:bg-rose-950/10 border border-rose-200 dark:border-rose-900/20 flex items-start gap-3">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-500 shrink-0" />
+                          <p className="text-[11px] font-medium text-rose-700 dark:text-rose-400">{agentAiError}</p>
+                        </div>
+                      ) : agentAiReport ? (
+                        <motion.div 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="space-y-4"
                         >
-                          Official Integration Guide →
-                        </a>
-                      </div>
-                      <p className="text-[9px] text-slate-500 italic">Manual verification is recommended until CORS is configured.</p>
-                    </div>
-                  ) : agentAiError ? (
-                    <div className="p-4 bg-rose-500/10 border border-rose-500/20 flex items-start gap-3">
-                      <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-                      <p className="text-[11px] font-medium text-rose-400">{agentAiError}</p>
-                    </div>
-                  ) : agentAiReport ? (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="space-y-4"
-                    >
-                      {agentAiReport.ocrData && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="bg-slate-800/80 p-2 border border-slate-700/50">
-                            <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">OCR Name</p>
-                            <p className="text-[10px] text-white font-bold truncate">{agentAiReport.ocrData.extractedName || 'Not Found'}</p>
+                          {agentAiReport.ocrData && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="bg-slate-100 dark:bg-slate-800/80 p-2 border border-slate-200 dark:border-slate-700/50">
+                                <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">OCR Name</p>
+                                <p className="text-[10px] text-slate-900 dark:text-white font-bold truncate">{agentAiReport.ocrData.extractedName || 'Not Found'}</p>
+                              </div>
+                              <div className="bg-slate-100 dark:bg-slate-800/80 p-2 border border-slate-200 dark:border-slate-700/50">
+                                <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">OCR ID Number</p>
+                                <p className="text-[10px] text-slate-900 dark:text-white font-bold truncate">{agentAiReport.ocrData.extractedId || 'Not Found'}</p>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="bg-slate-100 dark:bg-slate-800/50 rounded-lg p-5 border border-slate-200 dark:border-slate-700/50">
+                            <div className="flex items-center gap-2 mb-3 text-slate-500 dark:text-slate-400">
+                              <MessageSquareQuote className="w-3 h-3" />
+                              <span className="text-[9px] font-black uppercase tracking-[0.1em]">AI Assistant Report</span>
+                            </div>
+                            <div className="prose prose-slate dark:prose-invert prose-xs max-w-none text-slate-700 dark:text-slate-300 text-xs leading-relaxed font-medium">
+                              <ReactMarkdown>{agentAiReport.analysis}</ReactMarkdown>
+                            </div>
+                            
+                            {/* Interaction hint */}
+                            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700/50 flex items-center gap-2">
+                              <Info className="w-3 h-3 text-slate-500" />
+                              <p className="text-[9px] text-slate-500 italic">This analysis is an aid. Final verification authority resides with the human moderator.</p>
+                            </div>
                           </div>
-                          <div className="bg-slate-800/80 p-2 border border-slate-700/50">
-                            <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">OCR ID Number</p>
-                            <p className="text-[10px] text-white font-bold truncate">{agentAiReport.ocrData.extractedId || 'Not Found'}</p>
-                          </div>
-                        </div>
+                        </motion.div>
+                      ) : (
+                        <button 
+                          onClick={() => generateAIAnalysis(selectedAgent)}
+                          className="w-full py-4 border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-primary-600 transition-colors flex flex-col items-center justify-center gap-2 group"
+                        >
+                          <Sparkles className="w-5 h-5 text-slate-400 group-hover:text-primary-600 transition-colors" />
+                          <span className="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">Execute AI Audit Protocol</span>
+                        </button>
                       )}
-
-                      <div className="bg-slate-800/50 rounded-lg p-5 border border-slate-700/50">
-                        <div className="flex items-center gap-2 mb-3 text-slate-400">
-                          <MessageSquareQuote className="w-3 h-3" />
-                          <span className="text-[9px] font-black uppercase tracking-[0.1em]">AI Assistant Report</span>
-                        </div>
-                        <div className="markdown-body prose prose-invert prose-xs max-w-none text-slate-300 text-xs leading-relaxed font-medium">
-                          <ReactMarkdown>{agentAiReport.analysis}</ReactMarkdown>
-                        </div>
-                        
-                        {/* Interaction hint */}
-                        <div className="mt-4 pt-4 border-t border-slate-700/50 flex items-center gap-2">
-                          <Info className="w-3 h-3 text-slate-500" />
-                          <p className="text-[9px] text-slate-500 italic">This analysis is an aid. Final verification authority resides with the human moderator.</p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <button 
-                      onClick={() => generateAIAnalysis(selectedAgent)}
-                      className="w-full py-4 border-2 border-dashed border-slate-800 hover:border-primary-600 transition-colors flex flex-col items-center justify-center gap-2 group"
-                    >
-                      <Sparkles className="w-5 h-5 text-slate-700 group-hover:text-primary-600 transition-colors" />
-                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Execute AI Audit Protocol</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Checklist */}
-              <div className="bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6">
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4">Verification Checklist</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    "Photo matches profile image",
-                    "ID details match account",
-                    "Document is valid/not expired",
-                    "No signs of tampering"
-                  ].map((item, i) => (
-                    <button 
-                      key={i} 
-                      onClick={() => setChecklist(prev => ({ ...prev, [item]: !prev[item] }))}
-                      className="flex items-start gap-3 group text-left"
-                    >
-                      <div className={`w-4 h-4 mt-0.5 border flex items-center justify-center shrink-0 transition-all ${
-                        checklist[item] 
-                        ? 'bg-emerald-500 border-emerald-500' 
-                        : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 group-hover:border-slate-400'
-                      }`}>
-                         {checklist[item] && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                      <span className={`text-[11px] font-medium transition-colors ${
-                        checklist[item] ? 'text-emerald-600' : 'text-slate-600 dark:text-slate-400'
-                      }`}>
-                        {item}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-8 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col gap-4">
-              {showRejectionReason ? (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-4"
-                >
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Reason for Rejection</label>
-                    <textarea 
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder="Explain to the agent why their verification was declined. Mention specific document issues..."
-                      className="w-full h-32 bg-white dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 p-4 text-sm resize-none focus:border-rose-500 transition-colors"
-                    />
+                    </div>
                   </div>
-                  <div className="flex gap-4">
-                    <button 
-                      onClick={() => setShowRejectionReason(false)}
-                      className="flex-1 h-12 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
-                    >
-                      Back
-                    </button>
-                    <button 
-                      onClick={() => {
-                        if (!rejectionReason.trim()) return alert("Please provide a reason.");
-                        handleRejectAgent(selectedAgent.id, (selectedAgent as any).userId, rejectionReason, (selectedAgent as any).isFromUsers);
-                        setSelectedAgent(null);
-                        setChecklist({});
-                        setShowRejectionReason(false);
-                        setRejectionReason('');
-                      }}
-                      className="flex-[2] h-12 bg-rose-600 text-white text-xs font-black uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
-                    >
-                      Process Final Rejection
-                    </button>
+                  {/* Checklist */}
+                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6">
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4">Verification Checklist</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        "Photo matches profile image",
+                        "ID details match account",
+                        "Document is valid/not expired",
+                        "No signs of tampering"
+                      ].map((item, i) => (
+                        <button 
+                          key={i} 
+                          onClick={() => setChecklist(prev => ({ ...prev, [item]: !prev[item] }))}
+                          className="flex items-start gap-3 group text-left"
+                        >
+                          <div className={`w-4 h-4 mt-0.5 border flex items-center justify-center shrink-0 transition-all ${
+                            checklist[item] 
+                            ? 'bg-emerald-500 border-emerald-500' 
+                            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 group-hover:border-slate-400'
+                          }`}>
+                            {checklist[item] && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                          <span className={`text-[11px] font-medium transition-colors ${
+                            checklist[item] ? 'text-emerald-600' : 'text-slate-600 dark:text-slate-400'
+                          }`}>
+                            {item}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </motion.div>
-              ) : (
-                <div className="flex gap-4">
-                  <button 
-                    onClick={() => setShowRejectionReason(true)}
-                    className="flex-1 h-12 bg-white dark:bg-slate-800 border-2 border-rose-100 dark:border-rose-900/30 text-rose-600 text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-all flex items-center justify-center gap-2 px-4"
-                  >
-                    <X className="w-5 h-5 sm:w-4 sm:h-4" />
-                    <span className="hidden sm:inline text-center">Reject Identity</span>
-                  </button>
-                  <button 
-                    onClick={() => {
-                      handleApproveAgent(selectedAgent.id, (selectedAgent as any).userId, (selectedAgent as any).isFromUsers);
-                      setSelectedAgent(null);
-                      setChecklist({});
-                    }}
-                    disabled={Object.values(checklist).filter(v => v).length < 4}
-                    className={`flex-[2] h-12 text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 px-4 ${
-                      Object.values(checklist).filter(v => v).length < 4
-                      ? 'bg-slate-400 cursor-not-allowed grayscale'
-                      : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
-                    }`}
-                  >
-                    <Check className="w-5 h-5 sm:w-4 sm:h-4" />
-                    <span className="hidden sm:inline text-center lowercase">
-                      {Object.values(checklist).filter(v => v).length < 4 ? `Complete Checklist (${Object.values(checklist).filter(v => v).length}/4)` : 'Confirm & Verify Agent'}
-                    </span>
-                  </button>
+                </>
+              )}
+
+              {/* Rejected Reason Display - Only for rejected */}
+              {selectedAgent.status === 'rejected' && selectedAgent.rejectionReason && (
+                <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 p-6 space-y-2">
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-600 dark:text-rose-400">Rejection Reason</h4>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 italic">"{selectedAgent.rejectionReason}"</p>
                 </div>
               )}
             </div>
+
+            {/* Actions Footer - Minimal for rejected */}
+            {selectedAgent.status === 'rejected' ? (
+              <div className="p-8 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                  <button 
+                    onClick={() => setSelectedAgent(null)}
+                    className="w-full h-12 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-black uppercase tracking-widest hover:bg-slate-800 dark:hover:bg-slate-200 transition-all flex items-center justify-center"
+                  >
+                    Close Review
+                  </button>
+              </div>
+            ) : (
+              <div className="p-8 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col gap-4">
+                {showRejectionReason ? (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Reason for Rejection</label>
+                      <textarea 
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value)}
+                        placeholder="Explain to the agent why their verification was declined. Mention specific document issues..."
+                        className="w-full h-32 bg-white dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 p-4 text-sm resize-none focus:border-rose-500 transition-colors"
+                      />
+                    </div>
+                    <div className="flex gap-4">
+                      <button 
+                        onClick={() => setShowRejectionReason(false)}
+                        className="flex-1 h-12 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                      >
+                        Back
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (!rejectionReason.trim()) return alert("Please provide a reason.");
+                          handleRejectAgent(selectedAgent.id, (selectedAgent as any).userId, rejectionReason, (selectedAgent as any).isFromUsers);
+                          setSelectedAgent(null);
+                          setChecklist({});
+                          setShowRejectionReason(false);
+                          setRejectionReason('');
+                        }}
+                        className="flex-[2] h-12 bg-rose-600 text-white text-xs font-black uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
+                      >
+                        Process Final Rejection
+                      </button>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => setShowRejectionReason(true)}
+                      className="flex-1 h-12 bg-white dark:bg-slate-800 border-2 border-rose-100 dark:border-rose-900/30 text-rose-600 text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-all flex items-center justify-center gap-2 px-4"
+                    >
+                      <X className="w-5 h-5 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline text-center">Reject Identity</span>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        handleApproveAgent(selectedAgent.id, (selectedAgent as any).userId, (selectedAgent as any).isFromUsers);
+                        setSelectedAgent(null);
+                        setChecklist({});
+                      }}
+                      disabled={Object.values(checklist).filter(v => v).length < 4}
+                      className={`flex-[2] h-12 text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 px-4 ${
+                        Object.values(checklist).filter(v => v).length < 4
+                        ? 'bg-slate-400 cursor-not-allowed grayscale'
+                        : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
+                      }`}
+                    >
+                      <Check className="w-5 h-5 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline text-center lowercase">
+                        {Object.values(checklist).filter(v => v).length < 4 ? `Complete Checklist (${Object.values(checklist).filter(v => v).length}/4)` : 'Confirm & Verify Agent'}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </motion.div>
         </div>
       )}

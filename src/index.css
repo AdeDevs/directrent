@@ -63,7 +63,7 @@ div[style*="fixed"] > div[style*="z-index"][style*="2000000000"] {
 }
 
 .markdown-body h1, .markdown-body h2, .markdown-body h3 {
-  @apply font-bold text-white mt-4 mb-2;
+  @apply font-bold text-slate-900 dark:text-white mt-4 mb-2;
 }
 
 .markdown-body ul, .markdown-body ol {

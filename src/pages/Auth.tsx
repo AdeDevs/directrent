@@ -63,7 +63,6 @@ const Auth = () => {
   }, [isResetMode]);
   const [formData, setFormData] = useState({
     firstName: '',
-    middleName: '',
     lastName: '',
     email: '',
     phoneNumber: '',
@@ -92,7 +91,7 @@ const Auth = () => {
     
     if (name === 'nin') {
       value = value.replace(/\D/g, ''); 
-    } else if (name === 'firstName' || name === 'lastName' || name === 'middleName') {
+    } else if (name === 'firstName' || name === 'lastName') {
       value = value.replace(/[^a-zA-Z\s]/g, '');
       value = capitalize(value);
     } else if (name === 'phoneNumber') {
@@ -155,54 +154,54 @@ const Auth = () => {
     const ninRegex = /^\d{11}$/;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+    // Common checks
     if (!formData.email) {
       newErrors.email = 'Email is required';
     } else if (!emailRegex.test(formData.email)) {
       newErrors.email = 'Invalid email address';
     }
 
-    if (!formData.password) newErrors.password = 'Password is required';
-
     if (authMode === 'signup') {
-      if (!formData.firstName) newErrors.firstName = 'First name is required';
-      if (!formData.lastName) newErrors.lastName = 'Last name is required';
-      if (!formData.city) newErrors.city = 'Please select a city';
-      if (!formData.dob) newErrors.dob = 'Birthday is required';
-      
-      if (!formData.phoneNumber) {
-        newErrors.phoneNumber = 'Phone number is required';
-      } else if (formData.phoneNumber.length < 10) {
-        newErrors.phoneNumber = 'Invalid phone number';
-      } else if (!phoneVerified) {
-        newErrors.phoneNumber = 'Please verify your phone number first';
-      }
-      
-      if (!formData.nin) {
-        newErrors.nin = 'NIN is required';
-      } else if (!ninRegex.test(formData.nin)) {
-        newErrors.nin = 'NIN must be 11 digits';
-      }
-
-      if (formData.password) {
-        if (formData.password.length < 7) {
-          newErrors.password = 'Min 7 characters';
-        } else if (!uppercaseRegex.test(formData.password)) {
-          newErrors.password = 'Need one uppercase letter';
-        } else if (!specialCharRegex.test(formData.password)) {
-          newErrors.password = 'Need one special character';
+      if (signupStep === 1) {
+        if (!formData.firstName) newErrors.firstName = 'First name is required';
+        if (!formData.lastName) newErrors.lastName = 'Last name is required';
+        if (!formData.password) newErrors.password = 'Password is required';
+        else if (formData.password.length < 7) newErrors.password = 'Min 7 characters';
+        else if (!uppercaseRegex.test(formData.password)) newErrors.password = 'Need one uppercase letter';
+        else if (!specialCharRegex.test(formData.password)) newErrors.password = 'Need one special character';
+        
+        if (formData.password !== formData.confirmPassword) {
+          newErrors.confirmPassword = 'Passwords do not match';
         }
       }
 
-      if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = 'Passwords do not match';
+      if (signupStep === 2) {
+        if (!formData.city) newErrors.city = 'Please select a city';
+        if (!formData.dob) newErrors.dob = 'Birthday is required';
+        
+        if (!formData.phoneNumber) {
+          newErrors.phoneNumber = 'Phone number is required';
+        } else if (formData.phoneNumber.length < 10) {
+          newErrors.phoneNumber = 'Invalid phone number';
+        } else if (!phoneVerified) {
+          newErrors.phoneNumber = 'Please verify your phone number first';
+        }
+        
+        if (!formData.nin) {
+          newErrors.nin = 'NIN is required';
+        } else if (!ninRegex.test(formData.nin)) {
+          newErrors.nin = 'NIN must be 11 digits';
+        }
       }
+    } else if (authMode === 'login') {
+      if (!formData.password) newErrors.password = 'Password is required';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const isFormValid = () => {
+  const isFormValid = (ignoreVerification = false) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const ninRegex = /^\d{11}$/;
     const uppercaseRegex = /[A-Z]/;
@@ -230,7 +229,7 @@ const Auth = () => {
       formData.city && 
       formData.dob && 
       formData.phoneNumber && formData.phoneNumber.length >= 10 &&
-      phoneVerified &&
+      (ignoreVerification || phoneVerified) &&
       formData.nin && ninRegex.test(formData.nin) &&
       passwordValid &&
       formData.password === formData.confirmPassword
@@ -245,7 +244,9 @@ const Auth = () => {
        ? (formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) 
        : (smsStep === 'phone' ? (resetPhone && resetPhone.length >= 10) : (smsStep === 'otp' ? isSmsOtpReady : isSmsNewPwdReady))
       )
-    : isFormValid();
+    : (authMode === 'signup' && signupStep === 2 
+        ? (formData.phoneNumber?.length >= 10 && formData.nin?.length === 11 && formData.city && formData.dob)
+        : isFormValid());
 
   const handleSmsOtpVerify = async () => {
     if (!confirmationObj || !otpCode) return;
@@ -299,21 +300,23 @@ const Auth = () => {
       if (window.recaptchaVerifier) {
         try {
           window.recaptchaVerifier.clear();
-        } catch (e) {}
+        } catch (e) {
+          console.warn("Error clearing existing reCAPTCHA:", e);
+        }
+        window.recaptchaVerifier = null;
       }
 
       // Small delay to ensure DOM element is ready
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {}
-      }
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Use normal reCAPTCHA for better reliability on dynamic domains/iframes
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container-signup', {
-        size: 'normal',
+      const container = document.getElementById('recaptcha-container-signup');
+      if (!container) {
+        throw new Error("Phone verification container not ready. Please try again.");
+      }
+
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, container, {
+        size: 'invisible',
         callback: () => {
           // reCAPTCHA solved
         },
@@ -359,16 +362,61 @@ const Auth = () => {
   const verifySignupOTP = async () => {
     if (!confirmationObj || !otpCode) return;
     setIsLoading(true);
+    setErrors({});
     try {
       await confirmationObj.confirm(otpCode);
+      
+      // Success: Clear OTP UI and mark as verified
       setPhoneVerified(true);
       setIsPhoneVerifying(false);
       setOtpCode('');
-      setErrors({});
+      
+      // Clear errors immediately
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next.phoneNumber;
+        delete next.form;
+        return next;
+      });
+
+      // Cleanup reCAPTCHA
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
+        window.recaptchaVerifier = null;
+      }
+      
+      console.log("Phone verified successfully");
+      
+      // Automatically attempt to finalize registration now that we are verified
+      setTimeout(() => {
+        const form = document.querySelector('form');
+        if (form) {
+          form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        }
+      }, 100);
     } catch (err: any) {
-      setErrors({ form: 'Invalid verification code.' });
+      console.error("OTP Verification Error:", err);
+      setErrors({ form: 'Invalid or expired verification code.' });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const checkUserExists = async (fields: Record<string, string>) => {
+    const params = new URLSearchParams();
+    if (fields.email) params.append('email', fields.email);
+    if (fields.nin) params.append('nin', fields.nin);
+    if (fields.phoneNumber) params.append('phoneNumber', `+234${fields.phoneNumber.replace(/^0/, '')}`);
+    
+    try {
+      const response = await fetch(`/api/users/exists?${params.toString()}`);
+      const data = await response.json();
+      return data.exists;
+    } catch (error) {
+      console.error("Error checking duplicates:", error);
+      return false; // Fail open slightly, or should I fail hard?
     }
   };
 
@@ -381,17 +429,44 @@ const Auth = () => {
     if (authMode === 'signup') {
       if (signupStep === 1) {
         if (isFormValid()) {
+          setIsLoading(true);
+          // Check email
+          const exists = await checkUserExists({ email: formData.email });
+          setIsLoading(false);
+          if (exists) {
+            setErrors({ email: 'Email already registered', form: 'Email already registered' });
+            return;
+          }
           setSignupStep(2);
         } else {
-          validate(); // Trigger error messages
+          validate();
         }
         return;
       }
 
-      if (!phoneVerified && formData.phoneNumber) {
+      if (signupStep === 2) {
+        // If we are currently in verification mode, the main button should verify the OTP
         if (isPhoneVerifying) {
           return verifySignupOTP();
         }
+
+        // Before proceeding to OTP/Signup, check for NIN/Phone duplicates
+        if (isFormValid(true)) {
+           setIsLoading(true);
+           const exists = await checkUserExists({ nin: formData.nin, phoneNumber: formData.phoneNumber });
+           setIsLoading(false);
+           if (exists) {
+              const errorMsg = 'NIN or Phone number already registered';
+              setErrors({ nin: errorMsg, phoneNumber: errorMsg, form: errorMsg });
+              return;
+           }
+        } else {
+           validate();
+           return;
+        }
+      }
+
+      if (!phoneVerified && formData.phoneNumber && !isPhoneVerifying) {
         return sendSignupOTP();
       }
     }
@@ -526,12 +601,40 @@ const Auth = () => {
       return;
     }
 
+    if (!isResetMode && authMode === 'signup' && signupStep === 2) {
+       if (isPhoneVerifying) {
+         return verifySignupOTP();
+       }
+       if (!phoneVerified && formData.phoneNumber && !isPhoneVerifying) {
+         return sendSignupOTP();
+       }
+    }
+
     if (validate()) {
       setIsLoading(true);
       sessionStorage.setItem('just_logged_in', 'true');
       
       try {
         if (authMode === 'signup') {
+          // Check for existing identifiers (NIN, Phone)
+          setIsLoading(true);
+          try {
+            // Re-format phone for check
+            const formattedPhone = `+234${formData.phoneNumber.replace(/^0/, '')}`;
+            
+            const response = await fetch(`/api/users/exists?nin=${formData.nin}&phoneNumber=${encodeURIComponent(formattedPhone)}`);
+            const data = await response.json();
+            
+            if (data.exists) {
+                const errorMsg = 'NIN or Phone number already registered with another account';
+                setErrors({ nin: errorMsg, phoneNumber: errorMsg, form: errorMsg });
+                setIsLoading(false);
+                return;
+            }
+          } catch (error) {
+              console.error("Error checking duplicates:", error);
+          }
+
           // Firebase Signup
           let user;
           
@@ -562,9 +665,8 @@ const Auth = () => {
           const userProfile: any = {
             id: uid,
             firstName: formData.firstName,
-            middleName: formData.middleName || '',
             lastName: formData.lastName,
-            name: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim(),
+            name: `${formData.firstName} ${formData.lastName}`.trim(),
             email: formData.email,
             phoneNumber: `+234${formData.phoneNumber.replace(/^0/, '')}`,
             phoneVerified: phoneVerified,
@@ -763,15 +865,11 @@ const Auth = () => {
 
           {authMode === 'signup' && signupStep === 1 && (
             <>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-3 mb-6">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">First Name</label>
                   <input name="firstName" value={formData.firstName} onChange={handleChange} type="text" placeholder="John" className={getInputClass('firstName')} />
                   <ErrorMsg name="firstName" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Middle</label>
-                  <input name="middleName" value={formData.middleName} onChange={handleChange} type="text" placeholder="K." className={getInputClass('middleName')} />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Last Name</label>
@@ -913,35 +1011,45 @@ const Auth = () => {
                       </div>
                       
                       <div className="space-y-4 relative">
-                        <div className="flex justify-between gap-2 px-1">
-                          {[0, 1, 2, 3, 4, 5].map((index) => (
-                            <div 
-                              key={index}
-                              className={`w-10 h-12 flex items-center justify-center text-xl font-black rounded-xl border-2 transition-all duration-200
-                                ${otpCode.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-800' : 
-                                  otpCode[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
-                                  'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'} 
-                                ${otpCode[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-700'}`}
-                            >
-                              {otpCode[index] || '•'}
-                            </div>
-                          ))}
+                        <div className="relative">
+                          <div className="flex justify-between gap-2 px-1">
+                            {[0, 1, 2, 3, 4, 5].map((index) => (
+                              <div 
+                                key={index}
+                                className={`w-10 h-12 flex items-center justify-center text-xl font-black rounded-xl border-2 transition-all duration-200
+                                  ${otpCode.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-800' : 
+                                    otpCode[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
+                                    'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'} 
+                                  ${otpCode[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-700'}`}
+                              >
+                                {otpCode[index] || '•'}
+                              </div>
+                            ))}
+                          </div>
+                          
+                          <input 
+                            type="tel" 
+                            maxLength={6}
+                            value={otpCode}
+                            onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            className="absolute opacity-0 inset-0 w-full h-full cursor-pointer z-10"
+                            autoFocus
+                          />
                         </div>
                         
-                        <input 
-                          type="tel" 
-                          maxLength={6}
-                          value={otpCode}
-                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                          className="absolute opacity-0 inset-0 w-full h-full cursor-default"
-                          autoFocus
-                        />
-                        
-                        <div className="flex flex-col gap-2">
+                        <div className="flex flex-col gap-2 relative z-20">
                           <button
                             type="button"
-                            onClick={verifySignupOTP}
-                            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 rounded-xl active:scale-95 transition-all shadow-md shadow-primary-200 dark:shadow-none flex items-center justify-center gap-2"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              verifySignupOTP();
+                            }}
+                            disabled={isLoading || otpCode.length < 6}
+                            className={`w-full font-bold py-3 rounded-xl transition-all shadow-md shadow-primary-200 dark:shadow-none flex items-center justify-center gap-2
+                              ${!isLoading && otpCode.length === 6
+                                ? 'bg-primary-600 hover:bg-primary-700 text-white active:scale-[0.98]' 
+                                : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'}`}
                           >
                             {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                             Verify & Continue
@@ -949,7 +1057,11 @@ const Auth = () => {
                           
                           <button
                             type="button"
-                            onClick={sendSignupOTP}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              sendSignupOTP();
+                            }}
                             disabled={resendTimer > 0 || isLoading}
                             className="text-[10px] font-bold text-slate-400 hover:text-primary-600 disabled:opacity-50 transition-colors uppercase py-1"
                           >
