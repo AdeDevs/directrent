@@ -47,6 +47,39 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
     setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
+  const renderBadges = () => {
+    const isApproved = listing.isApproved === true || listing.isApproved === undefined;
+    const isRecent = listing.isRecentlyAdded || (listing.createdAt && (Date.now() - ((listing.createdAt.seconds || 0) * 1000) < 24 * 60 * 60 * 1000));
+    const badges = [];
+
+    if (isApproved && isRecent) {
+      badges.push(
+        <span key="badge-recent" className="bg-emerald-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm">
+          Just Added
+        </span>
+      );
+    }
+    
+    if (!listing.verified) {
+      badges.push(
+        <span key="badge-unverified" className="bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1">
+          <ShieldAlert className="w-3 h-3" />
+          <span>Unverified</span>
+        </span>
+      );
+    }
+
+    if (user?.id && String(listing.agent?.id) === String(user.id) && listing.isApproved === false) {
+      badges.push(
+        <span key="badge-pending" className="bg-amber-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm">
+          Pending Verification
+        </span>
+      );
+    }
+
+    return badges;
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -75,7 +108,6 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
           </motion.div>
         </AnimatePresence>
 
-        {/* Mini Gallery Controls */}
         {hasMultipleImages && (
           <>
             <div className="absolute inset-0 bg-black/10 opacity-0 group-hover/image:opacity-100 transition-opacity" />
@@ -93,17 +125,15 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
 
-            {/* Pagination Dots */}
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1 z-10">
               {images.map((_, idx) => (
                 <div 
-                  key={idx}
+                  key={`dot-${listing.id}-${idx}`}
                   className={`w-1 h-1 rounded-full bg-white transition-all ${idx === currentImageIndex ? 'scale-125' : 'opacity-40'}`}
                 />
               ))}
             </div>
 
-            {/* Image Count Chip */}
             <div 
               onClick={(e) => { e.stopPropagation(); setIsGalleryOpen(true); }}
               className="absolute top-3 right-12 px-2 py-1 bg-black/60 backdrop-blur-md rounded-lg text-[8px] font-bold text-white uppercase tracking-tighter opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center gap-1.5 hover:bg-black/80 ring-1 ring-white/10"
@@ -114,39 +144,7 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
           </>
         )}
         <div className="absolute top-3 left-3 flex flex-col items-start gap-2">
-          {(() => {
-            const isApproved = listing.isApproved === true || listing.isApproved === undefined;
-            const isRecent = listing.isRecentlyAdded || (listing.createdAt && (Date.now() - ((listing.createdAt.seconds || 0) * 1000) < 24 * 60 * 60 * 1000));
-            const badges = [];
-
-            if (isApproved && isRecent) {
-              badges.push(
-                <span key="badge-recent" className="bg-emerald-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm">
-                  Just Added
-                </span>
-              );
-            }
-            
-            if (!listing.verified) {
-              badges.push(
-                <span key="badge-unverified" className="bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1">
-                  <ShieldAlert className="w-3 h-3" />
-                  <span>Unverified</span>
-                </span>
-              );
-            }
-
-            // If it's the agent's own listing and not approved
-            if (user?.id && String(listing.agent?.id) === String(user.id) && listing.isApproved === false) {
-              badges.push(
-                <span key="badge-pending" className="bg-amber-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm">
-                  Pending Verification
-                </span>
-              );
-            }
-
-            return badges;
-          })()}
+          {renderBadges()}
           {listing.slotsLeft && (
             <span className="bg-rose-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm">
               Only {listing.slotsLeft} Left

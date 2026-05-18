@@ -10,6 +10,7 @@ import {
   Loader2,
   Bell,
 } from "lucide-react";
+import SafeImage from "../components/SafeImage";
 import { db } from "../lib/firebase";
 import {
   collection,
@@ -22,7 +23,7 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import { ChatModal } from "../components/ChatModal";
-import { Listing, VerificationLevel } from "../types";
+import { Listing, VerificationLevel, UserRole } from "../types";
 import NotificationBadge from "../components/NotificationBadge";
 import VerificationBadge from "../components/VerificationBadge";
 
@@ -34,6 +35,7 @@ const useParticipant = (userId: string | undefined) => {
     name: string;
     avatarUrl?: string;
     verificationLevel?: VerificationLevel;
+    role: UserRole;
   } | null>(null);
 
   useEffect(() => {
@@ -45,7 +47,8 @@ const useParticipant = (userId: string | undefined) => {
         setParticipant({
           name: data.firstName || data.lastName ? `${data.firstName || ''} ${data.lastName || ''}`.trim() : (data.name || "User"),
           avatarUrl: data.avatarUrl,
-          verificationLevel: data.verificationLevel === 'verified' ? 'verified' : calculateVerificationLevel(data as any)
+          verificationLevel: data.verificationLevel === 'verified' ? 'verified' : calculateVerificationLevel(data as any),
+          role: data.role as UserRole || 'tenant'
         });
       }
     });
@@ -87,11 +90,15 @@ const ConversationAvatar = ({
       </div>
       {/* Property Image - Small Overlay */}
       <div className="absolute -bottom-1 -right-1 w-5.5 h-5.5 sm:w-7 sm:h-7 rounded-lg bg-white dark:bg-slate-900 border-[2px] sm:border-[3px] border-white dark:border-slate-900 shadow-lg overflow-hidden">
-        <img 
-          src={listingImage} 
-          className="w-full h-full object-cover opacity-80"
-          alt="" 
-        />
+        {listingImage ? (
+          <SafeImage 
+            src={listingImage} 
+            className="w-full h-full object-cover opacity-80"
+            alt="" 
+          />
+        ) : (
+          <div className="w-full h-full bg-slate-100 dark:bg-slate-800" />
+        )}
       </div>
     </div>
   );
@@ -139,7 +146,7 @@ const ConversationRow = ({
               {displayName}
             </h4>
             {participant?.verificationLevel && (
-              <VerificationBadge level={participant.verificationLevel} showText={false} className="scale-90" />
+              <VerificationBadge level={participant.verificationLevel} role={participant.role} showText={false} className="scale-90" />
             )}
           </div>
           <span className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0 group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors">

@@ -42,6 +42,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, getDocs, limit, orderBy, doc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
+import SafeImage from '../../components/SafeImage';
 import { purgeListingData } from '../../utils/adminCleanup';
 import { 
   BarChart,
@@ -301,7 +302,7 @@ const AdminDashboard = () => {
           const verificationActivities = verificationsData.map(v => ({
             id: `verification-${v.id}`,
             sourceId: v.id,
-            user: v.firstName ? `${v.firstName} ${v.middleName ? v.middleName + ' ' : ''}${v.lastName}` : (v.name || 'System User'),
+            user: v.firstName ? `${v.firstName} ${v.lastName}` : (v.name || 'System User'),
             action: 'submitted a verification request.',
             type: 'verification',
             timestamp: v.submittedAt?.seconds ? v.submittedAt.seconds * 1000 : Date.now(),
@@ -1125,7 +1126,7 @@ const AdminDashboard = () => {
                         activeAsset?.url === selectedListing.image ? 'border-primary-500 scale-95 shadow-lg' : 'border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-100'
                       }`}
                     >
-                      <img src={selectedListing.image} className="w-full h-full object-cover" alt="" />
+                      <SafeImage src={selectedListing.image} className="w-full h-full object-cover" alt="" />
                     </button>
 
                     {/* Additional Images (excluding cover if already shown) */}
@@ -1137,7 +1138,7 @@ const AdminDashboard = () => {
                           activeAsset?.url === img ? 'border-primary-500 scale-95 shadow-lg' : 'border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-100'
                         }`}
                       >
-                        <img src={img} className="w-full h-full object-cover" alt="" />
+                        <SafeImage src={img} className="w-full h-full object-cover" alt="" />
                       </button>
                     ))}
 
@@ -1152,7 +1153,7 @@ const AdminDashboard = () => {
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10">
                           <Play className="w-6 h-6 text-white fill-white" />
                         </div>
-                        <img src={selectedListing.image} className="w-full h-full object-cover grayscale" alt="" />
+                        <SafeImage src={selectedListing.image} className="w-full h-full object-cover grayscale" alt="" />
                       </button>
                     )}
                   </div>

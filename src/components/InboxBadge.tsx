@@ -21,7 +21,7 @@ const InboxBadge = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
         setUnreadCount(snapshot.size);
     }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, "conversations");
+        if (user?.id) handleFirestoreError(error, OperationType.LIST, "conversations");
     });
 
     return () => unsubscribe();

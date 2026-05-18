@@ -374,8 +374,8 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
       <div className="bg-white dark:bg-slate-900 rounded-none border border-slate-200 dark:border-slate-800 overflow-hidden">
         {/* Mobile View (Cards) - Visible on small screens */}
         <div className="block lg:hidden space-y-4 bg-slate-50 dark:bg-slate-950">
-          {paginatedUsers.map((user, idx) => (
-            <div key={`mobile-user-${user.id}-${idx}`} className="p-5 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-400 dark:hover:border-slate-600 transition-colors">
+          {paginatedUsers.map((user) => (
+            <div key={`admin-mobile-user-${user.id}`} className="p-5 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-400 dark:hover:border-slate-600 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 flex-shrink-0">
@@ -387,7 +387,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                      {`${user.firstName || ''} ${user.middleName ? user.middleName + ' ' : ''}${user.lastName || ''}`.trim() || user.name || 'Anonymous User'}
+                      {`${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || 'Anonymous User'}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
                   </div>
@@ -492,8 +492,8 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {paginatedUsers.map((user, idx) => (
-                <tr key={`desktop-user-${user.id}-${idx}`} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/30 transition-colors group">
+              {paginatedUsers.map((user) => (
+                <tr key={`admin-desktop-user-${user.id}`} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/30 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 flex-shrink-0">
@@ -650,7 +650,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                 const pageNum = i + 1;
                 return (
                   <button
-                    key={`page-btn-${pageNum}`}
+                    key={`admin-page-btn-${pageNum}`}
                     onClick={() => setCurrentPage(pageNum)}
                     className={`w-8 h-8 text-[10px] font-bold border-y border-r first:border-l border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-700 transition-all ${
                       currentPage === pageNum ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white ring-1 ring-slate-900 dark:ring-white z-10' : 'text-slate-500'

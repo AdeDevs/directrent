@@ -17,7 +17,7 @@ const NotificationBadge = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setUnreadCount(snapshot.size);
     }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, "notifications");
+        if (user?.id) handleFirestoreError(error, OperationType.LIST, "notifications");
     });
     return () => unsubscribe();
   }, [user?.id]);

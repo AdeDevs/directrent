@@ -1,14 +1,45 @@
-import "./env-setup.js";
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
+import cors from "cors";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Environment setup logic merged for reliability
+function setupEnvironment() {
+  try {
+    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (fs.existsSync(configPath)) {
+      const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      if (firebaseConfig.projectId) {
+        process.env.GOOGLE_CLOUD_PROJECT = firebaseConfig.projectId;
+        process.env.GCLOUD_PROJECT = firebaseConfig.projectId;
+      }
+    }
+    
+    const localKeyPath = path.join(process.cwd(), "service-account-key.json");
+    if (fs.existsSync(localKeyPath) && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      process.env.GOOGLE_APPLICATION_CREDENTIALS = localKeyPath;
+    }
+
+    // Support for setting the key as a JSON string in environment (useful for Vercel secrets)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      const tempPath = path.join("/tmp", "temp-sa-key.json");
+      fs.writeFileSync(tempPath, process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+      process.env.GOOGLE_APPLICATION_CREDENTIALS = tempPath;
+      console.log("[EnvSetup] Created temporary service account key in /tmp from environment variable");
+    }
+  } catch (err) {
+    console.warn("Env setup handled gracefully:", err);
+  }
+}
+
+setupEnvironment();
 
 // Safe config loading
 let firebaseConfig: any = {};
@@ -39,7 +70,22 @@ function getAdmin() {
     console.log(`Initializing Admin SDK...`);
     
     try {
-      // Initialize with correct project ID
+      // 1. Check for explicit service account JSON in environment
+      if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+        try {
+          const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+          adminApp = admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            projectId: firebaseConfig.projectId || serviceAccount.project_id
+          });
+          console.log("[FirebaseAdmin] Initialized successfuly using FIREBASE_SERVICE_ACCOUNT_JSON");
+          return adminApp;
+        } catch (parseErr) {
+          console.error("[FirebaseAdmin] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", parseErr);
+        }
+      }
+
+      // 2. Fallback to default credentials or project ID
       adminApp = admin.initializeApp({
         projectId: firebaseConfig.projectId
       });
@@ -49,10 +95,15 @@ function getAdmin() {
         adminApp = admin.app();
       } else {
         console.error("Initialization failed:", err.message);
-        if (err.message.includes("default credentials")) {
-          console.error("HINT: You are running locally. See instructions to create 'service-account-key.json'.");
+        let hint = "Check your Firebase credentials.";
+        if (process.env.VERCEL) {
+          hint = "Vercel: Set 'FIREBASE_SERVICE_ACCOUNT_JSON' in Environment Variables.";
+        } else {
+          hint = "Local: Ensure 'service-account-key.json' exists or environment is set up.";
         }
-        throw err;
+        const enrichedError = new Error(`${err.message}. HINT: ${hint}`);
+        (enrichedError as any).code = err.code;
+        throw enrichedError;
       }
     }
   }
@@ -70,23 +121,22 @@ function getDb() {
 
 export const app = express();
 
-const PORT = 3000;
-
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+const PORT = 3000;
 
 app.get("/api/health", (req, res) => {
   try {
     const adminApp = getAdmin();
-    const files = fs.readdirSync(process.cwd());
     res.json({ 
       status: "healthy", 
       timestamp: new Date().toISOString(),
       projectId: adminApp.options.projectId,
       env: {
         vercel: !!process.env.VERCEL,
-        node: process.version,
-        cwd: process.cwd(),
-        files: files.slice(0, 10) // Only first 10 for brevity
+        ais: !!process.env.AIS_APPLET_ID,
+        node: process.version
       },
       configLoaded: !!firebaseConfig.projectId,
       dbId: firebaseConfig.firestoreDatabaseId
@@ -96,8 +146,7 @@ app.get("/api/health", (req, res) => {
     res.status(500).json({ 
       status: "unhealthy", 
       error: err.message,
-      env: process.env.VERCEL ? 'vercel' : 'ais',
-      stack: err.stack ? err.stack.split('\n')[0] : null
+      env: process.env.VERCEL ? 'vercel' : 'ais'
     });
   }
 });
@@ -203,6 +252,54 @@ app.get("/api/health", (req, res) => {
     }
   });
 
+// Global error handler for JSON responses
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error("[GlobalError]", err);
+  res.status(err.status || 500).json({
+    error: err.message || "Internal Server Error",
+    code: err.code || "unknown",
+    path: req.path
+  });
+});
+
+app.post("/api/gemini", async (req, res) => {
+  const { prompt, images } = req.body;
+  const key = process.env.GEMINI_API_KEY;
+
+  if (!key) {
+    return res.status(500).json({ error: "Server Configuration Error: Missing API Key." });
+  }
+
+  try {
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const ai = new GoogleGenerativeAI(key);
+    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" }); // Changed model to 1.5-flash based on common usage with @google/generative-ai
+
+    // Format images for gemini
+    const contents = [prompt];
+    if (images && Array.isArray(images)) {
+        for (const img of images) {
+            if (img.inlineData) {
+                contents.push({
+                    inlineData: {
+                        mimeType: img.inlineData.mimeType,
+                        data: img.inlineData.data
+                    }
+                });
+            }
+        }
+    }
+
+    const result = await model.generateContent(contents);
+    const text = result.response.text();
+    
+    res.json({ text });
+  } catch (err: any) {
+    console.error("Gemini API Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Vite/Static middleware setup
 async function configureApp() {
   if (process.env.NODE_ENV !== "production") {
@@ -233,7 +330,12 @@ if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
+  }).catch(err => {
+    console.error("Failed to start server:", err);
   });
+} else {
+  // On Vercel, we still need to initialize the app (but without Vite)
+  configureApp().catch(err => console.error("Vercel config error:", err));
 }
 
 export default app;

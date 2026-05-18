@@ -615,6 +615,9 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       return;
     }
 
+    // Open chat immediately, analytics is secondary
+    setIsChatOpen(true);
+
     // Record intent to message (Analytics only, count happens on first message)
     try {
       await addDoc(collection(db, 'analytics'), {
@@ -624,11 +627,11 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
         agentId: listing.agent?.id || null,
         createdAt: serverTimestamp()
       });
-    } catch (e) {
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'analytics');
       console.warn("Failed to record intent analytic");
     }
 
-    setIsChatOpen(true);
   };
 
   const handleReportClick = () => {
@@ -877,9 +880,9 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       </AnimatePresence>
 
       {/* Media Gallery / Header */}
-      <div className="relative w-full bg-slate-100 dark:bg-slate-900 overflow-hidden shadow-sm pt-2 md:pt-4">
-        {/* Top Header Buttons overlay (Moved outside relative so it stays top) */}
-        <div className="absolute top-0 left-0 right-0 p-4 px-2 pt-2 md:pt-6 z-40 flex justify-between items-center pointer-events-none">
+      <div className="relative w-full bg-slate-100 dark:bg-slate-900 overflow-hidden shadow-sm">
+        {/* Top Header Buttons overlay */}
+        <div className="absolute top-0 left-0 right-0 p-4 px-4 pt-4 md:pt-6 z-40 flex justify-between items-center pointer-events-none">
           <button 
             onClick={onBack}
             className="w-10 h-10 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md flex items-center justify-center text-slate-900 dark:text-white hover:bg-white dark:hover:bg-slate-700 transition-all cursor-pointer shadow-md pointer-events-auto border border-white/20"
@@ -915,36 +918,38 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           </div>
         </div>
 
-        <div className="max-w-[1400px] mx-auto px-[15px]">
+        <div className="w-full">
           {/* Desktop Mosaic Gallery */}
-          <div className="hidden md:grid grid-cols-4 grid-rows-2 gap-2 h-[500px] rounded-3xl overflow-hidden cursor-pointer group/mosaic relative">
-            <div 
-              className="col-span-2 row-span-2 relative overflow-hidden" 
-              onClick={() => handleMediaClick(0)}
-            >
-              <SafeImage src={images[0]} className="w-full h-full object-cover hover:scale-105 transition-transform duration-700" />
-              <div className="absolute inset-0 bg-black/0 group-hover/mosaic:bg-black/10 transition-colors pointer-events-none" />
-            </div>
-            {images.slice(1, 5).map((img, idx) => (
+          <div className={`hidden md:grid gap-1.5 h-[500px] overflow-hidden cursor-pointer group/mosaic relative ${
+             images.length === 1 ? 'grid-cols-1' :
+             images.length === 2 ? 'grid-cols-2' :
+             images.length === 3 ? 'grid-cols-2 grid-rows-2' :
+             images.length === 4 ? 'grid-cols-2 grid-rows-2' :
+             'grid-cols-4 grid-rows-2'
+          }`}>
+            {/* Template-based dynamic gallery layout mapping */}
+            {images.slice(0, 5).map((img, idx) => (
               <div 
-                key={`mosaic-item-${idx}`} 
-                className="relative overflow-hidden"
-                onClick={() => handleMediaClick(idx + 1)}
+                key={`listing-${listing.id}-mosaic-item-${idx}`} 
+                className={`relative overflow-hidden ${
+                  // Map specific positions by index based on total image count
+                  images.length === 1 ? 'col-span-1 row-span-2' :
+                  images.length === 2 ? 'col-span-1 row-span-2' :
+                  images.length === 3 ? (idx === 0 ? 'col-span-1 row-span-2' : 'col-span-1') :
+                  images.length === 4 ? 'col-span-1 row-span-1' :
+                  // 5+ images layout template
+                  (idx === 0 ? 'col-span-2 row-span-2' : idx < 3 ? 'col-span-1 row-span-1' : 'col-span-1 row-span-1')
+                }`}
+                onClick={() => handleMediaClick(idx)}
               >
-                <SafeImage src={img} className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
+                <SafeImage src={img} className="w-full h-full object-cover hover:scale-105 transition-transform duration-700" />
                 <div className="absolute inset-0 bg-black/0 group-hover/mosaic:bg-black/10 transition-colors pointer-events-none" />
-                {idx === 3 && images.length > 5 && (
+                {idx === 4 && images.length > 5 && (
                   <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center text-white flex-col gap-1">
                     <span className="text-xl font-black">+{images.length - 5}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest">More Photos</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">More</span>
                   </div>
                 )}
-              </div>
-            ))}
-            {/* Fallback for listings with fewer than 5 images */}
-            {images.length < 5 && Array.from({ length: 4 - (images.length - 1) }).map((_, idx) => (
-              <div key={`mosaic-placeholder-${idx}`} className="bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center">
-                <LayoutGrid className="w-8 h-8 text-slate-200 dark:text-slate-800" />
               </div>
             ))}
             
@@ -969,7 +974,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
             >
               {images.map((img, idx) => (
                 <div 
-                  key={`carousel-item-${idx}`} 
+                  key={`listing-${listing.id}-carousel-item-${idx}`} 
                   className="w-full h-full flex-shrink-0 snap-center relative cursor-zoom-in"
                   onClick={() => handleMediaClick(idx)}
                 >
@@ -981,7 +986,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
             {/* Pagination Dots */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1.5 rounded-full bg-black/30 backdrop-blur-sm z-20">
               {images.map((_, idx) => (
-                <div key={`pagination-dot-${idx}`} className={`h-1.5 rounded-full transition-all ${idx === activeMedia ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
+                <div key={`listing-${listing.id}-pagination-dot-${idx}`} className={`h-1.5 rounded-full transition-all ${idx === activeMedia ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
               ))}
             </div>
 
@@ -992,7 +997,6 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           </div>
         </div>
       </div>
-
       <div className="w-full px-[15px] py-4 sm:py-10 flex flex-col md:flex-row gap-6 md:gap-12">
         
         {/* Left Column: Details */}
@@ -1166,31 +1170,35 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {[
               { 
+                id: 'security',
                 icon: <ShieldCheck className="w-4 h-4" />, 
                 label: "Security", 
                 value: listing.amenities.some(a => ['Security', 'Fenced', 'Secured Gate', 'CCTV'].includes(a)) ? "High" : "Standard", 
                 color: "text-emerald-500" 
               },
               { 
+                id: 'water',
                 icon: <Droplets className="w-4 h-4" />, 
                 label: "Water", 
                 value: listing.amenities.some(a => ['Water', 'Steady Water', 'Clean Water', 'Borehole'].includes(a)) ? "Constant" : "Periodic", 
                 color: "text-blue-500" 
               },
               { 
+                id: 'power',
                 icon: <Zap className="w-4 h-4" />, 
                 label: "Power", 
                 value: listing.amenities.some(a => ['Solar', 'Generator', 'Inverter', 'Prepaid Meter'].includes(a)) ? "Good" : "Reliable", 
                 color: "text-amber-500" 
               },
               { 
+                id: 'checkin',
                 icon: <Clock className="w-4 h-4" />, 
                 label: "Check-in", 
                 value: "Flexible", 
                 color: "text-slate-500" 
               }
-            ].map((insight, idx) => (
-              <div key={`insight-${idx}`} className="p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col gap-1 shadow-sm">
+            ].map((insight) => (
+              <div key={`insight-${insight.id}`} className="p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col gap-1 shadow-sm">
                 <div className={`${insight.color} mb-1 opacity-70`}>{insight.icon}</div>
                 <div className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">{insight.label}</div>
                 <div className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight">{insight.value}</div>
@@ -1206,7 +1214,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                 onClick={() => handleMediaClick(images.length)}
                 className="group relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 cursor-pointer"
               >
-                <video src={listing.video} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                <video src={listing.video || undefined} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="w-16 h-16 rounded-full bg-primary-600/90 text-white flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
                     <Video className="w-8 h-8 fill-current" />
@@ -1228,8 +1236,8 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           <div>
             <h2 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white mb-2 sm:mb-4 uppercase tracking-wider">Features</h2>
             <div className="flex flex-wrap gap-2 sm:gap-3">
-              {listing.amenities.map((amenity, idx) => (
-                <div key={`${amenity}-${idx}`} className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] sm:text-sm font-bold text-slate-700 dark:text-slate-300 shadow-sm transition-all uppercase tracking-wide">
+              {listing.amenities.map((amenity) => (
+                <div key={`amenity-${listing.id}-${amenity.replace(/\s+/g, '-').toLowerCase()}`} className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] sm:text-sm font-bold text-slate-700 dark:text-slate-300 shadow-sm transition-all uppercase tracking-wide">
                   <BadgeCheck className="w-3.5 h-3.5 text-primary-500" />
                   {amenity}
                 </div>
@@ -1417,16 +1425,16 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
               {/* Performance Metrics Table/Grid */}
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden transition-colors duration-300">
                 <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-100 dark:divide-slate-800">
-                  {[
-                    {label: "Total Views", value: realStats.views.toLocaleString(), change: realStats.trends.views, color: "text-indigo-600 dark:text-indigo-400" },
-                    { label: "Active Interests", value: realStats.saves.toLocaleString(), change: realStats.trends.saves, color: "text-blue-600 dark:text-blue-400" },
-                    { label: "Interaction Rate", value: realStats.views > 0 ? `${Math.round(((realStats.inquiries + realStats.saves) / realStats.views) * 100)}%` : '0%', change: realStats.trends.interaction, color: "text-emerald-600 dark:text-emerald-400" },
-                    { label: "Total Inquiries", value: realStats.inquiries.toLocaleString(), change: realStats.trends.inquiries, color: "text-amber-600 dark:text-amber-400" }
-                  ].map((stat, i) => (
-                    <div key={`stat-${i}`} className="p-6 sm:p-8 flex flex-col justify-center">
-                      <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 truncate">
-                        {stat.label}
-                      </span>
+                    {[
+                      { id: 'views', label: "Total Views", value: realStats.views.toLocaleString(), change: realStats.trends.views, color: "text-indigo-600 dark:text-indigo-400" },
+                      { id: 'interest', label: "Active Interests", value: realStats.saves.toLocaleString(), change: realStats.trends.saves, color: "text-blue-600 dark:text-blue-400" },
+                      { id: 'rate', label: "Interaction Rate", value: realStats.views > 0 ? `${Math.round(((realStats.inquiries + realStats.saves) / realStats.views) * 100)}%` : '0%', change: realStats.trends.interaction, color: "text-emerald-600 dark:text-emerald-400" },
+                      { id: 'inq', label: "Total Inquiries", value: realStats.inquiries.toLocaleString(), change: realStats.trends.inquiries, color: "text-amber-600 dark:text-amber-400" }
+                    ].map((stat) => (
+                      <div key={`insight-stat-${stat.id}`} className="p-6 sm:p-8 flex flex-col justify-center">
+                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 truncate">
+                          {stat.label}
+                        </span>
                       <div className="flex items-baseline gap-3">
                         <span className={`text-2xl font-black ${stat.color}`}>{stat.value}</span>
                         <span className={`text-[10px] font-bold ${stat.change.startsWith('+') ? 'text-emerald-500' : stat.change === '0%' ? 'text-slate-400' : 'text-rose-500'}`}>

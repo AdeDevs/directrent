@@ -33,7 +33,6 @@ const AdminProfile = () => {
 
   const [formData, setFormData] = useState({
     firstName: user?.firstName || '',
-    middleName: (user as any)?.middleName || '',
     lastName: user?.lastName || '',
     internalPhone: user?.internalPhone || '',
     city: user?.city || 'Lagos',
@@ -46,7 +45,6 @@ const AdminProfile = () => {
     if (user) {
       setFormData({
         firstName: user.firstName || '',
-        middleName: (user as any).middleName || '',
         lastName: user.lastName || '',
         internalPhone: user.internalPhone || '',
         city: user.city || 'Lagos',
@@ -86,7 +84,7 @@ const AdminProfile = () => {
       const updatedData = {
         ...formData,
         avatarUrl: finalAvatarUrl,
-        name: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim(),
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
         updatedAt: new Date().toISOString()
       };
       
@@ -150,7 +148,7 @@ const AdminProfile = () => {
                 <div>
                   <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-1">
                     <h2 className="text-3xl font-bold text-slate-900 dark:text-white">
-                      {user?.firstName && user?.lastName ? `${user.firstName}${user.middleName ? ' ' + user.middleName : ''} ${user.lastName}` : (user?.name || 'Admin User')}
+                      {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : (user?.name || 'Admin User')}
                     </h2>
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 rounded-full text-[10px] font-bold uppercase tracking-widest border border-primary-100 dark:border-primary-900/50">
                       <ShieldCheck className="w-3 h-3" />
@@ -227,15 +225,6 @@ const AdminProfile = () => {
                         required
                         value={formData.firstName}
                         onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-none outline-none focus:border-primary-500 text-slate-900 dark:text-white transition-all shadow-sm font-medium"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Middle Name (Optional)</label>
-                      <input 
-                        type="text" 
-                        value={formData.middleName}
-                        onChange={(e) => setFormData({...formData, middleName: e.target.value})}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-none outline-none focus:border-primary-500 text-slate-900 dark:text-white transition-all shadow-sm font-medium"
                       />
                     </div>

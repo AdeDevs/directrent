@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, UserRole, ViewState, AuthMode, Listing, AppTab } from '../types';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, linkWithCredential, EmailAuthProvider, updatePassword as fbUpdatePassword } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, serverTimestamp, deleteField, updateDoc, FieldValue } from 'firebase/firestore';
-import { isProfileComplete } from '../lib/verification';
+import { isProfileComplete, calculateVerificationLevel } from '../lib/verification';
 import { useTheme } from './ThemeContext';
 
 interface AuthContextType {
@@ -13,6 +13,7 @@ interface AuthContextType {
   login: (role: UserRole, userData: Partial<User>) => void;
   logout: () => Promise<void>;
   updateProfile: (updates: any) => Promise<void>;
+  signInWithGoogle: () => Promise<boolean>;
   view: ViewState;
   setView: (view: ViewState) => void;
   authMode: AuthMode;
@@ -116,6 +117,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeUserRef.current = onSnapshot(userRef, (docSnap) => {
           if (docSnap.exists()) {
             const userData = { ...docSnap.data(), id: firebaseUser.uid } as User;
+            
+            // Ensure hasPassword flag is populated
+            if (userData.hasPassword === undefined) {
+              userData.hasPassword = firebaseUser.providerData.some(p => p.providerId === 'password');
+            }
             
             // Sync theme from user profile (only once per user session to avoid feedback loops)
             if (userData.theme && themeSyncedFromProfile.current !== firebaseUser.uid && userData.theme !== theme) {
@@ -242,7 +248,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userRef = doc(db, 'users', user.id);
       
       // Filter out undefined and null values that shouldn't be updated
-      // Firestore doesn't like undefined
       const cleanUpdates: any = {};
       Object.keys(updates).forEach(key => {
         if (updates[key] !== undefined) {
@@ -250,15 +255,74 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       });
 
-      // Simply update Firestore; local state will sync via onSnapshot
-      try {
-        await updateDoc(userRef, cleanUpdates);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
+      // Special handling for trust level recalculation if core fields change
+      if (cleanUpdates.phoneNumber || cleanUpdates.nin || cleanUpdates.avatarUrl) {
+         cleanUpdates.verificationLevel = calculateVerificationLevel({ ...user, ...cleanUpdates });
       }
+
+      await updateDoc(userRef, cleanUpdates);
     } catch (error) {
       console.error("Error updating profile:", error);
       throw error;
+    }
+  };
+
+  const signInWithGoogle = async (): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+
+      // Check if user exists in Firestore
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        // Create new tenant profile from Google data
+        const names = firebaseUser.displayName?.split(' ') || [];
+        const firstName = names[0] || '';
+        const lastName = names.slice(1).join(' ') || '';
+
+        const newProfile: any = {
+          id: firebaseUser.uid,
+          firstName,
+          lastName,
+          name: firebaseUser.displayName || '',
+          email: firebaseUser.email || '',
+          avatarUrl: firebaseUser.photoURL || '',
+          role: 'tenant',
+          city: '',
+          country: 'Nigeria',
+          phoneNumber: firebaseUser.phoneNumber || '',
+          phoneVerified: !!firebaseUser.phoneNumber,
+          verificationStatus: 'none',
+          verificationLevel: 'none',
+          listingsCount: 0,
+          createdAt: serverTimestamp(),
+          authProvider: 'google',
+          theme: theme
+        };
+
+        // Recalculate verification level
+        newProfile.verificationLevel = calculateVerificationLevel(newProfile);
+
+        await setDoc(userRef, newProfile);
+      } else {
+        // Just sync avatar if it's missing
+        const existingData = userSnap.data();
+        if (!existingData.avatarUrl && firebaseUser.photoURL) {
+          await updateDoc(userRef, { avatarUrl: firebaseUser.photoURL });
+        }
+      }
+
+      sessionStorage.setItem('just_logged_in', 'true');
+      return true;
+    } catch (error) {
+      console.error("Google Sign-In Error:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -347,6 +411,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       login,
       logout,
       updateProfile,
+      signInWithGoogle,
       view,
       setView,
       authMode,

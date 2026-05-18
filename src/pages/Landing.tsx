@@ -127,7 +127,7 @@ const Hero = () => {
                 "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80",
                 "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80"
               ].map((src, i) => (
-                <SafeImage key={`img-${i}`} src={src} alt="Tenant" className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 object-cover shadow-sm" />
+                <SafeImage key={`hero-avatar-${i}`} src={src} alt="Tenant" className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 object-cover shadow-sm" />
               ))}
             </div>
             <p className="text-sm text-slate-300 dark:text-slate-400 text-center sm:text-left">
@@ -299,8 +299,8 @@ const FeaturedListings = () => {
           variants={staggerContainer}
           className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8"
         >
-          {FEATURED_LISTINGS.slice(0, 3).map((listing, idx) => (
-            <motion.div key={`featured-${listing.id}-${idx}`} variants={fadeUpVariant}>
+          {FEATURED_LISTINGS.slice(0, 3).map((listing) => (
+            <motion.div key={`featured-listing-${listing.id}`} variants={fadeUpVariant}>
               <ListingCard 
                 listing={listing} 
                 onViewDetails={handleAction} 
@@ -336,8 +336,8 @@ const HowItWorks = () => (
               { step: "01", title: "Search nearby apartments", desc: "Use filters to find housing near your desired location." },
               { step: "02", title: "View verified listings", desc: "No more guesswork. Photos and descriptions are verified." },
               { step: "03", title: "Contact agent directly", desc: "Zero middleman drama. Pay securely and move in." }
-            ].map((item, idx) => (
-              <div key={`tenant-step-${idx}`} className="flex gap-6">
+            ].map((item) => (
+              <div key={`tenant-step-${item.step}`} className="flex gap-6">
                 <div className="text-3xl font-bold text-primary-200 dark:text-primary-800/20 leading-none">{item.step}</div>
                 <div>
                   <h4 className="font-semibold text-primary-950 dark:text-primary-100 mb-1">{item.title}</h4>
@@ -354,8 +354,8 @@ const HowItWorks = () => (
               { step: "01", title: "List your property", desc: "Upload photos and property details in less than 2 minutes." },
               { step: "02", title: "Get tenant leads", desc: "Get notified when verified tenants show interest." },
               { step: "03", title: "Close deals faster", desc: "Finalize paper work and get paid quicker than ever." }
-            ].map((item, idx) => (
-              <div key={`agent-step-${idx}`} className="flex gap-6">
+            ].map((item) => (
+              <div key={`agent-step-${item.step}`} className="flex gap-6">
                 <div className="text-3xl font-bold text-slate-200 dark:text-slate-800/20 leading-none">{item.step}</div>
                 <div>
                   <h4 className="font-semibold text-slate-900 dark:text-white mb-1">{item.title}</h4>
@@ -399,17 +399,17 @@ const TrustSafety = () => (
         variants={staggerContainer}
         className="grid md:grid-cols-3 gap-8 text-left"
       >
-        {[
-          { icon: <ShieldCheck className="w-6 h-6" />, title: "Verified Agents", desc: "Every agent must provide valid ID and proof of listed properties." },
-          { icon: <Clock className="w-6 h-6" />, title: "Physical Inspection", desc: "Our team physically inspects random top-tier properties to ensure accuracy." },
-          { icon: <MessageSquare className="w-6 h-6" />, title: "Secure Communication", desc: "Chat with agents directly within the platform to keep your details safe." }
-        ].map((feature, idx) => (
-          <motion.div key={`feature-${idx}`} variants={fadeUpVariant} className="bg-white/10 backdrop-blur-md p-8 rounded-xl border border-white/20 hover:bg-white/15 transition-colors">
-            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-6">{feature.icon}</div>
-            <h4 className="text-lg font-semibold mb-3">{feature.title}</h4>
-            <p className="text-primary-50 text-xs leading-relaxed opacity-80">{feature.desc}</p>
-          </motion.div>
-        ))}
+          {[
+            { icon: <ShieldCheck className="w-6 h-6" />, title: "Verified Agents", desc: "Every agent must provide valid ID and proof of listed properties." },
+            { icon: <Clock className="w-6 h-6" />, title: "Physical Inspection", desc: "Our team physically inspects random top-tier properties to ensure accuracy." },
+            { icon: <MessageSquare className="w-6 h-6" />, title: "Secure Communication", desc: "Chat with agents directly within the platform to keep your details safe." }
+          ].map((feature) => (
+            <motion.div key={`trust-feature-${feature.title}`} variants={fadeUpVariant} className="bg-white/10 backdrop-blur-md p-8 rounded-xl border border-white/20 hover:bg-white/15 transition-colors">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-6">{feature.icon}</div>
+              <h4 className="text-lg font-semibold mb-3">{feature.title}</h4>
+              <p className="text-primary-50 text-xs leading-relaxed opacity-80">{feature.desc}</p>
+            </motion.div>
+          ))}
       </motion.div>
     </div>
   </section>
@@ -433,8 +433,8 @@ const Testimonials = () => (
           { name: "Tunde A.", dept: "Lagos", text: "I found a neat self-contain in Yaba the next day. The process was surprisingly smooth compared to what I expected.", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80" },
           { name: "Bisi O.", dept: "Ibadan", text: "DirectRent helped me find a landlord listing directly. Saved me nearly 80k in random agent fees!", avatar: "https://images.unsplash.com/photo-1567532939803-f4a1801c8763?auto=format&fit=crop&w=100&h=100&q=80" },
           { name: "Sola W.", dept: "Abuja", text: "The verified badge gave me confidence. Moving in next week and I didn't have to chase any shady agents.", avatar: "https://images.unsplash.com/photo-1531123897727-8f129e16fd3c?auto=format&fit=crop&w=100&h=100&q=80" }
-        ].map((test, idx) => (
-          <motion.div key={`test-${idx}`} variants={fadeUpVariant} className="bg-slate-50 dark:bg-slate-900 p-8 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col justify-between hover:shadow-lg dark:hover:shadow-none transition-all">
+        ].map((test) => (
+          <motion.div key={`testimonial-${test.name}`} variants={fadeUpVariant} className="bg-slate-50 dark:bg-slate-900 p-8 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col justify-between hover:shadow-lg dark:hover:shadow-none transition-all">
             <p className="text-slate-600 dark:text-slate-300 text-sm italic leading-relaxed mb-8">"{test.text}"</p>
             <div className="flex items-center gap-4">
               <SafeImage src={test.avatar} className="w-10 h-10 rounded-full border-2 border-primary-100 dark:border-primary-900" alt={test.name} />
@@ -491,7 +491,7 @@ const FAQ = () => {
           className="space-y-4"
         >
           {faqs.map((faq, idx) => (
-            <motion.div key={`faq-${idx}`} variants={fadeUpVariant} className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+            <motion.div key={`faq-${faq.q}`} variants={fadeUpVariant} className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
               <button 
                 onClick={() => setOpenIdx(openIdx === idx ? null : idx)}
                 className="w-full text-left px-6 py-6 flex items-center justify-between focus:outline-none"

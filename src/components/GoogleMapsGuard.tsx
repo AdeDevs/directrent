@@ -2,7 +2,7 @@ import React from 'react';
 import { APIProvider } from '@vis.gl/react-google-maps';
 
 const API_KEY =
-  process.env.GOOGLE_MAPS_PLATFORM_KEY ||
+  (process.env as any).GOOGLE_MAPS_PLATFORM_KEY ||
   (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
   (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY ||
   '';
@@ -21,7 +21,7 @@ export const GoogleMapsGuard: React.FC<{ children: React.ReactNode }> = ({ child
         </div>
         <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Google Maps API Key Required</h2>
         <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mb-8">
-          To enable real maps and location features, you need to add your Google Maps Platform API key to the project secrets.
+          To enable real maps and location features, you need to provide a Google Maps Platform API key.
         </p>
         
         <div className="space-y-4 text-left w-full max-w-sm">
@@ -33,20 +33,22 @@ export const GoogleMapsGuard: React.FC<{ children: React.ReactNode }> = ({ child
           </div>
           <div className="flex gap-3">
             <div className="flex-shrink-0 w-6 h-6 bg-primary-600 text-white text-xs font-bold rounded-full flex items-center justify-center">2</div>
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Open <b>Settings</b> (⚙️ gear icon) &rarr; <b>Secrets</b>
-            </p>
+            <div className="text-sm text-slate-600 dark:text-slate-300">
+              <p><b>Local:</b> Create a <code>.env</code> file in the root and add:</p>
+              <code className="block mt-1 bg-slate-100 dark:bg-slate-800 p-2 rounded">GOOGLE_MAPS_PLATFORM_KEY=your_key_here</code>
+            </div>
           </div>
           <div className="flex gap-3">
             <div className="flex-shrink-0 w-6 h-6 bg-primary-600 text-white text-xs font-bold rounded-full flex items-center justify-center">3</div>
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Add <code>GOOGLE_MAPS_PLATFORM_KEY</code> with your key value
-            </p>
+            <div className="text-sm text-slate-600 dark:text-slate-300">
+              <p><b>Vercel:</b> Add <code>GOOGLE_MAPS_PLATFORM_KEY</code> in Project Settings &gt; Environment Variables.</p>
+              <p className="mt-1 text-[10px] text-amber-600 font-bold">⚠️ IMPORTANT: Ensure your API key is NOT restricted to only "localhost" or specific domains if you want it to work on Vercel.</p>
+            </div>
           </div>
         </div>
         
         <p className="mt-8 text-xs text-slate-400 dark:text-slate-500 italic">
-          The app will rebuild automatically after you save the secret.
+          Restart your dev server or redeploy after adding the key.
         </p>
       </div>
     );

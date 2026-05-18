@@ -1,22 +1,30 @@
 import React from 'react';
-import { ShieldCheck, ShieldAlert, Shield } from 'lucide-react';
-import { VerificationLevel } from '../types';
+import { ShieldCheck, ShieldAlert, Shield, BadgeCheck } from 'lucide-react';
+import { VerificationLevel, UserRole } from '../types';
 
 interface VerificationBadgeProps {
   level?: VerificationLevel;
+  role?: UserRole;
   showText?: boolean;
   className?: string;
 }
 
-const VerificationBadge: React.FC<VerificationBadgeProps> = ({ level = 'none', showText = true, className = '' }) => {
+const VerificationBadge: React.FC<VerificationBadgeProps> = ({ level = 'none', role = 'tenant', showText = true, className = '' }) => {
   const getConfig = () => {
     switch (level) {
       case 'verified':
         return {
           icon: <ShieldCheck className="w-3.5 h-3.5" />,
           color: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-          text: 'Verified Agent',
+          text: role === 'agent' ? 'Verified Agent' : 'Verified Tenant',
           dot: 'bg-emerald-500'
+        };
+      case 'trusted':
+        return {
+          icon: <BadgeCheck className="w-3.5 h-3.5" />,
+          color: 'bg-blue-100 text-blue-700 border-blue-200',
+          text: 'Trusted Profile',
+          dot: 'bg-blue-500'
         };
       default:
         return {

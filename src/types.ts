@@ -57,7 +57,7 @@ export interface Notification {
 export type AuthMode = 'login' | 'signup';
 export type UserRole = 'tenant' | 'agent' | 'admin' | 'moderator';
 
-export type VerificationLevel = 'none' | 'verified';
+export type VerificationLevel = 'none' | 'trusted' | 'verified';
 
 declare global {
   interface Window {
@@ -68,7 +68,6 @@ declare global {
 export interface User {
   id: string;
   firstName: string;
-  middleName?: string;
   lastName: string;
   name: string;
   email: string;
@@ -93,6 +92,7 @@ export interface User {
   about?: string;
   theme?: 'light' | 'dark';
   listingsCount?: number;
+  hasPassword?: boolean;
   agent?: {
     verificationReason?: string | null;
     isVerified?: boolean;
@@ -118,7 +118,6 @@ export interface Verification {
   userId: string;
   name: string;
   firstName?: string;
-  middleName?: string;
   lastName?: string;
   idType: string;
   idNumber?: string;

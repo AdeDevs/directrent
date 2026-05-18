@@ -305,15 +305,15 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
 
             {featuredListings.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {featuredListings.map((listing, idx) => (
+                {featuredListings.map((listing) => (
                   <motion.div 
-                    key={`agent-listing-${listing.id}-${idx}`}
+                    key={`agent-listing-${listing.id}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-white dark:bg-[#0f172a] rounded-[20px] overflow-hidden border border-slate-200 dark:border-white/5 hover:border-emerald-500/30 transition-all group cursor-pointer shadow-sm"
                   >
                     <div className="relative aspect-[4/3]">
-                      <img src={listing.image} alt={listing.title} className="w-full h-full object-cover" />
+                      <SafeImage src={listing.image} alt={listing.title} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 to-transparent opacity-60" />
                       <div className="absolute top-3 right-3 px-2 py-1 bg-emerald-500 text-white dark:text-slate-950 text-[10px] font-black uppercase rounded-lg">
                         Active
@@ -363,14 +363,14 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
 
           {reviews.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {reviews.slice(0, 3).map((review, idx) => (
+              {reviews.slice(0, 3).map((review) => (
                 <div 
-                  key={`agent-review-${review.id}-${idx}`}
+                  key={`agent-review-${review.id}`}
                   className="space-y-4 p-6 bg-white dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm"
                 >
                   <div className="flex items-center gap-1 text-amber-500">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className={`w-3 h-3 ${i < review.rating ? 'fill-current' : 'opacity-20'}`} />
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={`review-star-${review.id}-${i}`} className={`w-3 h-3 ${i < review.rating ? 'fill-current' : 'opacity-20'}`} />
                     ))}
                   </div>
                   <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed italic line-clamp-4">
@@ -430,7 +430,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                     <div className="flex items-center gap-2">
                       {[1, 2, 3, 4, 5].map((s) => (
                         <button 
-                          key={s}
+                          key={`rating-selector-${s}`}
                           onClick={() => setNewReview({ ...newReview, rating: s })}
                           className={`p-1 transition-all ${s <= newReview.rating ? 'text-amber-400 scale-110' : 'text-slate-700'}`}
                         >

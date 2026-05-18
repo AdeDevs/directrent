@@ -439,7 +439,7 @@ export default function CreateListing() {
               
               {formData.video ? (
                 <div className="relative aspect-video rounded-3xl overflow-hidden bg-slate-900">
-                  <video src={formData.video} className="w-full h-full object-cover" controls />
+                  <video src={formData.video || undefined} className="w-full h-full object-cover" controls />
                   <button
                     type="button"
                     onClick={() => setFormData(prev => ({ ...prev, video: '' }))}

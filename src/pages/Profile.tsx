@@ -39,9 +39,10 @@ import {
   signInWithPhoneNumber, 
   linkWithPhoneNumber,
   ConfirmationResult,
-  updatePassword,
+  updatePassword as fbUpdatePassword,
   reauthenticateWithCredential,
-  EmailAuthProvider
+  EmailAuthProvider,
+  linkWithCredential
 } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { safeDeleteStorageFile } from "../utils/storageCleanup";
@@ -53,6 +54,7 @@ import { Listing } from "../types";
 import VerificationBadge from "../components/VerificationBadge";
 import { calculateVerificationLevel, isProfileComplete as checkProfileComplete } from "../lib/verification";
 import KYCVerification from "../components/KYCVerification";
+import TrustVerification from "../components/TrustVerification";
 import NotificationBadge from "../components/NotificationBadge";
 import { createNotification } from "../lib/notifications";
 
@@ -82,6 +84,7 @@ const Profile = () => {
   const [otp, setOtp] = useState("");
   const [verificationId, setVerificationId] = useState<ConfirmationResult | null>(null);
   const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
+  const [smsStep, setSmsStep] = useState<'phone' | 'otp'>('phone');
   const [phoneError, setPhoneError] = useState("");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
@@ -93,6 +96,8 @@ const Profile = () => {
   });
   const [passwordError, setPasswordError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Nigerian phone numbers are 10 digits after +234
   const NIGERIAN_PHONE_LENGTH = 10;
@@ -118,38 +123,36 @@ const Profile = () => {
   }, []);
 
   const initRecaptcha = () => {
+    // Clear existing verifier if any
     if (window.recaptchaVerifier) {
       try {
         window.recaptchaVerifier.clear();
       } catch (e) {}
+      window.recaptchaVerifier = undefined;
     }
     
     if (recaptchaRef.current) {
       try {
         window.recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaRef.current, {
-          size: 'normal',
+          size: 'invisible', // Invisible is more robust in nested modals
           callback: () => {
             // re-captcha solved
           },
           'expired-callback': () => {
-            // Response expired. Ask user to solve reCAPTCHA again.
             if (window.recaptchaVerifier) {
-              try {
-                window.recaptchaVerifier.clear();
-              } catch (e) {}
+              window.recaptchaVerifier.clear();
               window.recaptchaVerifier = undefined;
             }
           }
         });
       } catch (err) {
-        console.error("Recaptcha Init Error:", err);
+        console.error("reCAPTCHA Init Error:", err);
       }
     }
   };
 
   const [profileData, setProfileData] = useState({
     firstName: user?.firstName || "",
-    middleName: user?.middleName || "",
     lastName: user?.lastName || "",
     gender: user?.gender || "",
     dob: user?.dob || "",
@@ -163,7 +166,6 @@ const Profile = () => {
     if (!isEditing && user) {
       setProfileData({
         firstName: user.firstName || "",
-        middleName: user.middleName || "",
         lastName: user.lastName || "",
         gender: user.gender || "",
         dob: user.dob || "",
@@ -374,16 +376,19 @@ const Profile = () => {
       setIsVerifyingPhone(true);
       setPhoneError("");
       
-      // Give the DOM a tiny bit of time to ensure container is ready
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Basic network check
+      if (!navigator.onLine) {
+        throw { code: 'auth/network-request-failed' };
+      }
+      
+      // Delay slightly for DOM readiness
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Always re-init to avoid stale containers
       initRecaptcha();
       
       const appVerifier = window.recaptchaVerifier;
       if (!appVerifier) throw new Error("Recaptcha container not found");
-      
-      const widgetId = await appVerifier.render(); 
       
       const fullPhone = `+234${cleanPhone}`;
       
@@ -395,28 +400,27 @@ const Profile = () => {
       }
       
       setVerificationId(result);
+      setSmsStep('otp');
       setResendTimer(60); // 60 seconds timer
       setSuccessMessage("OTP sent to your phone");
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error: any) {
       console.error("SMS Error:", error);
-      if (error.code === 'auth/invalid-app-credential') {
-        setPhoneError("App Verification Failed: Firebase could not verify this site's domain. Ensure your current URL is added to 'Authorized Domains' in your Firebase Authentication settings.");
-      } else if (error.code === 'auth/operation-not-allowed') {
-        setPhoneError("SMS is not enabled for your project region. Please check your Firebase Console Authentication settings.");
-      } else if (error.code === 'auth/billing-not-enabled') {
-        setPhoneError("SMS quotas may be exceeded or billing is required for this region. Use a 'Test Number' in Firebase Console (Settings > Phone) to bypass this during testing.");
+      if (error.code === 'auth/network-request-failed') {
+        setPhoneError("Network Error: Please check your internet connection and try again.");
+      } else if (error.code === 'auth/invalid-app-credential') {
+        setPhoneError("Verification Error: Site domain may not be authorized in Firebase.");
       } else if (error.code === 'auth/too-many-requests') {
-        setPhoneError("Too many attempts. Firebase has blocked this number temporarily. Use a 'Test Number' in your Firebase Console to continue immediately.");
+        setPhoneError("Too many attempts. This number has been temporarily blocked.");
       } else if (error.code === 'auth/credential-already-in-use' || error.code === 'auth/account-exists-with-different-credential') {
         setPhoneError("This phone number is already linked to another account.");
       } else {
-        setPhoneError(`Verification Error: ${error.code}. Ensure your domain is authorized in Firebase Console (Auth > Settings).`);
+        setPhoneError(`Verification failed: ${error.code || 'unknown'}. Please refresh and retry.`);
       }
 
       if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
+        try { window.recaptchaVerifier.clear(); } catch(e) {}
         window.recaptchaVerifier = undefined;
       }
     } finally {
@@ -472,18 +476,31 @@ const Profile = () => {
   };
 
   const handleUpdatePassword = async () => {
-    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+    const userObj = auth.currentUser;
+    if (!userObj || !userObj.email) return;
+
+    const hasPassword = userObj.providerData.some(p => p.providerId === 'password');
+    const uppercaseRegex = /[A-Z]/;
+    const numberRegex = /[0-9]/;
+    const specialCharRegex = /[!@#$%^&*(),.?":{}|<>]/;
+
+    if ((hasPassword && !passwordData.currentPassword) || !passwordData.newPassword || !passwordData.confirmPassword) {
       setPasswordError("All fields are required");
       return;
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError("Passwords do not match. Please re-enter your new password.");
+      setPasswordError("Passwords do not match");
       return;
     }
 
-    if (passwordData.newPassword.length < 6) {
-      setPasswordError("Password must be at least 6 characters");
+    if (passwordData.newPassword.length < 7) {
+      setPasswordError("Password must be at least 7 characters");
+      return;
+    }
+
+    if (!uppercaseRegex.test(passwordData.newPassword) || !numberRegex.test(passwordData.newPassword) || !specialCharRegex.test(passwordData.newPassword)) {
+      setPasswordError("Password does not meet complexity requirements");
       return;
     }
 
@@ -494,12 +511,23 @@ const Profile = () => {
       const userObj = auth.currentUser;
       if (!userObj || !userObj.email) throw new Error("User not authenticated");
 
-      // Re-authenticate
-      const credential = EmailAuthProvider.credential(userObj.email, passwordData.currentPassword);
-      await reauthenticateWithCredential(userObj, credential);
+      const hasPassword = userObj.providerData.some(p => p.providerId === 'password');
 
-      // Update password
-      await updatePassword(userObj, passwordData.newPassword);
+      if (hasPassword) {
+        // Re-authenticate
+        const credential = EmailAuthProvider.credential(userObj.email, passwordData.currentPassword);
+        await reauthenticateWithCredential(userObj, credential);
+        // Update password
+        await fbUpdatePassword(userObj, passwordData.newPassword);
+      } else {
+        // For Google/Phone users, they might not have a password. 
+        // We use linkWithCredential to "add" email/password
+        const credential = EmailAuthProvider.credential(userObj.email, passwordData.newPassword);
+        await linkWithCredential(userObj, credential);
+      }
+
+      // Update Firestore flag
+      await updateProfile({ hasPassword: true });
 
       setIsChangingPassword(false);
       setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -596,7 +624,7 @@ const Profile = () => {
 
       // 2. Prepare Data
       console.log("Updating Firestore document...");
-      const fullName = `${profileData.firstName} ${profileData.middleName ? profileData.middleName + ' ' : ''}${profileData.lastName}`.trim();
+      const fullName = `${profileData.firstName} ${profileData.lastName}`.trim();
       const updatedData: any = {
         ...profileData,
         name: fullName,
@@ -665,8 +693,8 @@ const Profile = () => {
       action: () => setActiveTab("notifications"),
     },
     {
-      icon: <Shield className="w-5 h-5" />,
-      label: "Privacy & Security",
+      icon: <Lock className="w-5 h-5" />,
+      label: "Privacy",
       color: "text-purple-500",
       description: "Account safety",
     },
@@ -751,7 +779,7 @@ const Profile = () => {
               <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight truncate">
                 {user.firstName ? `${user.firstName} ${user.lastName}` : "Guest User"}
               </h2>
-              <VerificationBadge level={currentLevel} showText={false} />
+              <VerificationBadge level={currentLevel} role={user.role} showText={false} />
             </div>
             <p className="text-sm text-slate-400 dark:text-slate-500 font-medium truncate">
                {user.email || user.phoneNumber || "No contact info"}
@@ -797,6 +825,10 @@ const Profile = () => {
               <KYCVerification />
             )}
 
+            {user.role === 'tenant' && (
+              <TrustVerification onVerifyPhone={() => setShowPhoneInput(true)} />
+            )}
+
             {!user.phoneVerified && (
                <button 
                 onClick={() => setShowPhoneInput(true)}
@@ -825,7 +857,9 @@ const Profile = () => {
                 <KeyRound className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Change Password</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  {user.hasPassword ? 'Change Password' : 'Create Password'}
+                </p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Update and strengthen account security</p>
               </div>
               <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
@@ -1030,7 +1064,7 @@ const Profile = () => {
                           />
                         </div>
                         {/* Hidden recaptcha container moved inside modal context */}
-                        <div id="recaptcha-container" ref={recaptchaRef} className="mt-2 flex justify-center"></div>
+                        <div id="recaptcha-container-profile" ref={recaptchaRef} className="mt-2 flex justify-center"></div>
                         {phoneError && (
                           <motion.div 
                             initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
@@ -1076,7 +1110,7 @@ const Profile = () => {
                         <div className="flex justify-between gap-2 sm:gap-3">
                           {[0, 1, 2, 3, 4, 5].map((index) => (
                             <div 
-                              key={index}
+                              key={`profile-otp-${index}`}
                               className={`w-10 h-12 sm:w-14 sm:h-16 flex items-center justify-center text-xl sm:text-2xl font-black rounded-xl border-2 transition-all duration-200
                                 ${otp.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-900' : 
                                   otp[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
@@ -1185,7 +1219,7 @@ const Profile = () => {
                          >
                             {previewUrl || user.avatarUrl ? (
                               <img 
-                                src={previewUrl || user.avatarUrl || ''} 
+                                src={previewUrl || user.avatarUrl || undefined} 
                                 alt="Preview" 
                                 className="w-full h-full object-cover" 
                               />
@@ -1230,14 +1264,14 @@ const Profile = () => {
                                   className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all appearance-none"
                                 >
                                   <option value="">Select City</option>
-                                  {["Lagos", "Abuja", "Ibadan", "Port Harcourt", "Kano", "Ogbomoso", "Enugu", "Ilorin", "Abeokuta", "Kaduna", "Owerri", "Benin City"].map(city => (
-                                    <option key={city} value={city}>{city}</option>
+                                  {["Lagos", "Abuja", "Ibadan", "Port Harcourt", "Kano", "Ogbomoso", "Enugu", "Ilorin", "Abeokuta", "Kaduna", "Owerri", "Benin City"].map((city, cityIdx) => (
+                                    <option key={`profile-city-select-${city}-${cityIdx}`} value={city}>{city}</option>
                                   ))}
                                 </select>
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div className="space-y-1.5 sm:space-y-2">
                                 <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">First Name</label>
                                 <div className="relative group">
@@ -1248,20 +1282,6 @@ const Profile = () => {
                                     value={profileData.firstName}
                                     onChange={handleNameChange}
                                     placeholder="First Name"
-                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
-                                  />
-                                </div>
-                              </div>
-                              <div className="space-y-1.5 sm:space-y-2">
-                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Middle Name</label>
-                                <div className="relative group">
-                                  <CircleUserRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
-                                  <input
-                                    name="middleName"
-                                    type="text"
-                                    value={profileData.middleName}
-                                    onChange={handleNameChange}
-                                    placeholder="Middle Name (Optional)"
                                     className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
                                   />
                                 </div>
@@ -1413,11 +1433,17 @@ const Profile = () => {
         {/* Change Password Modal */}
         <AnimatePresence>
           {isChangingPassword && (
-            <div className="fixed inset-0 z-[60] overflow-y-auto bg-slate-900/60 backdrop-blur-md">
+            <motion.div 
+              key="change-password-modal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] overflow-y-auto bg-slate-900/60 backdrop-blur-md"
+            >
               <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
                 className="min-h-screen p-4 flex items-center justify-center"
                 onClick={() => setIsChangingPassword(false)}
               >
@@ -1427,7 +1453,9 @@ const Profile = () => {
                 >
                   <div className="p-4 sm:p-8 space-y-4 sm:space-y-6">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tighter">Password Update</h3>
+                      <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tighter">
+                        {user.hasPassword ? 'Password Update' : 'Set Password'}
+                      </h3>
                       <button 
                         onClick={() => setIsChangingPassword(false)}
                         className="text-rose-500 hover:text-rose-600 p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-all"
@@ -1437,38 +1465,57 @@ const Profile = () => {
                     </div>
 
                     <div className="space-y-3 sm:space-y-4">
-                      <div className="space-y-1.5 sm:space-y-2">
-                        <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Current Password</label>
-                        <div className="relative group">
-                          <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
-                          <input
-                            type={showPassword ? "text" : "password"}
-                            value={passwordData.currentPassword}
-                            onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                            className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
-                            placeholder="••••••••"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
-                          >
-                            {showPassword ? <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-                          </button>
+                      {user.hasPassword ? (
+                        <div className="space-y-1.5 sm:space-y-2">
+                          <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Current Password</label>
+                          <div className="relative group">
+                            <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
+                            <input
+                              type={showPassword ? "text" : "password"}
+                              value={passwordData.currentPassword}
+                              onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                              className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
+                              placeholder="••••••••"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                            >
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="p-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800 rounded-2xl flex items-start gap-3">
+                           <ShieldCheck className="w-5 h-5 text-primary-500 shrink-0 mt-0.5" />
+                           <div>
+                              <p className="text-[10px] font-black text-primary-700 dark:text-primary-400 uppercase tracking-wider">Google Authentication</p>
+                              <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-normal font-medium">
+                                 Since you use Google, you don't have a password yet. Setting one allows you to sign in with your email directly.
+                              </p>
+                           </div>
+                        </div>
+                      )}
 
                       <div className="space-y-1.5 sm:space-y-2">
                         <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">New Password</label>
                         <div className="relative group">
                           <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
                           <input
-                            type={showPassword ? "text" : "password"}
+                            type={showNewPassword ? "text" : "password"}
                             value={passwordData.newPassword}
                             onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
                             className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
                             placeholder="New password"
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPassword(!showNewPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                          >
+                            {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
                         </div>
                       </div>
 
@@ -1477,12 +1524,39 @@ const Profile = () => {
                         <div className="relative group">
                           <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
                           <input
-                            type={showPassword ? "text" : "password"}
+                            type={showConfirmPassword ? "text" : "password"}
                             value={passwordData.confirmPassword}
                             onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                             className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
                             placeholder="Repeat password"
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                          >
+                            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Password Criteria */}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-1">
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${passwordData.newPassword.length >= 7 ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${passwordData.newPassword.length >= 7 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Min 7 chars</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${/[A-Z]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[A-Z]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Uppercase</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${/[0-9]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[0-9]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Number</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${/[!@#$%^&*(),.?":{}|<>]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[!@#$%^&*(),.?":{}|<>]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
                         </div>
                       </div>
 
@@ -1512,12 +1586,19 @@ const Profile = () => {
                   </div>
                 </div>
               </motion.div>
-            </div>
+            </motion.div>
           )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {showVault && (
-            <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-500">
+            <motion.div
+              key="vault-modal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-500"
+            >
               <motion.div
                 initial={{ y: "100%" }}
                 animate={{ y: 0 }}
@@ -1647,19 +1728,24 @@ const Profile = () => {
                   </button>
                 </div>
               </motion.div>
-            </div>
+            </motion.div>
           )}
         </AnimatePresence>
 
-        {showLogoutConfirm && (
-            <div 
+        <AnimatePresence>
+          {showLogoutConfirm && (
+            <motion.div 
+              key="logout-modal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
               onClick={() => setShowLogoutConfirm(false)}
             >
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
                 className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -1688,18 +1774,22 @@ const Profile = () => {
                   </button>
                 </div>
               </motion.div>
-            </div>
+            </motion.div>
           )}
 
           {showDeletePhotoConfirm && (
-            <div 
+            <motion.div 
+              key="delete-photo-modal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
               onClick={() => setShowDeletePhotoConfirm(false)}
             >
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
                 className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -1725,7 +1815,7 @@ const Profile = () => {
                   </button>
                 </div>
               </motion.div>
-            </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </main>

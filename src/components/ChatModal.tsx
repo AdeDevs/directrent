@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, Smile, FileText, CreditCard, ChevronRight, CheckCircle2, ArrowRight, MessageCircle, Video } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import SafeImage from './SafeImage';
 import { 
   collection, 
   query, 
@@ -17,7 +18,7 @@ import {
   updateDoc,
   increment
 } from 'firebase/firestore';
-import { Listing, User as AppUser, VerificationLevel } from '../types';
+import { Listing, User as AppUser, VerificationLevel, UserRole } from '../types';
 import { useAuth } from '../context/AuthContext';
 import VerificationBadge from './VerificationBadge';
 import { createNotification } from '../lib/notifications';
@@ -54,7 +55,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
   const [convData, setConvData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [showWhatsAppDisclaimer, setShowWhatsAppDisclaimer] = useState(false);
-  const [otherUser, setOtherUser] = useState<{ name: string; avatarUrl?: string; verificationLevel?: VerificationLevel; role: string; phoneNumber?: string } | null>(null);
+  const [otherUser, setOtherUser] = useState<{ name: string; avatarUrl?: string; verificationLevel?: VerificationLevel; role: UserRole; phoneNumber?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Stable Conversation ID processing
@@ -416,7 +417,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                       {otherUser?.name || listing.agent?.name}
                     </h3>
                     {otherUser?.verificationLevel && (
-                      <VerificationBadge level={otherUser.verificationLevel} showText={false} className="px-1 py-0.5" />
+                      <VerificationBadge level={otherUser.verificationLevel} role={otherUser.role} showText={false} className="px-1 py-0.5" />
                     )}
                   </div>
                   <div className="flex items-center gap-1">
@@ -437,10 +438,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
 
             {/* Property Reference Banner */}
             <div className="px-3 sm:px-4 py-2 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 sm:gap-3 shrink-0">
-              <img 
+              <SafeImage 
                 src={listing.image} 
                 className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg object-cover border border-slate-200 dark:border-slate-800" 
-                referrerPolicy="no-referrer"
                 alt={listing.title}
               />
               <div className="flex-1 min-w-0 text-left">

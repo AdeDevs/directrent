@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { GoogleGenAI } from '@google/genai';
 import { 
   ShieldCheck, 
   Check, 
@@ -214,6 +213,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
             5. RECOMMENDATION: Output "approve", "flag", or "reject".
 
             CRITICAL POLICY RULES:
+            - BE LENIENT: You are reviewing real human submissions. If a document is slightly tilted, has minor reflections, or minor OCR errors occur, do not penalize the confidence heavily. Focus on clear, malicious fraud.
             - NAME MATCHING: If the target name is "John Doe" and the ID says "John James Doe", this is a VALID match. Do not flag for middle name presence on ID.
             - LOCATION: DO NOT reject or flag based on location mismatches. People often register IDs in different cities than where they reside. Ignore location discrepancies.
             - DOB: If the DOB matches within reason (accounting for potential OCR errors or month/day order), consider it a match.
@@ -252,21 +252,18 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         console.warn("Falling back to text analysis due to image error:", imgErr);
       }
 
-      const key = process.env.GEMINI_API_KEY;
-      if (!key) {
-        setAgentAiError("AI Configuration Error: Missing API Key.");
-        setIsAnalyzingAgent(false);
-        return;
-      }
-      
-      const ai = new GoogleGenAI({ apiKey: key });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: { parts: [{ text: prompt }, ...images] },
-        config: { responseMimeType: "application/json" }
+      const response = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, images })
       });
 
-      const report = JSON.parse(response.text || '{}');
+      if (!response.ok) {
+        throw new Error("Failed to analyze agent");
+      }
+
+      const data = await response.json();
+      const report = JSON.parse(data.text || '{}');
       
       // Ensure we are still looking at the same agent before setting state
       if (selectedAgentIdRef.current === currentId) {
@@ -300,8 +297,9 @@ const Approvals: React.FC<ApprovalsProps> = () => {
             1. IMAGE ANALYSIS: Analyze the provided listing image. Does it match the description? Does it look like a real home or a stock/render? Identify potential red flags (e.g., logo watermarks from other sites).
             2. PRICING AUDIT: Based on the location (${listing.location}) and type (${listing.type}), is the price (${listing.price}) realistic for the Nigerian market? Flag if suspiciously low or high.
             3. FRAUD DETECTION: Look for serious red flags (e.g., requests for direct payment in description, stolen watermarked images, price-to-location impossibility).
-            4. NOTE ON STYLE: Ignore informal language, lack of capitalization, or generic titles (like "Ajala Homes"). These are acceptable on the platform. focusing only on actual fraud or extreme price deviations.
-            5. RECOMMENDATION: Output "approve", "flag", or "reject".
+            4. NOTE ON STYLE: BE LENIENT. Nigerian real estate listings often have informal language, lack of capitalization, or generic titles (like "Ajala Homes"). These are acceptable. Do not penalize for "low quality" or "informal" descriptions.
+            5. PRICING: Allow for a wide margin of error in pricing. Only flag if the price is mathematically impossible for the area (e.g., a mansion for ₦10,000).
+            6. RECOMMENDATION: Output "approve", "flag", or "reject".
             
             STRICT JSON OUTPUT FORMAT:
             {
@@ -326,21 +324,18 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         }
       }
 
-      const key = process.env.GEMINI_API_KEY;
-      if (!key) {
-        setListingAiError("AI Configuration Error: Missing API Key.");
-        setIsAnalyzingListing(false);
-        return;
-      }
-      
-      const ai = new GoogleGenAI({ apiKey: key });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: { parts: [{ text: prompt }, ...images] },
-        config: { responseMimeType: "application/json" }
+      const response = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, images })
       });
 
-      const report = JSON.parse(response.text || '{}');
+      if (!response.ok) {
+        throw new Error("Failed to analyze listing");
+      }
+
+      const data = await response.json();
+      const report = JSON.parse(data.text || '{}');
       if (selectedListingIdRef.current === currentId) {
         setListingAiReport(report);
       }
@@ -582,7 +577,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         return {
           id: doc.id,
           userId: doc.id,
-          name: `${userData.firstName || ''} ${userData.middleName ? userData.middleName + ' ' : ''}${userData.lastName || ''}`.trim() || userData.name || 'Anonymous Agent',
+          name: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.name || 'Anonymous Agent',
           email: userData.email,
           avatarUrl: userData.avatarUrl,
           status: status,
@@ -1357,7 +1352,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
                         {selectedListingForReview.images.map((_, i) => (
                           <div 
-                            key={i} 
+                            key={`listing-indicator-${selectedListingForReview.id}-${i}`} 
                             className={`w-1.5 h-1.5 rounded-full transition-all ${
                               i === currentImageIndex ? 'bg-white w-4' : 'bg-white/40'
                             }`} 

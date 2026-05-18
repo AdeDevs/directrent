@@ -1,4 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
 import { Listing } from "../types";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "./firebase";
@@ -90,16 +89,16 @@ export const analyzeDuplicatesWithGemini = async (
     INSTRUCTIONS:
     1. SCENE UNDERSTANDING: Analyze the images of the NEW listing and the EXISTING listings.
     2. LOOK FOR: Matching interior fixtures (cabinets, tiling), window views, architectural layouts, or watermarks.
-    3. LOGIC: Even if the price or description is slightly different, if the images show the same physical unit, it's a duplicate.
+    3. LOGIC: BE LENIENT. Only flag as a duplicate if the images show the EXACT same physical unit or if the description is a 90%+ copy-paste. Minor similarities in furniture or tiling are common in developers' estates.
     4. RETURN: A similarity score (0-100) and specific reasoning.
     
     STRICT JSON OUTPUT:
     {
       "score": number, // 0-100
-      "reasoning": "Explain why they match or don't match (e.g., 'Marble pattern in kitchen is identical to Listing #XYZ')",
+      "reasoning": "Explain why they match or don't match (e.g., 'Identical unique crack in floor tile found in both images')",
       "matchedListingId": "string or null",
       "matchedListingTitle": "string or null",
-      "isFlagged": boolean // true if score > 75
+      "isFlagged": boolean // true ONLY if score > 85
     }
   `;
 
@@ -124,26 +123,18 @@ export const analyzeDuplicatesWithGemini = async (
       }
     }
 
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) {
-      console.warn("GEMINI_API_KEY is not defined. AI features will be disabled.");
-      return {
-        score: 0,
-        reasoning: "AI analysis unavailable: Missing API Key.",
-        matchedListingId: null,
-        matchedListingTitle: null,
-        isFlagged: false
-      };
-    }
-    
-    const ai = new GoogleGenAI({ apiKey: key });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: { parts: [{ text: prompt }, ...images] },
-      config: { responseMimeType: "application/json" }
+    const response = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, images })
     });
 
-    return JSON.parse(response.text || '{}');
+    if (!response.ok) {
+        throw new Error("Failed to analyze duplicates");
+    }
+
+    const data = await response.json();
+    return JSON.parse(data.text || '{}');
   } catch (error) {
     console.error("Gemini Duplicate Detection Error:", error);
     throw error;

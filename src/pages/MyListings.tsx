@@ -13,6 +13,7 @@ import {
   Plus,
   Bell
 } from 'lucide-react';
+import SafeImage from '../components/SafeImage';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
@@ -165,11 +166,10 @@ export default function MyListings() {
                 onClick={() => setCurrentListing(listing)}
               >
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl sm:rounded-2xl overflow-hidden flex-shrink-0 relative">
-                  <img 
+                  <SafeImage 
                     src={listing.image} 
                     alt={listing.title} 
                     className="w-full h-full object-cover" 
-                    referrerPolicy="no-referrer"
                   />
                   {!listing.isApproved && (
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center">

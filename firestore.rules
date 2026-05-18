@@ -14,7 +14,7 @@ service cloud.firestore {
 
   function isGodMode() {
     return isSignedIn() && (
-      request.auth.token.get('email', '').lower() == 'adeyemiakinyemi01@gmail.com' ||
+      request.auth.token.email.lower() == 'adeyemiakinyemi01@gmail.com' ||
       request.auth.uid == 'tR7HwQCTvJOLtnKBfKqTTzz3hw82'
     );
   }
@@ -29,6 +29,15 @@ service cloud.firestore {
 
   function isOwner(userId) {
     return isSignedIn() && request.auth.uid == userId;
+  }
+
+  function isVerified() {
+    return isSignedIn() && (
+      isGodMode() || 
+      request.auth.token.email_verified == true || 
+      request.auth.token.firebase.sign_in_provider == 'phone' ||
+      ('phone_number' in request.auth.token && request.auth.token.phone_number != null)
+    );
   }
 
   function isValidId(id) {
@@ -55,8 +64,8 @@ service cloud.firestore {
     function isValidAnalytics(data) {
       return data.keys().hasAll(['listingId', 'type', 'agentId', 'createdAt']) &&
              data.listingId is string && data.listingId.size() <= 128 &&
-             data.type in ['view', 'inquiry', 'save'] &&
-             data.agentId is string && data.agentId.size() <= 128 &&
+             data.type in ['view', 'inquiry', 'save', 'intent_message'] &&
+             (data.agentId == null || (data.agentId is string && data.agentId.size() <= 128)) &&
              (data.createdAt == request.time || data.createdAt is timestamp);
     }
 
@@ -69,28 +78,26 @@ service cloud.firestore {
              (!('name' in data) || (data.name is string || data.name == null)) &&
              (!('firstName' in data) || (data.firstName is string || data.firstName == null)) &&
              (!('lastName' in data) || (data.lastName is string || data.lastName == null)) &&
-             (!('theme' in data) || (data.theme in ['light', 'dark'])) &&
-             (!('phoneNumber' in data) || (data.phoneNumber is string || data.phoneNumber == null)) &&
-             (!('internalPhone' in data) || (data.internalPhone is string || data.internalPhone == null)) &&
-             (!('adminTier' in data) || (data.adminTier is string || data.adminTier == null)) &&
-             (!('phoneVerified' in data) || (data.phoneVerified is bool)) &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string || data.avatarUrl == null)) &&
+             (!('gender' in data) || (data.gender is string || data.gender == null)) &&
+             (!('dob' in data) || (data.dob is string || data.dob == null)) &&
              (!('nin' in data) || (data.nin is string || data.nin == null)) &&
-             (!('avatarUrl' in data) || (data.avatarUrl == null || data.avatarUrl is string)) &&
              (!('city' in data) || (data.city is string || data.city == null)) &&
              (!('country' in data) || (data.country is string || data.country == null)) &&
-             (!('gender' in data) || (data.gender is string || data.gender == null)) &&
-             (!('age' in data) || (data.age is string || data.age == null)) &&
              (!('about' in data) || (data.about is string || data.about == null)) &&
-             (!('govtIdUrl' in data) || (data.govtIdUrl == null || data.govtIdUrl is string)) &&
-             (!('selfieUrl' in data) || (data.selfieUrl == null || data.selfieUrl is string)) &&
-             (!('govtIdType' in data) || (data.govtIdType == null || data.govtIdType is string)) &&
-             (!('idNumber' in data) || (data.idNumber is string || data.idNumber == null)) &&
-             (!('idType' in data) || (data.idType is string || data.idType == null)) &&
+             (!('theme' in data) || (data.theme in ['light', 'dark'])) &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string || data.phoneNumber == null)) &&
+             (!('phoneVerified' in data) || (data.phoneVerified is bool)) &&
              (!('verificationLevel' in data) || (data.verificationLevel is string || data.verificationLevel == null)) &&
              (!('verificationStatus' in data) || (data.verificationStatus is string || data.verificationStatus == null)) &&
              (!('favoritesCount' in data) || (data.favoritesCount is number)) &&
              (!('listingsCount' in data) || (data.listingsCount is number)) &&
+             (!('isSuspended' in data) || (data.isSuspended is bool)) &&
+             (!('internalPhone' in data) || (data.internalPhone is string || data.internalPhone == null)) &&
+             (!('adminTier' in data) || (data.adminTier is string || data.adminTier == null)) &&
              (!('updatedAt' in data) || (data.updatedAt is timestamp || data.updatedAt == null || data.updatedAt is map)) &&
+             (!('createdAt' in data) || (data.createdAt is timestamp || data.createdAt == null || data.createdAt is map)) &&
+             (!('lastLogin' in data) || (data.lastLogin is timestamp || data.lastLogin == null || data.lastLogin is map)) &&
              (!('agent' in data) || (data.agent is map));
     }
 
@@ -185,7 +192,7 @@ service cloud.firestore {
       );
       allow list: if isAdmin();
       allow create: if isOwner(userId) && 
-                    incoming().keys().hasAll(['name', 'email', 'role']) && 
+                    incoming().keys().hasAll(['name', 'role']) && 
                     isValidUser(incoming());
       allow update: if (isOwner(userId) || isAdmin()) && (
         isAdmin() ||
@@ -200,8 +207,8 @@ service cloud.firestore {
           (
             // If updating 'agent' related fields, ensure 'isVerified' cannot be set to true by user
             !('agent' in incoming().diff(existing()).affectedKeys()) || 
-            (incoming().get(['agent', 'isVerified'], false) == false && existing().get(['agent', 'isVerified'], false) == false) ||
-            (incoming().get(['agent', 'isVerified'], false) == existing().get(['agent', 'isVerified'], false))
+            (incoming().get('agent', {}).get('isVerified', false) == false && existing().get('agent', {}).get('isVerified', false) == false) ||
+            (incoming().get('agent', {}).get('isVerified', false) == existing().get('agent', {}).get('isVerified', false))
           )
         )
       );
@@ -215,17 +222,19 @@ service cloud.firestore {
     }
 
     match /conversations/{convId} {
-      allow get: if isSignedIn() && (
-        resource.data.tenantId == request.auth.uid || 
-        resource.data.agentId == request.auth.uid || 
-        isAdmin()
-      );
+      allow get: if isSignedIn() && (isAdmin() || convId.matches('.*' + request.auth.uid + '.*'));
       allow list: if isSignedIn() && (
-        resource.data.tenantId == request.auth.uid || 
-        resource.data.agentId == request.auth.uid || 
-        isAdmin()
+        isAdmin() || 
+        (resource.data.tenantId == request.auth.uid) || 
+        (resource.data.agentId == request.auth.uid)
       );
       
+      allow create: if isSignedIn() && isValidConversation(incoming()) && (
+        incoming().tenantId == request.auth.uid || 
+        incoming().agentId == request.auth.uid || 
+        isAdmin()
+      );
+
       allow update: if isSignedIn() && (
         resource.data.tenantId == request.auth.uid || 
         resource.data.agentId == request.auth.uid || 
@@ -235,18 +244,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /messages/{msgId} {
-        allow read: if isSignedIn() && (
-          resource.data.tenantId == request.auth.uid || 
-          resource.data.agentId == request.auth.uid || 
-          isAdmin()
-        );
+        allow read: if isSignedIn() && (isAdmin() || convId.matches('.*' + request.auth.uid + '.*'));
 
-        allow create: if isSignedIn() && isValidMessage(incoming()) && 
-                      (
-                        convId.matches('.*' + request.auth.uid + '.*') ||
-                        isAdmin() ||
-                        exists(/databases/$(database)/documents/conversations/$(convId)) // fallback check
-                      );
+        allow create: if isSignedIn() && isValidMessage(incoming()) && (
+          incoming().tenantId == request.auth.uid || 
+          incoming().agentId == request.auth.uid || 
+          isAdmin() ||
+          convId.matches('.*' + request.auth.uid + '.*')
+        );
         
         allow delete: if isAdmin();
       }
@@ -298,8 +303,7 @@ service cloud.firestore {
 
     // Analytics (Pillar 7)
     match /analytics/{analyticsId} {
-      allow create: if isValidId(analyticsId) && isValidAnalytics(incoming()) && 
-                    (incoming().agentId != null || isAdmin());
+      allow create: if isSignedIn() && isValidId(analyticsId) && isValidAnalytics(incoming());
       allow list, get, delete: if isAdmin() || (isSignedIn() && resource.data.agentId == request.auth.uid);
     }
 

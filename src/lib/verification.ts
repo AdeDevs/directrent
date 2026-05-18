@@ -3,21 +3,28 @@ import { User, VerificationLevel } from '../types';
 /**
  * Calculates the verification level of a user based on their data.
  * 
- * VERIFIED: phoneVerified = true
- * TRUSTED: phoneVerified = true + avatarUrl exists + nin exists
- * FULLY VERIFIED (FUTURE): NIN verified via external API (placeholder logic for now)
+ * Tenants:
+ * - NONE: No verification
+ * - TRUSTED: Phone verified
+ * - VERIFIED: Phone verified + NIN added
+ * 
+ * Agents:
+ * - NONE: Not verified by admin
+ * - VERIFIED: ID and Selfie approved by admin
  */
 export function calculateVerificationLevel(user: Partial<User>): VerificationLevel {
-  const { role, verificationStatus } = user;
+  const { role, verificationStatus, phoneVerified, nin } = user;
 
   if (role === 'agent') {
     if (verificationStatus === 'verified') return 'verified';
     return 'none';
   }
 
-  // Tenants just get 'none' or 'verified' if they completed basic info?
-  // Let's stick to the prompt's focus on agents.
-  if (user.phoneVerified && user.nin && (user.firstName || user.lastName)) return 'verified';
+  // Tenant logic
+  if (phoneVerified) {
+    if (nin && nin.length === 11) return 'verified';
+    return 'trusted';
+  }
 
   return 'none';
 }
@@ -27,12 +34,17 @@ export function calculateVerificationLevel(user: Partial<User>): VerificationLev
  * firstName, lastName, phoneVerified, gender, age, city, nin, avatarUrl
  */
 export function isProfileComplete(user: Partial<User>): boolean {
-  return !!(
+  const common = !!(
     user.firstName &&
     user.lastName &&
     user.phoneVerified &&
     user.dob &&
-    user.city &&
-    user.nin
+    user.city
   );
+
+  if (user.role === 'agent') {
+      return common && !!user.nin;
+  }
+
+  return common;
 }

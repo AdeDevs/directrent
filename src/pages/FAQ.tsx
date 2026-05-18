@@ -81,8 +81,8 @@ const FAQ = () => {
 
         {searchQuery ? (
           <div className="space-y-3">
-            {filteredQuestions.map((faq, idx) => (
-              <div key={idx} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+            {filteredQuestions.map((faq) => (
+              <div key={`faq-search-${faq.q.replace(/\s+/g, '-').toLowerCase()}`} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                 <h3 className="font-bold text-slate-900 dark:text-white mb-2">{faq.q}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">{faq.a}</p>
               </div>
@@ -95,8 +95,8 @@ const FAQ = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {faqs.map((category, catIdx) => (
-              <div key={catIdx}>
+            {faqs.map((category) => (
+              <div key={`faq-category-${category.category.toLowerCase()}`}>
                 <div className="flex items-center gap-2 mb-4 px-1">
                   <div className="text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 p-1.5 rounded-lg">
                     {category.icon}
@@ -105,11 +105,12 @@ const FAQ = () => {
                 </div>
                 <div className="space-y-3">
                   {category.questions.map((faq, idx) => {
+                    const catIdx = faqs.findIndex(c => c.category === category.category);
                     const globalIdx = catIdx * 10 + idx;
                     const isOpen = openIdx === globalIdx;
                     return (
                       <div 
-                        key={idx}
+                        key={`faq-item-${faq.q.replace(/\s+/g, '-').toLowerCase()}`}
                         className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-300 ${isOpen ? 'border-primary-500/30 ring-4 ring-primary-500/5 shadow-md' : 'border-slate-100 dark:border-slate-800 shadow-sm'}`}
                       >
                         <button 

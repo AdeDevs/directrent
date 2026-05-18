@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Search, Settings2, MapPin, FilterX, Home as HomeIcon, Trash2, Bell, Map, LayoutGrid, Navigation, Info } from 'lucide-react';
 import { APIProvider, Map as GoogleMap, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef } from '@vis.gl/react-google-maps';
 import ListingCard from '../components/ListingCard';
+import SafeImage from '../components/SafeImage';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, onSnapshot, orderBy, doc, where, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -43,7 +44,7 @@ const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing
             onClick={() => onClick(listing)}
           >
             <div className="relative overflow-hidden rounded-xl mb-3">
-              <img src={listing.image} alt="" className="w-full h-28 object-cover group-hover/card:scale-110 transition-transform duration-500" />
+              <SafeImage src={listing.image} fallbackType="house" className="w-full h-28 object-cover group-hover/card:scale-110 transition-transform duration-500" />
               <div className="absolute top-2 left-2">
                 <span className="bg-white/90 backdrop-blur-md dark:bg-slate-900/90 px-2 py-0.5 rounded-lg text-[9px] font-black text-primary-600 uppercase tracking-tighter border border-slate-100 dark:border-slate-800">
                   {listing.type}
@@ -79,6 +80,26 @@ const Home = () => {
   const [dbListings, setDbListings] = useState<Listing[]>([]);
   const [isMapView, setIsMapView] = useState(false);
   const { user, setCurrentListing, setActiveTab } = useAuth();
+  const [itemsLoaded, setItemsLoaded] = useState(12);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setItemsLoaded(12); // Reset when filters change
+  }, [searchQuery, activeFilter, maxBudget]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setItemsLoaded(prev => prev + 12);
+      }
+    }, { rootMargin: '200px' });
+
+    if (sentinelRef.current) {
+      observer.observe(sentinelRef.current);
+    }
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const listingsRef = collection(db, 'listings');
@@ -133,6 +154,8 @@ const Home = () => {
       return matchesSearch && matchesFilter && matchesBudget;
     });
   }, [searchQuery, activeFilter, maxBudget, isAgent, user?.id, dbListings]);
+
+  const visibleListings = useMemo(() => filteredListings.slice(0, itemsLoaded), [filteredListings, itemsLoaded]);
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -204,7 +227,7 @@ const Home = () => {
         </div>
       </header>
 
-      <main className="px-[15px] mb-0" style={{ paddingTop: '15px', paddingBottom: '0px' }}>
+      <main className="px-[14px] mb-0" style={{ paddingTop: '15px', paddingBottom: '0px' }}>
         <motion.div 
           initial={{ opacity: 0, y: 10 }} 
           animate={{ opacity: 1, y: 0 }} 
@@ -324,41 +347,68 @@ const Home = () => {
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
-            className="w-full h-[600px] rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl relative"
+            className="w-full h-[calc(100vh-200px)] flex flex-col lg:flex-row gap-4"
           >
-            <GoogleMapsGuard>
-              <GoogleMap 
-                defaultCenter={{ lat: 6.5244, lng: 3.3792 }} // Lagos center
-                defaultZoom={11}
-                mapId="LISTINGS_MAP"
-                internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
-                className="w-full h-full"
-              >
-                {filteredListings.map((listing, idx) => (
-                  <MapMarkerWithInfoWindow 
-                    key={`marker-${listing.id}-${idx}`} 
-                    listing={listing}
-                    onClick={setCurrentListing}
-                  />
-                ))}
-              </GoogleMap>
-            </GoogleMapsGuard>
-            <div className="absolute top-4 left-4 right-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-lg flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary-50 dark:bg-primary-900/20 rounded-xl flex items-center justify-center text-primary-600">
-                <Navigation className="w-5 h-5" />
+            {/* Map Section */}
+            <div className="flex-1 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl relative min-h-[300px]">
+              <GoogleMapsGuard>
+                <GoogleMap 
+                  defaultCenter={{ lat: 6.5244, lng: 3.3792 }} // Lagos center
+                  defaultZoom={12}
+                  defaultTilt={45} // 3D View
+                  defaultHeading={0}
+                  mapId="LISTINGS_MAP"
+                  internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+                  className="w-full h-full"
+                >
+                  {filteredListings.map((listing) => (
+                    <MapMarkerWithInfoWindow 
+                      key={`map-marker-${listing.id}`} 
+                      listing={listing}
+                      onClick={setCurrentListing}
+                    />
+                  ))}
+                </GoogleMap>
+              </GoogleMapsGuard>
+              <div className="absolute top-4 left-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-3 rounded-xl border border-slate-100 dark:border-slate-800 shadow-lg flex items-center gap-2">
+                <div className="w-8 h-8 bg-primary-50 dark:bg-primary-900/20 rounded-lg flex items-center justify-center text-primary-600">
+                  <Navigation className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-900 dark:text-white">Area Discovery</h4>
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-black text-slate-900 dark:text-white">Discover Area</h4>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Viewing {filteredListings.length} matching properties in this area.</p>
-              </div>
+            </div>
+            
+            {/* Listing List Section */}
+            <div className="w-full lg:w-[400px] xl:w-[450px] overflow-y-auto pr-2 space-y-4">
+                {visibleListings.length > 0 ? (
+                  visibleListings.map((listing) => (
+                    <div key={`sidebar-listing-${listing.id}`} className="border-b border-slate-100 dark:border-slate-800 pb-4">
+                      <ListingCard 
+                        listing={listing} 
+                        onViewDetails={() => setCurrentListing(listing)}
+                        isAgentView={isAgent}
+                        onEdit={() => {
+                          setCurrentListing(listing);
+                          setActiveTab('create');
+                        }}
+                        onDelete={() => handleDelete(listing.id)}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-slate-500 py-10">No listings found in this area.</p>
+                )}
+                <div ref={sentinelRef} />
             </div>
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-4 sm:gap-6 lg:gap-8">
-            {filteredListings.length > 0 ? (
-              filteredListings.map((listing, idx) => (
+            {visibleListings.length > 0 ? (
+              visibleListings.map((listing) => (
                 <ListingCard 
-                  key={`home-listing-${listing.id}-${idx}`} 
+                  key={`home-listing-${listing.id}`} 
                   listing={listing} 
                   onViewDetails={() => setCurrentListing(listing)}
                   isAgentView={isAgent}
@@ -388,6 +438,7 @@ const Home = () => {
                 </button>
               </div>
             )}
+            <div ref={sentinelRef} />
           </div>
         )}
       </AnimatePresence>

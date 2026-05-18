@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Home, X, Users, Handshake, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, User } from '../types';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -10,17 +10,19 @@ import {
   sendPasswordResetEmail,
   RecaptchaVerifier,
   signInWithPhoneNumber,
-  updatePassword,
+  updatePassword as fbUpdatePassword,
   ConfirmationResult,
   PhoneAuthProvider,
   linkWithCredential,
   signInWithCredential,
-  EmailAuthProvider
+  EmailAuthProvider,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 
 const Auth = () => {
-  const { authMode, setAuthMode, preselectedRole, login, setView } = useAuth();
+  const { authMode, setAuthMode, preselectedRole, login, setView, signInWithGoogle } = useAuth();
   const [role, setRole] = useState<UserRole>(preselectedRole);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -151,6 +153,7 @@ const Auth = () => {
     const newErrors: Record<string, string> = {};
     const specialCharRegex = /[!@#$%^&*(),.?":{}|<>]/;
     const uppercaseRegex = /[A-Z]/;
+    const numberRegex = /[0-9]/;
     const ninRegex = /^\d{11}$/;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -168,14 +171,26 @@ const Auth = () => {
         if (!formData.password) newErrors.password = 'Password is required';
         else if (formData.password.length < 7) newErrors.password = 'Min 7 characters';
         else if (!uppercaseRegex.test(formData.password)) newErrors.password = 'Need one uppercase letter';
+        else if (!numberRegex.test(formData.password)) newErrors.password = 'Needs at least one number';
         else if (!specialCharRegex.test(formData.password)) newErrors.password = 'Need one special character';
         
         if (formData.password !== formData.confirmPassword) {
           newErrors.confirmPassword = 'Passwords do not match';
         }
+
+        // For Tenants, everything is on Step 1
+        if (role === 'tenant') {
+          if (!formData.phoneNumber) {
+            newErrors.phoneNumber = 'Phone number is required';
+          } else if (formData.phoneNumber.length < 10) {
+            newErrors.phoneNumber = 'Invalid phone number';
+          } else if (!phoneVerified) {
+            newErrors.phoneNumber = 'Verify phone number';
+          }
+        }
       }
 
-      if (signupStep === 2) {
+      if (signupStep === 2 && role === 'agent') {
         if (!formData.city) newErrors.city = 'Please select a city';
         if (!formData.dob) newErrors.dob = 'Birthday is required';
         
@@ -205,12 +220,14 @@ const Auth = () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const ninRegex = /^\d{11}$/;
     const uppercaseRegex = /[A-Z]/;
+    const numberRegex = /[0-9]/;
     const specialCharRegex = /[!@#$%^&*(),.?":{}|<>]/;
 
     const emailValid = formData.email && emailRegex.test(formData.email);
     const passwordValid = formData.password && (authMode === 'login' || (
       formData.password.length >= 7 && 
       uppercaseRegex.test(formData.password) && 
+      numberRegex.test(formData.password) && 
       specialCharRegex.test(formData.password)
     ));
 
@@ -219,9 +236,13 @@ const Auth = () => {
     }
 
     if (signupStep === 1) {
-      return !!(formData.firstName && formData.lastName && emailValid && passwordValid && formData.password === formData.confirmPassword);
+      const basicFields = formData.firstName && formData.lastName && emailValid && passwordValid && formData.password === formData.confirmPassword;
+      if (role === 'agent') return !!basicFields;
+      // For tenant, we also need phone verified on step 1
+      return !!(basicFields && formData.phoneNumber && formData.phoneNumber.length >= 10 && (ignoreVerification || phoneVerified));
     }
 
+    // Role agent only reaches step 2
     return !!(
       formData.firstName && 
       formData.lastName && 
@@ -248,6 +269,19 @@ const Auth = () => {
         ? (formData.phoneNumber?.length >= 10 && formData.nin?.length === 11 && formData.city && formData.dob)
         : isFormValid());
 
+  const handleGoogleSignIn = async () => {
+    try {
+      const success = await signInWithGoogle();
+      if (success) {
+        setView('app');
+      } else {
+        setErrors({ form: 'Google Sign-In failed. Please try another method.' });
+      }
+    } catch (error) {
+       setErrors({ form: 'An error occurred during Google Sign-In.' });
+    }
+  };
+
   const handleSmsOtpVerify = async () => {
     if (!confirmationObj || !otpCode) return;
     setIsLoading(true);
@@ -271,7 +305,7 @@ const Auth = () => {
     setIsLoading(true);
     setErrors({});
     try {
-      await updatePassword(auth.currentUser, newResetPassword);
+      await fbUpdatePassword(auth.currentUser, newResetPassword);
       sessionStorage.removeItem('sms_reset_flow'); // Re-enable normal flow navigation
       setSmsStep('done');
       if (window.recaptchaVerifier) {
@@ -331,6 +365,10 @@ const Auth = () => {
         }
       });
       
+      if (!navigator.onLine) {
+        throw new Error("You are offline. Please check your internet connection.");
+      }
+
       const result = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
       setConfirmationObj(result);
       setIsPhoneVerifying(true);
@@ -431,17 +469,33 @@ const Auth = () => {
         if (isFormValid()) {
           setIsLoading(true);
           // Check email
-          const exists = await checkUserExists({ email: formData.email });
+          const existsField: any = { email: formData.email };
+          if (role === 'tenant') {
+             existsField.phoneNumber = formData.phoneNumber;
+          }
+          const exists = await checkUserExists(existsField);
           setIsLoading(false);
           if (exists) {
-            setErrors({ email: 'Email already registered', form: 'Email already registered' });
+            setErrors({ email: 'Identifier already registered', form: 'This email or phone number is already registered' });
             return;
           }
-          setSignupStep(2);
+          
+          if (role === 'tenant') {
+            // For tenant, we are done on Step 1
+            // proceed to Firestore creation logic below
+          } else {
+            setSignupStep(2);
+            return;
+          }
         } else {
           validate();
+          // If phone is the only thing missing and we are agent, let them proceed? No, agent needs NIN on step 2.
+          // For tenant, if only phone is missing/not verified, send OTP
+          if (role === 'tenant' && !phoneVerified && formData.phoneNumber && !isPhoneVerifying) {
+             return sendSignupOTP();
+          }
+          return;
         }
-        return;
       }
 
       if (signupStep === 2) {
@@ -488,25 +542,16 @@ const Auth = () => {
         }
         setIsLoading(true);
         try {
-          // Check if email actually exists in our DB to give exact error as requested
-          const usersRef = collection(db, 'users');
-          const q = query(usersRef, where("email", "==", formData.email));
-          const querySnapshot = await getDocs(q);
-          
-          if (querySnapshot.empty) {
-            setErrors({ email: 'No account registered with this email address' });
-            setIsLoading(false);
-            return;
-          }
-          
           await sendPasswordResetEmail(auth, formData.email);
           setResetSent(true);
           setErrors({});
         } catch (error: any) {
+          console.error("Password reset error code:", error.code);
+          console.error("Password reset error message:", error.message);
           if (error.code === 'auth/user-not-found') {
             setErrors({ email: 'No account registered with this email address' });
           } else {
-            setErrors({ form: 'Failed to send reset email. Please try again.' });
+            setErrors({ form: `Failed to send reset email: ${error.message || 'Please try again.'}` });
           }
         } finally {
           setIsLoading(false);
@@ -671,8 +716,8 @@ const Auth = () => {
             phoneNumber: `+234${formData.phoneNumber.replace(/^0/, '')}`,
             phoneVerified: phoneVerified,
             verificationLevel: 'none',
-            nin: formData.nin,
-            city: formData.city,
+            nin: role === 'agent' ? formData.nin : '',
+            city: formData.city || (role === 'tenant' ? 'Lagos' : ''), // Default city for tenants if not provided
             dob: formData.dob || '',
             role: role,
             country: 'Nigeria',
@@ -808,6 +853,26 @@ const Auth = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {!isResetMode && (
+            <div className="space-y-4">
+               <button 
+                type="button" 
+                onClick={handleGoogleSignIn}
+                disabled={isLoading}
+                className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all group"
+              >
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/smartlock/google.svg" className="w-5 h-5" alt="Google" />
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Continue with Google</span>
+              </button>
+              
+              <div className="flex items-center gap-4 my-6">
+                <div className="h-[1px] flex-1 bg-slate-100 dark:bg-slate-800" />
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest">or use email</span>
+                <div className="h-[1px] flex-1 bg-slate-100 dark:bg-slate-800" />
+              </div>
+            </div>
+          )}
+
           {resetSent && (
              <motion.div 
               initial={{ opacity: 0, y: -10 }}
@@ -884,53 +949,164 @@ const Auth = () => {
                 <ErrorMsg name="email" />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {role === 'tenant' && (
                 <div>
-                  <div className="flex justify-between items-end mb-1">
-                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Password</label>
-                  </div>
-                  <div className="relative">
+                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Phone Number</label>
+                  <div className={`relative flex items-center bg-slate-50 dark:bg-slate-900 border rounded-xl overflow-hidden transition-all ${errors.phoneNumber ? 'border-red-500 bg-red-50/10' : 'border-slate-100 dark:border-slate-800 focus-within:border-primary-300 dark:focus-within:border-primary-700'}`}>
+                    <div className="px-3 py-3 bg-slate-100 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 tracking-tight">
+                      +234
+                    </div>
                     <input 
-                      name="password" 
-                      value={formData.password} 
+                      name="phoneNumber" 
+                      value={formData.phoneNumber} 
                       onChange={handleChange} 
-                      type={showPassword ? "text" : "password"} 
-                      placeholder="••••••••" 
-                      className={getInputClass('password')} 
+                      type="tel" 
+                      placeholder="801 234 5678" 
+                      maxLength={15}
+                      disabled={isPhoneVerifying || phoneVerified}
+                      className="w-full bg-transparent px-3 py-3 text-sm outline-none text-slate-900 dark:text-white placeholder-slate-400" 
                     />
-                    <button 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                    {phoneVerified && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                    )}
                   </div>
-                  <ErrorMsg name="password" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Confirm</label>
-                  <div className="relative">
-                    <input 
-                      name="confirmPassword" 
-                      value={formData.confirmPassword} 
-                      onChange={handleChange} 
-                      type={showConfirmPassword ? "text" : "password"} 
-                      placeholder="••••••••" 
-                      className={getInputClass('confirmPassword')} 
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  <div id="recaptcha-container-signup" ref={recaptchaContainerRef} className="mt-2 flex justify-center" />
+                  <ErrorMsg name="phoneNumber" />
+                  
+                  {isPhoneVerifying && !phoneVerified && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mt-4 p-5 bg-white dark:bg-slate-900 border-2 border-primary-100 dark:border-primary-900 rounded-2xl shadow-xl space-y-4 overflow-hidden"
                     >
-                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <ErrorMsg name="confirmPassword" />
+                      <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800 pb-3">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-widest">Phone Verification</span>
+                          <span className="text-[9px] text-slate-400 font-bold">Code sent to +234 {formData.phoneNumber.replace(/^0/, '')}</span>
+                        </div>
+                        <button type="button" onClick={() => setIsPhoneVerifying(false)} className="text-[10px] font-bold text-slate-300 hover:text-red-500 uppercase transition-colors">Cancel</button>
+                      </div>
+                      
+                      <div className="space-y-4 relative">
+                        <div className="relative">
+                          <div className="flex justify-between gap-2 px-1">
+                            {[0, 1, 2, 3, 4, 5].map((index) => (
+                              <div 
+                                key={`tenant-otp-${index}`}
+                                className={`w-10 h-12 flex items-center justify-center text-xl font-black rounded-xl border-2 transition-all duration-200
+                                  ${otpCode.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-800' : 
+                                    otpCode[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
+                                    'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'} 
+                                  ${otpCode[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-700'}`}
+                              >
+                                {otpCode[index] || '•'}
+                              </div>
+                            ))}
+                          </div>
+                          
+                          <input 
+                            type="tel" 
+                            maxLength={6}
+                            value={otpCode}
+                            onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            className="absolute opacity-0 inset-0 w-full h-full cursor-pointer z-10"
+                            autoFocus
+                          />
+                        </div>
+                        
+                        <div className="flex flex-col gap-2 relative z-20">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              verifySignupOTP();
+                            }}
+                            disabled={isLoading || otpCode.length < 6}
+                            className={`w-full font-bold py-3 rounded-xl transition-all shadow-md shadow-primary-200 dark:shadow-none flex items-center justify-center gap-2
+                              ${!isLoading && otpCode.length === 6
+                                ? 'bg-primary-600 hover:bg-primary-700 text-white active:scale-[0.98]' 
+                                : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'}`}
+                          >
+                            {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                            Verify & Continue
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
-              </div>
-            </>
+              )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex justify-between items-end mb-1">
+                        <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Password</label>
+                      </div>
+                      <div className="relative">
+                        <input 
+                          name="password" 
+                          value={formData.password} 
+                          onChange={handleChange} 
+                          type={showPassword ? "text" : "password"} 
+                          placeholder="••••••••" 
+                          className={getInputClass('password')} 
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <ErrorMsg name="password" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Confirm</label>
+                      <div className="relative">
+                        <input 
+                          name="confirmPassword" 
+                          value={formData.confirmPassword} 
+                          onChange={handleChange} 
+                          type={showConfirmPassword ? "text" : "password"} 
+                          placeholder="••••••••" 
+                          className={getInputClass('confirmPassword')} 
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <ErrorMsg name="confirmPassword" />
+                    </div>
+                  </div>
+                  
+                  {/* Password Criteria */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 px-1">
+                    <div className="flex items-center gap-1.5">
+                       <CheckCircle2 className={`w-3 h-3 ${formData.password.length >= 7 ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                       <span className={`text-[9px] font-bold uppercase tracking-tight ${formData.password.length >= 7 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Min 7 chars</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                       <CheckCircle2 className={`w-3 h-3 ${/[A-Z]/.test(formData.password) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                       <span className={`text-[9px] font-bold uppercase tracking-tight ${/[A-Z]/.test(formData.password) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Uppercase</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                       <CheckCircle2 className={`w-3 h-3 ${/[0-9]/.test(formData.password) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                       <span className={`text-[9px] font-bold uppercase tracking-tight ${/[0-9]/.test(formData.password) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Number</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                       <CheckCircle2 className={`w-3 h-3 ${/[!@#$%^&*(),.?":{}|<>]/.test(formData.password) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                       <span className={`text-[9px] font-bold uppercase tracking-tight ${/[!@#$%^&*(),.?":{}|<>]/.test(formData.password) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
+                    </div>
+                  </div>
+                </>
           )}
 
           {authMode === 'signup' && signupStep === 2 && (
@@ -1015,7 +1191,7 @@ const Auth = () => {
                           <div className="flex justify-between gap-2 px-1">
                             {[0, 1, 2, 3, 4, 5].map((index) => (
                               <div 
-                                key={index}
+                                key={`agent-otp-${index}`}
                                 className={`w-10 h-12 flex items-center justify-center text-xl font-black rounded-xl border-2 transition-all duration-200
                                   ${otpCode.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-800' : 
                                     otpCode[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
@@ -1164,7 +1340,7 @@ const Auth = () => {
                           className="w-full bg-transparent px-4 py-3 text-sm font-bold text-slate-900 dark:text-white outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 tracking-wide"
                         />
                       </div>
-                      <div id="recaptcha-container" ref={recaptchaContainerRef} className="mt-2" />
+                      <div id="recaptcha-container-reset" ref={recaptchaContainerRef} className="mt-2" />
                       {errors.phone && <p className="text-[10px] text-red-500 dark:text-red-400 mt-1 ml-1 font-bold">{errors.phone}</p>}
                     </div>
                   )}
@@ -1181,7 +1357,7 @@ const Auth = () => {
                         <div className="flex justify-between gap-2 px-1 mb-4">
                           {[0, 1, 2, 3, 4, 5].map((index) => (
                             <div 
-                              key={index}
+                              key={`reset-otp-${index}`}
                               className={`w-10 h-14 flex items-center justify-center text-2xl font-black rounded-xl border-2 transition-all duration-200
                                 ${otpCode.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-800' : 
                                   otpCode[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
@@ -1239,7 +1415,27 @@ const Auth = () => {
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Create a new secure password</p>
+                      
+                      {/* Password Criteria */}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 px-1">
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${newResetPassword.length >= 7 ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${newResetPassword.length >= 7 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Min 7 chars</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${/[A-Z]/.test(newResetPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[A-Z]/.test(newResetPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Uppercase</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${/[0-9]/.test(newResetPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[0-9]/.test(newResetPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Number</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${/[!@#$%^&*(),.?":{}|<>]/.test(newResetPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[!@#$%^&*(),.?":{}|<>]/.test(newResetPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">Create a new secure password</p>
                     </div>
                   )}
                   
@@ -1277,7 +1473,7 @@ const Auth = () => {
             {/* Password fields removed from here as they are moved to signupStep === 1 */}
           </div>
 
-          {smsStep !== 'done' && signupStep !== 3 && (
+          {smsStep !== 'done' && (
             <button 
               type="submit" 
               disabled={isLoading || resetSent}
@@ -1296,7 +1492,7 @@ const Auth = () => {
                     : (authMode === 'login' 
                         ? 'Sign In' 
                         : (signupStep === 1
-                            ? 'Next: Identity'
+                            ? (role === 'agent' ? 'Next: Identity' : (phoneVerified ? 'Sign Up' : (isPhoneVerifying ? 'Verify OTP Code' : 'Verify Phone')))
                             : (!phoneVerified 
                                 ? (isPhoneVerifying ? 'Verify OTP Code' : 'Verify Phone') 
                                 : 'Finalize Registration'))))}
