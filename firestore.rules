@@ -137,10 +137,10 @@ service cloud.firestore {
     }
 
     function isValidMessage(data) {
-       return data.content is string && data.content.size() <= 2000 &&
+       return data.content is string && data.content.size() <= 1000000 &&
               data.senderId == request.auth.uid &&
               (data.createdAt == request.time || data.createdAt is timestamp) &&
-              (!('type' in data) || data.type in ['text', 'action']) &&
+              (!('type' in data) || data.type in ['text', 'action', 'audio']) &&
               (!('actionType' in data) || data.actionType is string) &&
               (!('tenantId' in data) || data.tenantId is string) &&
               (!('agentId' in data) || data.agentId is string);

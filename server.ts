@@ -7,8 +7,27 @@ import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
 import cors from "cors";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const getFilename = () => {
+  if (typeof import.meta !== "undefined" && import.meta.url) {
+    try {
+      return fileURLToPath(import.meta.url);
+    } catch (e) {
+      // Ignore
+    }
+  }
+  return typeof __filename !== "undefined" ? __filename : "";
+};
+
+const getDirname = () => {
+  const fname = getFilename();
+  if (fname) {
+    return path.dirname(fname);
+  }
+  return typeof __dirname !== "undefined" ? __dirname : process.cwd();
+};
+
+const _filename = getFilename();
+const _dirname = getDirname();
 
 // Environment setup logic merged for reliability
 function setupEnvironment() {

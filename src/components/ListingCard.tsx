@@ -219,7 +219,7 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
           {(!isAgentView && listing.verified) && (
             <div className="flex items-center gap-1 sm:gap-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-2 sm:px-3 h-9 sm:h-11 rounded-lg sm:rounded-xl border border-emerald-100 dark:border-emerald-800 shadow-sm cursor-default" title="Verified Property">
               <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">Verified</span>
+              <span className="hidden sm:inline-block text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">Verified</span>
             </div>
           )}
           {isAgentView ? (

@@ -37,14 +37,13 @@ const AppLayout = () => {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors duration-300">
       <main
         className={
-          !currentListing && !selectedAgentId && activeTab !== "favorites"
-            ? "w-full max-w-full px-0 pb-28 md:pb-40"
+          !currentListing && !selectedAgentId
+            ? "w-full max-w-full px-0 pb-[70px] md:pb-40"
             : "flex-1"
         }
-        style={{ paddingBottom: "115px" }}
       >
         <AnimatePresence mode="wait">
           {selectedAgentId ? (

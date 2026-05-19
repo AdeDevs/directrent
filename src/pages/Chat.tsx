@@ -9,6 +9,7 @@ import {
   Home,
   Loader2,
   Bell,
+  Mic,
 } from "lucide-react";
 import SafeImage from "../components/SafeImage";
 import { db } from "../lib/firebase";
@@ -179,11 +180,20 @@ const ConversationRow = ({
           </p>
         </div>
 
-        <p className="text-sm text-slate-500 dark:text-slate-400 leading-snug font-medium line-clamp-2 break-words min-w-0 overflow-hidden opacity-80 group-hover:opacity-100 transition-opacity">
-          {conv.lastMessage.length > 70
-            ? conv.lastMessage.substring(0, 70) + "..."
-            : conv.lastMessage}
-        </p>
+        <div className="text-sm text-slate-500 dark:text-slate-400 leading-snug font-medium line-clamp-2 break-words min-w-0 overflow-hidden opacity-80 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
+          {conv.lastMessage.includes("Audio message") ? (
+            <>
+              <div className="flex items-center gap-1 text-primary-600 dark:text-primary-400">
+                <Mic className="w-3.5 h-3.5" />
+                <span className="font-bold">Audio</span>
+              </div>
+            </>
+          ) : (
+            conv.lastMessage.length > 70
+              ? conv.lastMessage.substring(0, 70) + "..."
+              : conv.lastMessage
+          )}
+        </div>
       </div>
     </motion.div>
   );

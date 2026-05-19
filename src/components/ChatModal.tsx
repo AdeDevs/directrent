@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, Smile, FileText, CreditCard, ChevronRight, CheckCircle2, ArrowRight, MessageCircle, Video } from 'lucide-react';
+import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, FileText, CreditCard, ChevronRight, CheckCircle2, ArrowRight, MessageCircle, Play, Pause, Volume2, Trash2 } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import SafeImage from './SafeImage';
 import { 
@@ -40,21 +40,157 @@ interface Message {
   senderId: string;
   tenantId: string;
   agentId: string;
-  type?: 'text' | 'action';
+  type?: 'text' | 'action' | 'audio';
+  duration?: number; // Optional duration for audio
   actionType?: string;
   createdAt: any;
 }
+
+const AudioPlayer: React.FC<{ src: string; isOwn: boolean }> = ({ src, isOwn }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+
+  // Generate deterministic waveform based on src string
+  const waveform = useMemo(() => {
+    const bars = 25;
+    const seed = src.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return Array.from({ length: bars }).map((_, i) => {
+      const x = Math.sin(seed + i * 0.8) * 5 + 8;
+      return Math.max(3, Math.min(16, x));
+    });
+  }, [src]);
+
+  const togglePlay = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      } else {
+        audioRef.current.play();
+        const update = () => {
+          if (audioRef.current) {
+            setCurrentTime(audioRef.current.currentTime);
+            animationFrameRef.current = requestAnimationFrame(update);
+          }
+        };
+        animationFrameRef.current = requestAnimationFrame(update);
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    };
+  }, []);
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) setDuration(audioRef.current.duration);
+  };
+
+  const formatTime = (time: number) => {
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleWaveformClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (audioRef.current && duration) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const clickedProgress = x / rect.width;
+      const newTime = clickedProgress * duration;
+      audioRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
+  };
+
+  const progress = duration ? currentTime / duration : 0;
+
+  return (
+    <div className={`flex items-center gap-4 p-3 rounded-[28px] w-64 shadow-sm transition-all ${
+      isOwn 
+        ? 'bg-blue-500 text-white' 
+        : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100'
+    }`}>
+      <audio 
+        ref={audioRef} 
+        src={src} 
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={() => {
+          setIsPlaying(false);
+          if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        }}
+      />
+      
+      <div className="flex-1 flex items-center gap-2">
+        {/* Waveform Visualization */}
+        <div 
+          onClick={handleWaveformClick}
+          className="flex-1 h-8 flex items-center gap-[2px] cursor-pointer group"
+        >
+          {waveform.map((height, i) => {
+            const barProgress = i / waveform.length;
+            const isActive = progress > barProgress;
+            return (
+              <div 
+                key={`bar-${i}`}
+                style={{ height: `${height}px` }}
+                className={`w-[2.5px] rounded-full transition-colors ${
+                  isActive 
+                    ? (isOwn ? 'bg-white' : 'bg-blue-500') 
+                    : (isOwn ? 'bg-white/30' : 'bg-slate-300 dark:bg-slate-600')
+                }`}
+              />
+            );
+          })}
+        </div>
+        
+        <span className={`text-[11px] font-bold tabular-nums shrink-0 ${isOwn ? 'text-white/80' : 'text-slate-500'}`}>
+          {formatTime(currentTime || duration)}
+        </span>
+      </div>
+
+      <motion.button 
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={togglePlay}
+        className={`w-9 h-9 flex items-center justify-center rounded-full transition-all shrink-0 shadow-sm ${
+          isOwn 
+            ? 'bg-white text-blue-500' 
+            : 'bg-blue-500 text-white'
+        }`}
+      >
+        {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+      </motion.button>
+    </div>
+  );
+};
 
 export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, currentUser, overrideConversationId }) => {
   const { setSelectedAgentId } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [visualizerLevels, setVisualizerLevels] = useState<number[]>(new Array(30).fill(2));
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const recordingIntervalRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [convStatus, setConvStatus] = useState<ConversationStatus>('inquiry');
   const [convData, setConvData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [showWhatsAppDisclaimer, setShowWhatsAppDisclaimer] = useState(false);
+  const [showPrivacyBanner, setShowPrivacyBanner] = useState(true);
   const [otherUser, setOtherUser] = useState<{ name: string; avatarUrl?: string; verificationLevel?: VerificationLevel; role: UserRole; phoneNumber?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -250,6 +386,139 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
     setShowWhatsAppDisclaimer(false);
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+      
+      // Visualizer Setup
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+      
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const updateVisualizer = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+        
+        // Normalize and pick levels for a "WhatsApp" wave look
+        const levels = Array.from(dataArray).slice(0, 30).map(v => Math.max(2, v / 4));
+        setVisualizerLevels(levels);
+        animationFrameRef.current = requestAnimationFrame(updateVisualizer);
+      };
+
+      mediaRecorder.ondataavailable = (e) => chunksRef.current.push(e.data);
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        handleSendAudio(audioBlob);
+        
+        // Clean up visualizer
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        if (audioContextRef.current) audioContextRef.current.close();
+        if (recordingIntervalRef.current) window.clearInterval(recordingIntervalRef.current);
+        setRecordingTime(0);
+        setVisualizerLevels(new Array(30).fill(2));
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      
+      // Timer
+      recordingIntervalRef.current = window.setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+
+      updateVisualizer();
+    } catch (err) {
+      console.error("Recording error:", err);
+      setError("Could not access microphone.");
+    }
+  };
+
+  const stopRecording = (cancel = false) => {
+    if (cancel) {
+      mediaRecorderRef.current?.stop();
+      // On stop logic will handle sending, but we want to ignore if canceled
+      // Let's set a flag or just stop it.
+      // Actually simpler: override onstop just for this cancel action
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.onstop = () => {
+          // No-op cleanup
+          if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+          if (audioContextRef.current) audioContextRef.current.close();
+          if (recordingIntervalRef.current) window.clearInterval(recordingIntervalRef.current);
+          setRecordingTime(0);
+          setVisualizerLevels(new Array(30).fill(2));
+        };
+        mediaRecorderRef.current.stop();
+      }
+    } else {
+      mediaRecorderRef.current?.stop();
+    }
+    mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
+    setIsRecording(false);
+  };
+
+  const handleSendAudio = async (blob: Blob) => {
+    setIsSending(true);
+    setError(null);
+    try {
+      // Convert blob to base64
+      const reader = new FileReader();
+      const base64Data = await new Promise<string>((resolve) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+
+      const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
+      const agentId = listing.agent?.id || 'unknown';
+
+      // Send as message directly to Firestore (embedded)
+      await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
+        content: base64Data,
+        senderId: currentUser.id,
+        tenantId: tenantId,
+        agentId: agentId,
+        type: 'audio',
+        createdAt: serverTimestamp()
+      });
+      
+      // Update conv metadata for audio
+      await updateDoc(doc(db, 'conversations', conversationId), {
+        lastMessage: "Audio message",
+        updatedAt: serverTimestamp(),
+        [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
+      });
+
+      // Send notification
+      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown') {
+        await createNotification(
+          recipientId,
+          `New audio message from ${`${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'User'}`,
+          "Audio message",
+          'message',
+          'chat',
+          conversationId
+        );
+      }
+    } catch (err) {
+      console.error("Audio processing/send error:", err);
+      setError("Failed to send audio message.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || isSending) return;
@@ -417,7 +686,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                       {otherUser?.name || listing.agent?.name}
                     </h3>
                     {otherUser?.verificationLevel && (
-                      <VerificationBadge level={otherUser.verificationLevel} role={otherUser.role} showText={false} className="px-1 py-0.5" />
+                      <>
+                        <div className="md:hidden inline-block">
+                          <VerificationBadge level={otherUser.verificationLevel} role={otherUser.role} showText={false} className="px-1 py-0.5" />
+                        </div>
+                        <div className="hidden md:inline-block">
+                          <VerificationBadge level={otherUser.verificationLevel} role={otherUser.role} showText={true} className="px-1 py-0.5" />
+                        </div>
+                      </>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
@@ -481,16 +757,6 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                             <FileText className="w-3.5 h-3.5" /> Request Contract
                           </motion.button>
                           
-                          <motion.button 
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            key="request_video_tour"
-                            onClick={() => handleAction('negotiating', 'I\'d like to request a live video tour via WhatsApp.', 'negotiating')}
-                            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors border border-emerald-100 dark:border-emerald-800 shadow-sm"
-                          >
-                            <Video className="w-3.5 h-3.5" /> WhatsApp Video Tour
-                          </motion.button>
                         </motion.div>
                       )}
                       {convStatus === 'contract_sent' && (
@@ -554,6 +820,30 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
               </motion.div>
             </AnimatePresence>
 
+            {/* Privacy Disclosure Banner */}
+            <AnimatePresence>
+              {showPrivacyBanner && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="bg-amber-50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-900/30 px-4 py-3 flex items-start gap-3 shrink-0"
+                >
+                  <div className="text-amber-600 dark:text-amber-500 shrink-0 mt-0.5">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium leading-relaxed">
+                      We keep a history of your chats for safety and quality assurance. Please note that security protections only apply to interactions within the DirectRent app.
+                    </p>
+                  </div>
+                  <button onClick={() => setShowPrivacyBanner(false)} className="text-amber-400 hover:text-amber-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-50/30 dark:bg-slate-950/30 space-y-3 sm:space-y-4">
               {error && (
@@ -591,12 +881,16 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                         <p className="text-[11px] sm:text-xs font-sans text-slate-800 dark:text-slate-200 font-medium leading-relaxed">"{msg.content}"</p>
                         <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 font-display font-black uppercase tracking-widest">Verified Property Block</p>
                       </div>
+                    ) : msg.type === 'audio' ? (
+                      <div className="flex flex-col gap-1">
+                        <AudioPlayer src={msg.content} isOwn={msg.senderId === currentUser.id} />
+                      </div>
                     ) : (
                       <div 
-                        className={`max-w-[85%] px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-[13px] sm:text-sm shadow-sm transition-colors font-sans tracking-tight ${
+                        className={`max-w-[85%] px-4 py-2.5 rounded-[22px] text-[13px] sm:text-sm shadow-sm transition-colors font-sans tracking-tight ${
                           msg.senderId === currentUser.id 
-                            ? 'bg-primary-600 text-white rounded-br-none shadow-primary-500/20' 
-                            : 'bg-white dark:bg-slate-200 text-slate-900 border border-slate-100 dark:border-slate-300 rounded-bl-none'
+                            ? 'bg-blue-500 text-white rounded-br-none shadow-blue-500/10' 
+                            : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-700 rounded-bl-none shadow-black/5'
                         }`}
                       >
                         {msg.content}
@@ -609,78 +903,86 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
             </div>
 
             {/* Input Area */}
-            <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
-              <div className="relative group flex items-center gap-2">
-                <button type="button" className="p-2 text-slate-400 dark:text-slate-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-all flex-shrink-0">
-                  <Paperclip className="w-5 h-5" />
-                </button>
-                
+            <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+              <div className="relative group flex items-center gap-3">
                 <div className="relative flex-1">
-                  <input 
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type a message..."
-                    className="w-full bg-slate-100/80 dark:bg-slate-800 border-2 border-transparent px-4 py-2.5 sm:py-3.5 pr-10 rounded-lg text-[13px] sm:text-sm outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 dark:focus:ring-primary-900/20 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 dark:text-white font-sans tracking-tight"
-                    disabled={isSending}
-                  />
-                  <button type="button" className="hidden sm:block absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-warning-500 transition-colors">
-                    <Smile className="w-4 h-4" />
-                  </button>
+                  {isRecording ? (
+                    <motion.div 
+                      initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      className="w-full flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 sm:py-2.5 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm"
+                    >
+                      <div className="flex items-center gap-2 px-2 py-1 bg-rose-100 dark:bg-rose-900/30 rounded-full">
+                        <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                        <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 tabular-nums shrink-0 tracking-widest">
+                          {Math.floor(recordingTime / 60)}:{Math.floor(recordingTime % 60).toString().padStart(2, '0')}
+                        </span>
+                      </div>
+                      
+                      <div className="flex-1 flex items-center justify-center gap-[3px] h-10 overflow-hidden">
+                        {visualizerLevels.map((lvl, i) => (
+                          <motion.div 
+                            key={`bar-${i}`}
+                            initial={{ height: 2 }}
+                            animate={{ height: lvl }}
+                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            className={`w-[3px] rounded-full shrink-0 ${
+                              i % 2 === 0 ? 'bg-rose-400 dark:bg-rose-50' : 'bg-rose-300 dark:bg-rose-200'
+                            }`}
+                          />
+                        ))}
+                      </div>
+
+                      <motion.button 
+                        whileHover={{ scale: 1.1, rotate: -10 }}
+                        whileTap={{ scale: 0.9 }}
+                        type="button"
+                        onClick={() => stopRecording(true)}
+                        className="w-8 h-8 flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-full transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </motion.button>
+                    </motion.div>
+                  ) : (
+                    <input 
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder="Message..."
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-[24px] text-[13px] sm:text-sm outline-none focus:bg-white dark:focus:bg-slate-800 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 dark:text-white font-sans tracking-tight"
+                      disabled={isSending}
+                    />
+                  )}
                 </div>
                 
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-1.5 flex-shrink-0">
                   <AnimatePresence mode="wait">
-                    {newMessage.trim() === "" && !isSending ? (
+                    {!isRecording ? (
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={startRecording} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors">
+                          <Mic className="w-5 h-5" />
+                        </button>
+                        <button 
+                          type="submit" 
+                          disabled={!newMessage.trim() || isSending}
+                          className="w-10 h-10 flex items-center justify-center bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-all disabled:opacity-50 disabled:grayscale shadow-sm"
+                        >
+                          <ChevronRight className="w-5 h-5 stroke-[3px]" />
+                        </button>
+                      </div>
+                    ) : (
                       <motion.button 
-                        key="mic"
-                        initial={{ scale: 0.8, opacity: 0 }}
+                        initial={{ scale: 0.5, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.8, opacity: 0 }}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.95 }}
                         type="button"
-                        className="w-11 h-11 flex items-center justify-center text-slate-400 dark:text-slate-600 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all rounded-xl"
+                        onClick={() => stopRecording(false)}
+                        className="w-11 h-11 flex items-center justify-center bg-blue-500 text-white shadow-lg shadow-blue-500/30 rounded-full"
                       >
-                        <Mic className="w-5 h-5" />
-                      </motion.button>
-                    ) : (
-                      <motion.button 
-                        key="send-button"
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.8, opacity: 0 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        type="submit"
-                        disabled={!newMessage.trim() || isSending}
-                        className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all relative overflow-hidden shadow-lg ${
-                          newMessage.trim() && !isSending 
-                            ? 'bg-primary-600 text-white shadow-primary-500/20 active:shadow-none' 
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-700'
-                        }`}
-                      >
-                        {isSending ? (
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
-                          <ArrowRight 
-                            className={`w-5 h-5 transition-all duration-300 ${newMessage.trim() ? 'stroke-[3px]' : 'opacity-40'}`} 
-                          />
-                        )}
-                        {newMessage.trim() && !isSending && (
-                          <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 -translate-x-full group-hover/send:translate-x-full transition-transform duration-1000 pointer-events-none" />
-                        )}
+                        <Send className="w-5 h-5 fill-current" />
                       </motion.button>
                     )}
                   </AnimatePresence>
-                </div>
-              </div>
-              <div className="flex items-center justify-between mt-3 px-1 border-t border-slate-50 dark:border-slate-800 pt-3">
-                <div className="flex items-center gap-1.5 opacity-60">
-                  <ShieldCheck className="w-3 h-3 text-emerald-500" /> 
-                  <span className="text-[9px] text-slate-500 dark:text-slate-600 font-bold uppercase tracking-tight">E2E Encryption</span>
-                </div>
-                <div className="bg-slate-50 dark:bg-slate-950 px-2 py-0.5 rounded text-[9px] font-bold text-slate-500 dark:text-slate-700 uppercase tracking-tighter shadow-inner pulse-subtle">
-                  Live Transaction Tracking
                 </div>
               </div>
             </form>

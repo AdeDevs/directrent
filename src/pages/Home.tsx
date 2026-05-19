@@ -197,7 +197,7 @@ const Home = () => {
   const showSaveSearch = !isAgent && (searchQuery || activeFilter !== 'All' || maxBudget < 1000000000);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
         <div className="w-full max-w-full px-2 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -232,7 +232,7 @@ const Home = () => {
           initial={{ opacity: 0, y: 10 }} 
           animate={{ opacity: 1, y: 0 }} 
           exit={{ opacity: 0, y: -10 }} 
-          className="w-full space-y-6 sm:space-y-10"
+          className="w-full space-y-4 sm:space-y-6"
         >
           {/* Search and Advanced Filter Section */}
           <div className="space-y-4 sm:space-y-6">
@@ -317,7 +317,7 @@ const Home = () => {
         </AnimatePresence>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pr-0">
         <h1 className="text-base sm:text-xl font-display font-bold text-slate-900 dark:text-white tracking-tight">
           {isAgent ? 'Your Listings' : 'Available Listings'}
         </h1>

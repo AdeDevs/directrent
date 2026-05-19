@@ -31,6 +31,10 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  // If user is logged out, permission errors are expected during cleanup.
+  if (!auth.currentUser && (error instanceof Error && error.message.includes('permission'))) {
+    return;
+  }
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {

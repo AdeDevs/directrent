@@ -71,7 +71,7 @@ const FavoritesPage = () => {
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      className="min-h-screen bg-white dark:bg-slate-950 flex flex-col transition-colors duration-300"
+      className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors duration-300"
     >
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
