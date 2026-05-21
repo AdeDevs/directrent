@@ -105,19 +105,21 @@ export const analyzeDuplicatesWithGemini = async (
   try {
     const images: any[] = [];
     
-    // Add new listing image
-    if (newListing.image) {
+    // Add all listing images (limiting to a reasonable number to avoid token limits)
+    const newImageUrls = newListing.images && newListing.images.length > 0 ? newListing.images : (newListing.image ? [newListing.image] : []);
+    for (const url of newImageUrls.slice(0, 3)) {
       try {
-        const data = await fetchImageAsBase64(newListing.image);
+        const data = await fetchImageAsBase64(url);
         images.push({ inlineData: { mimeType: "image/jpeg", data } });
       } catch (e) { console.warn("New listing image fail", e); }
     }
 
     // Add up to 3 existing listing images to compare
-    for (const l of existingListings.slice(0, 3)) {
-      if (l.image) {
+    for (const l of existingListings.slice(0, 2)) {
+      const existingImageUrls = l.images && l.images.length > 0 ? l.images : (l.image ? [l.image] : []);
+      for (const url of existingImageUrls.slice(0, 3)) {
         try {
-          const data = await fetchImageAsBase64(l.image);
+          const data = await fetchImageAsBase64(url);
           images.push({ inlineData: { mimeType: "image/jpeg", data } });
         } catch (e) { console.warn("Existing listing image fail", e); }
       }

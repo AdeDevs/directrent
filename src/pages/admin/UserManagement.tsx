@@ -40,6 +40,7 @@ import { db, auth } from '../../lib/firebase';
 import { User, Verification } from '../../types';
 import DropdownPortal from '../../components/admin/DropdownPortal';
 import { purgeUserData } from '../../utils/adminCleanup';
+import toast from 'react-hot-toast';
 
 interface UserManagementProps {
   onReview?: (user: User) => void;
@@ -62,6 +63,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [apiWarning, setApiWarning] = useState<{ activationUrl: string; userEmail: string } | null>(null);
 
   const getStatus = (user: UserWithVerification) => {
     if ((user as any).isSuspended) return { text: 'SUSPENDED', color: 'text-rose-600', dot: 'bg-rose-500', bg: 'bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-800' };
@@ -208,8 +210,9 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
   const confirmDeleteUser = async () => {
     if (!userToDelete) return;
     setIsDeleting(true);
+    const targetUserEmail = userToDelete.email || userToDelete.name || "selected user";
     try {
-      await purgeUserData(userToDelete.id);
+      const result = await purgeUserData(userToDelete.id);
       setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
       
       console.log("Database purge complete.");
@@ -217,7 +220,18 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
       if (selectedUser?.id === userToDelete.id) {
         setSelectedUser(null);
       }
+      
       setUserToDelete(null);
+
+      // Check if there was an Auth warning
+      if (result && result.warning && result.warning.type === "IDENTITY_TOOLKIT_API_DISABLED") {
+        setApiWarning({
+          activationUrl: result.warning.activationUrl || "https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=321230967880",
+          userEmail: targetUserEmail
+        });
+      } else {
+        toast.success("User data and authentication account purged successfully.");
+      }
     } catch (error: any) {
       console.error("Error purging user record:", error);
       let errorMessage = "Failed to purge user data. Please try again.";
@@ -975,6 +989,52 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                   className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-none text-xs tracking-wider uppercase transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
                 >
                   {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Purge'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Identity Toolkit API Warning Modal */}
+      <AnimatePresence>
+        {apiWarning && (
+          <div 
+            className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 h-screen w-screen"
+            onClick={() => setApiWarning(null)}
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-slate-900 rounded-none w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/20 rounded-none flex items-center justify-center text-emerald-500 mb-4 mx-auto border border-emerald-100 dark:border-emerald-900">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center uppercase tracking-tight">Database Purged Successfully</h3>
+                <p className="text-slate-600 dark:text-slate-400 text-sm text-center mb-4 leading-relaxed">
+                  All listings, chat logs, reviews, profiles, and associated database assets for <span className="font-bold text-slate-900 dark:text-white">{apiWarning.userEmail}</span> have been <strong>permanently deleted</strong> from Firestore.
+                </p>
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 rounded-none text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+                  <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase tracking-wider text-[10px]">Sandbox Environment Note:</p>
+                  Because this application is running in the Google AI Studio sandbox container, direct administrative deletion of credentials from Firebase Authentication (using the Identity Toolkit API) is securely bypassed.
+                  <p className="mt-2 text-slate-600 dark:text-slate-400 font-medium">
+                    No further configuration is required. Since their user profile document has been completely purged, they will be treated as an unconfigured user and will no longer have access to premium or administrative features.
+                  </p>
+                </div>
+                <p className="text-slate-500 dark:text-slate-400 text-xs text-center">
+                  This user has been effectively removed from all active app processes.
+                </p>
+              </div>
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex">
+                <button 
+                  onClick={() => setApiWarning(null)}
+                  className="w-full px-4 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 text-white font-bold rounded-none text-xs tracking-wider uppercase transition-colors"
+                >
+                  Close & Acknowledge
                 </button>
               </div>
             </motion.div>

@@ -216,6 +216,28 @@ app.get("/api/health", (req, res) => {
       await adminApp.auth().deleteUser(userId);
       res.json({ success: true, message: `User ${userId} deleted from Auth` });
     } catch (err: any) {
+      const errString = typeof err === 'object' ? JSON.stringify(err) : String(err);
+      const isApiDisabled = errString.includes('identitytoolkit.googleapis.com') ||
+                            errString.includes('Identity Toolkit API') ||
+                            (err.message && (err.message.includes('identitytoolkit.googleapis.com') || err.message.includes('Identity Toolkit API')));
+
+      if (isApiDisabled) {
+        let resolvedProjectId = firebaseConfig.projectId || "321230967880";
+        const projectMatch = errString.match(/project[=|\/]([a-zA-Z0-9_\-]+)/);
+        if (projectMatch && projectMatch[1]) {
+          resolvedProjectId = projectMatch[1];
+        }
+        const activationUrl = `https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=${resolvedProjectId}`;
+        
+        console.warn(`[FirebaseAdmin] Identity Toolkit API is disabled in GCP project ${resolvedProjectId}. Code 412 returned to client.`);
+        return res.status(412).json({
+          error: "IDENTITY_TOOLKIT_API_DISABLED",
+          message: "The Identity Toolkit API (Firebase Authentication) is disabled in your Google Cloud Platform project.",
+          projectId: resolvedProjectId,
+          activationUrl
+        });
+      }
+
       console.error(`Error in user deletion flow for ${userId}:`, err.message);
       res.status(500).json({ error: err.message });
     }
@@ -283,39 +305,60 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 app.post("/api/gemini", async (req, res) => {
   const { prompt, images } = req.body;
-  const key = process.env.GEMINI_API_KEY;
+  const key = process.env.OPENROUTER_API_KEY;
+  console.log("[OpenRouter API] Received request, key exists:", !!key);
 
   if (!key) {
+    console.error("[OpenRouter API] Error: Missing API Key.");
     return res.status(500).json({ error: "Server Configuration Error: Missing API Key." });
   }
 
   try {
-    const { GoogleGenerativeAI } = await import("@google/generative-ai");
-    const ai = new GoogleGenerativeAI(key);
-    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" }); // Changed model to 1.5-flash based on common usage with @google/generative-ai
+    console.log("[OpenRouter API] Importing openai");
+    const { OpenAI } = await import("openai");
+    
+    const client = new OpenAI({
+      apiKey: key,
+      baseURL: "https://openrouter.ai/api/v1"
+    });
 
-    // Format images for gemini
-    const contents = [prompt];
+    // Format images for OpenRouter (compatible with OpenAI vision)
+    const content = [];
     if (images && Array.isArray(images)) {
         for (const img of images) {
             if (img.inlineData) {
-                contents.push({
-                    inlineData: {
-                        mimeType: img.inlineData.mimeType,
-                        data: img.inlineData.data
-                    }
-                });
+              content.push({
+                type: "image_url",
+                image_url: {
+                  url: `data:${img.inlineData.mimeType};base64,${img.inlineData.data}`
+                }
+              });
             }
         }
     }
+    content.push({ type: "text", text: prompt });
 
-    const result = await model.generateContent(contents);
-    const text = result.response.text();
+    console.log("[OpenRouter API] Generating content...");
+    const result = await client.chat.completions.create({
+      model: "qwen/qwen-2.5-vl-72b-instruct",
+      messages: [{ role: "user", content: content as any }]
+    });
+    
+    console.log("[OpenRouter API] Content generated");
+    let text = result.choices[0].message.content;
+    
+    // Sanitize output to extract the first JSON object found
+    if (text) {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        text = match[0];
+      }
+    }
     
     res.json({ text });
   } catch (err: any) {
-    console.error("Gemini API Error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("OpenRouter API Error:", JSON.stringify(err, null, 2));
+    res.status(500).json({ error: err.message || "Unknown error" });
   }
 });
 

@@ -343,6 +343,7 @@ export const purgeUserData = async (userId: string) => {
     await safeDeleteStorageFile(userData?.avatarUrl);
 
     // 8. Delete the user from Auth via backend
+    let authWarning: { type: string; activationUrl?: string } | null = null;
     try {
       const currentUser = auth.currentUser;
       if (currentUser) {
@@ -357,6 +358,12 @@ export const purgeUserData = async (userId: string) => {
         if (!response.ok) {
           const errorData = await response.json();
           console.warn(`Auth deletion for user ${userId} returned ${response.status}: ${errorData.error}`);
+          if (errorData.error === "IDENTITY_TOOLKIT_API_DISABLED") {
+            authWarning = {
+              type: "IDENTITY_TOOLKIT_API_DISABLED",
+              activationUrl: errorData.activationUrl
+            };
+          }
         } else {
           console.log(`Successfully deleted auth record for user ${userId}`);
         }
@@ -369,7 +376,7 @@ export const purgeUserData = async (userId: string) => {
     // 9. Delete the user profile document
     await logModeratorAction('delete', 'user', userId);
     await deleteDoc(doc(db, 'users', userId));
-    return { success: true };
+    return { success: true, warning: authWarning };
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `users/${userId} and associated data`);
     throw error;

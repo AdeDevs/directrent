@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import toast from 'react-hot-toast';
+import { createPortal } from 'react-dom';
 import { 
   ShieldCheck, 
   Check, 
@@ -38,6 +40,7 @@ import {
   onSnapshot, 
   doc, 
   updateDoc, 
+  deleteDoc,
   addDoc,
   serverTimestamp
 } from 'firebase/firestore';
@@ -83,6 +86,80 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   const [showRejectionReason, setShowRejectionReason] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState<{ show: boolean, type: 'approval' | 'rejection' | null }>({ show: false, type: null });
+  const [showConfirmation, setShowConfirmation] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    onConfirm: (reason?: string) => void;
+    inputReason?: boolean;
+    confirmLabel?: string;
+  }>({
+    show: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const ConfirmationModal = () => {
+    const [reason, setReason] = useState('');
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+      setMounted(true);
+    }, []);
+
+    if (!showConfirmation.show || !mounted) return null;
+
+    return createPortal(
+      <div className="fixed inset-0 bg-black/50 z-[10000] flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-xl w-full max-w-md space-y-4">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">{showConfirmation.title}</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{showConfirmation.message}</p>
+          
+          {showConfirmation.inputReason && (
+            <textarea
+              className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded text-sm bg-slate-50 dark:bg-slate-800"
+              placeholder="Enter rejection reason..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+            />
+          )}
+
+          <div className="flex gap-2 justify-end">
+            <button 
+              onClick={() => {
+                setShowConfirmation({ ...showConfirmation, show: false });
+                setReason('');
+              }}
+              className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={() => {
+                if (showConfirmation.inputReason && !reason) {
+                  toast.error("Please provide a reason.");
+                  return;
+                }
+                if (showConfirmation.inputReason) {
+                   (showConfirmation.onConfirm as any)(reason);
+                } else {
+                   showConfirmation.onConfirm();
+                }
+                setShowConfirmation({ ...showConfirmation, show: false });
+                setReason('');
+              }}
+              className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded"
+            >
+              {showConfirmation.confirmLabel || 'Confirm'}
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
   const [agentAiReport, setAgentAiReport] = useState<{ 
     analysis: string, 
     recommendation: 'approve' | 'flag' | 'reject' | null, 
@@ -315,9 +392,12 @@ const Approvals: React.FC<ApprovalsProps> = () => {
           `;
 
       const images: any[] = [];
-      if (listing.image) {
+      const imageUrls = listing.images && listing.images.length > 0 ? listing.images : (listing.image ? [listing.image] : []);
+      
+      // Analyze up to 5 images to stay within token limits
+      for (const url of imageUrls.slice(0, 5)) {
         try {
-          const data = await fetchImageAsBase64(listing.image);
+          const data = await fetchImageAsBase64(url);
           images.push({ inlineData: { mimeType: "image/jpeg", data } });
         } catch (imgErr) {
           console.warn("Could not include image in listing AI analysis:", imgErr);
@@ -623,54 +703,77 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   }, [filteredAgents, selectedAgent]);
 
   const handleApproveListing = async (id: string) => {
-    setProcessingId(id);
-    try {
-      await logModeratorAction('approve', 'listing', id);
-      await updateDoc(doc(db, 'listings', id), {
-        isApproved: true,
-        status: 'active',
-        updatedAt: serverTimestamp()
-      });
-      const listing = allListings.find(l => l.id === id);
-      if (listing?.agent?.id) {
-        await createNotification(
-          listing.agent.id,
-          'Listing Approved',
-          `Your property listing "${listing.title}" has been approved and is now live!`,
-          'listing'
-        );
+    setShowConfirmation({
+      show: true,
+      title: 'Approve Listing',
+      message: 'Are you sure you want to approve this listing?',
+      confirmLabel: 'Approve',
+      onConfirm: async () => {
+        setProcessingId(id);
+        try {
+          await logModeratorAction('approve', 'listing', id);
+          await updateDoc(doc(db, 'listings', id), {
+            isApproved: true,
+            status: 'active',
+            updatedAt: serverTimestamp()
+          });
+          const listing = allListings.find(l => l.id === id);
+          if (listing?.agent?.id) {
+            await createNotification(
+              listing.agent.id,
+              'Listing Approved',
+              `Your property listing "${listing.title}" has been approved and is now live!`,
+              'listing'
+            );
+          }
+          toast.success("Listing approved successfully");
+          setSelectedListingForReview(null);
+        } catch (err) {
+          console.error("Error approving listing:", err);
+          toast.error("Error approving listing");
+        } finally {
+          setProcessingId(null);
+        }
       }
-    } catch (err) {
-      console.error("Error approving listing:", err);
-    } finally {
-      setProcessingId(null);
-    }
+    });
   };
 
   const handleRejectListing = async (id: string) => {
-    if (!window.confirm("Are you sure you want to REJECT this listing?")) return;
-    setProcessingId(id);
-    try {
-      await logModeratorAction('reject', 'listing', id, { reason: 'manual rejection' });
-      await updateDoc(doc(db, 'listings', id), {
-        isApproved: false,
-        status: 'rejected',
-        updatedAt: serverTimestamp()
-      });
-      const listing = allListings.find(l => l.id === id);
-      if (listing?.agent?.id) {
-        await createNotification(
-          listing.agent.id,
-          'Listing Rejected',
-          `Your property listing "${listing.title}" was not approved.`,
-          'listing'
-        );
+    const listing = allListings.find(l => l.id === id);
+    if (!listing) return;
+
+    setShowConfirmation({
+      show: true,
+      title: 'Reject & Delete Listing',
+      message: `Are you sure you want to REJECT and DELETE the listing "${listing.title}"? This action cannot be undone.`,
+      confirmLabel: 'Reject & Delete',
+      inputReason: true,
+      onConfirm: async (reason: string) => {
+        setProcessingId(id);
+        try {
+          await logModeratorAction('reject', 'listing', id, { reason });
+          
+          // Delete listing
+          await deleteDoc(doc(db, 'listings', id));
+          
+          if (listing.agent?.id) {
+            await createNotification(
+              listing.agent.id,
+              'Listing Rejected',
+              `Your property listing "${listing.title}" was not approved and has been removed. Reason: ${reason}`,
+              'listing'
+            );
+          }
+          toast.success("Listing rejected and deleted successfully");
+          setSelectedListingForReview(null);
+        } catch (err) {
+          console.error("Error rejecting listing:", err);
+          toast.error("Error rejecting listing");
+        } finally {
+          setProcessingId(null);
+        }
       }
-    } catch (err) {
-      console.error("Error rejecting listing:", err);
-    } finally {
-      setProcessingId(null);
-    }
+    });
   };
 
   const handleApproveAgent = async (id: string, userId: string, isFromUsers?: boolean) => {
@@ -1311,28 +1414,47 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 {/* Property Media */}
                 <div className="aspect-video w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative group overflow-hidden">
                   <AnimatePresence mode="wait">
+                  {(selectedListingForReview.images && selectedListingForReview.images.length > 0 && currentImageIndex < selectedListingForReview.images.length) ? (
                     <motion.img 
                       key={currentImageIndex}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      src={
-                        selectedListingForReview.images && selectedListingForReview.images.length > 0
-                        ? selectedListingForReview.images[currentImageIndex]
-                        : selectedListingForReview.image
-                      } 
+                      src={selectedListingForReview.images[currentImageIndex]}
                       alt="" 
                       className="w-full h-full object-cover" 
                     />
+                    ) : selectedListingForReview.video ? (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <video 
+                          key={selectedListingForReview.video}
+                          src={selectedListingForReview.video} 
+                          className="w-full h-full object-contain" 
+                          controls 
+                        />
+                      </div>
+                    ) : (
+                      <motion.img 
+                        key="default-image"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        src={selectedListingForReview.image} 
+                        alt="" 
+                        className="w-full h-full object-cover" 
+                      />
+                    )}
                   </AnimatePresence>
 
                   {/* Gallery Navigation Controls */}
-                  {selectedListingForReview.images && selectedListingForReview.images.length > 1 && (
+                  {((selectedListingForReview.images && selectedListingForReview.images.length > 1) || selectedListingForReview.video) && (
                     <>
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          setCurrentImageIndex(prev => (prev === 0 ? selectedListingForReview.images!.length - 1 : prev - 1));
+                          const numImages = (selectedListingForReview.images || []).length;
+                          const totalItems = numImages + (selectedListingForReview.video ? 1 : 0);
+                          setCurrentImageIndex(prev => (prev === 0 ? totalItems - 1 : prev - 1));
                         }}
                         className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white hover:bg-black/70 transition-colors z-10"
                       >
@@ -1341,30 +1463,16 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          setCurrentImageIndex(prev => (prev === selectedListingForReview.images!.length - 1 ? 0 : prev + 1));
+                          const numImages = (selectedListingForReview.images || []).length;
+                          const totalItems = numImages + (selectedListingForReview.video ? 1 : 0);
+                          setCurrentImageIndex(prev => (prev === totalItems - 1 ? 0 : prev + 1));
                         }}
                         className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white hover:bg-black/70 transition-colors z-10"
                       >
                         <ChevronRight className="w-5 h-5" />
                       </button>
-                      
-                      {/* Image Indicators */}
-                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
-                        {selectedListingForReview.images.map((_, i) => (
-                          <div 
-                            key={`listing-indicator-${selectedListingForReview.id}-${i}`} 
-                            className={`w-1.5 h-1.5 rounded-full transition-all ${
-                              i === currentImageIndex ? 'bg-white w-4' : 'bg-white/40'
-                            }`} 
-                          />
-                        ))}
-                      </div>
                     </>
                   )}
-
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                     <Maximize2 className="text-white w-8 h-8 cursor-pointer pointer-events-auto" onClick={() => setIsFullscreen(true)} />
-                  </div>
                 </div>
 
                 {/* Listing Information */}
@@ -1410,6 +1518,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                         <div className="flex items-center gap-2 px-3 py-1 bg-primary-500/10 border border-primary-500/20">
                           <Loader2 className="w-3 h-3 text-primary-500 animate-spin" />
                           <span className="text-[9px] font-black text-primary-500 uppercase tracking-[0.2em]">Analyzing...</span>
+                        </div>
+                      ) : listingAiError ? (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-rose-500/10 border border-rose-500/20">
+                          <AlertTriangle className="w-3 h-3 text-rose-500" />
+                          <span className="text-[9px] font-black text-rose-500 uppercase tracking-[0.2em]">{listingAiError}</span>
                         </div>
                       ) : listingAiReport ? (
                         <div className="flex items-center gap-3">
@@ -2232,6 +2345,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      <ConfirmationModal />
     </div>
   );
 };
