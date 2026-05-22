@@ -94,7 +94,7 @@ const AppLayout = () => {
         </AnimatePresence>
       </main>
 
-      <div className="relative z-50">
+      <div className="relative z-[100]">
         <BottomNav
           activeTab={activeTab}
           user={user}

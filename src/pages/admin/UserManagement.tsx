@@ -39,7 +39,7 @@ import {
 import { db, auth } from '../../lib/firebase';
 import { User, Verification } from '../../types';
 import DropdownPortal from '../../components/admin/DropdownPortal';
-import { purgeUserData } from '../../utils/adminCleanup';
+import { purgeUserData, toggleUserSuspension } from '../../utils/adminCleanup';
 import toast from 'react-hot-toast';
 
 interface UserManagementProps {
@@ -64,6 +64,8 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [apiWarning, setApiWarning] = useState<{ activationUrl: string; userEmail: string } | null>(null);
+  const [suspensionUser, setSuspensionUser] = useState<User | null>(null);
+  const [isUpdatingSuspension, setIsUpdatingSuspension] = useState(false);
 
   const getStatus = (user: UserWithVerification) => {
     if ((user as any).isSuspended) return { text: 'SUSPENDED', color: 'text-rose-600', dot: 'bg-rose-500', bg: 'bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-800' };
@@ -201,6 +203,42 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
   }, [searchQuery, activeTab, statusFilter]);
 
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+  const handleToggleSuspension = (user: User) => {
+    setSuspensionUser(user);
+  };
+
+  const executeSuspensionToggle = async () => {
+    if (!suspensionUser) return;
+    setIsUpdatingSuspension(true);
+    const isCurrentlySuspended = (suspensionUser as any).isSuspended || false;
+    const actionWord = isCurrentlySuspended ? 'unsuspend' : 'suspend';
+    
+    const toastId = toast.loading(`Attempting to ${actionWord} account...`);
+    try {
+      await toggleUserSuspension(suspensionUser.id, !isCurrentlySuspended);
+      
+      // Update local state isSuspended
+      setUsers(prev => prev.map(u => {
+        if (u.id === suspensionUser.id) {
+          return { ...u, isSuspended: !isCurrentlySuspended };
+        }
+        return u;
+      }));
+      
+      if (selectedUser?.id === suspensionUser.id) {
+        setSelectedUser(prev => prev ? { ...prev, isSuspended: !isCurrentlySuspended } : null);
+      }
+      
+      toast.success(`Account successfully ${isCurrentlySuspended ? 'reactivated' : 'suspended'}.`, { id: toastId });
+      setSuspensionUser(null);
+    } catch (error: any) {
+      console.error(`Error toggling suspension state:`, error);
+      toast.error(`Admin error: Failed to toggle user suspension state.`, { id: toastId });
+    } finally {
+      setIsUpdatingSuspension(false);
+    }
+  };
 
   const handleDeleteUser = async (user: User) => {
     setActiveDropdown(null);
@@ -598,10 +636,8 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                           <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
                           <button 
                             onClick={() => {
-                              if (window.confirm(`Are you sure you want to ${ (user as any).isSuspended ? 'unsuspend' : 'suspend' } this user?`)) {
-                                alert('Suspension state toggled (Admin only action)');
-                              }
                               setActiveDropdown(null);
+                              handleToggleSuspension(user);
                             }}
                             className="w-full px-4 py-2 text-left text-xs font-bold text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center gap-3 transition-colors"
                           >
@@ -928,11 +964,17 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                         Send Incident Notice
                       </button>
                       {(selectedUser as any).isSuspended ? (
-                        <button className="flex-1 px-4 py-4 border border-emerald-200 text-emerald-600 bg-emerald-50 text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-100 transition-colors">
+                        <button 
+                          onClick={() => handleToggleSuspension(selectedUser)}
+                          className="flex-1 px-4 py-4 border border-emerald-200 text-emerald-600 bg-emerald-50 text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-100 transition-colors"
+                        >
                           Reactivate Member
                         </button>
                       ) : (
-                        <button className="flex-1 px-4 py-4 border border-rose-200 text-rose-600 bg-rose-50 text-[10px] font-bold uppercase tracking-widest hover:bg-rose-100 transition-colors">
+                        <button 
+                          onClick={() => handleToggleSuspension(selectedUser)}
+                          className="flex-1 px-4 py-4 border border-rose-200 text-rose-600 bg-rose-50 text-[10px] font-bold uppercase tracking-widest hover:bg-rose-100 transition-colors"
+                        >
                           Suspend Account
                         </button>
                       )}
@@ -990,6 +1032,75 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                 >
                   {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Purge'}
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Account Suspension / Reactivation Modal */}
+      <AnimatePresence>
+        {suspensionUser && (
+          <div 
+            className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 h-screen w-screen"
+            onClick={() => setSuspensionUser(null)}
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-slate-900 rounded-none w-full max-w-sm overflow-hidden border border-slate-200 dark:border-slate-800"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 text-center">
+                {(suspensionUser as any).isSuspended ? (
+                  <>
+                    <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/20 rounded-none flex items-center justify-center text-emerald-600 mb-4 mx-auto border border-emerald-100 dark:border-emerald-900">
+                      <ShieldCheck className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 uppercase tracking-tight">Reactivate Account</h3>
+                    <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed mb-6">
+                      Are you sure you want to restore access for <span className="font-bold text-slate-900 dark:text-white">{suspensionUser.email || suspensionUser.name}</span>? This will lift all search, communication, and listing restrictions immediately.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/20 rounded-none flex items-center justify-center text-amber-600 mb-4 mx-auto border border-amber-100 dark:border-amber-900">
+                      <Lock className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 uppercase tracking-tight">Suspend Account</h3>
+                    <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed mb-6">
+                      Are you sure you want to temporarily suspend <span className="font-bold text-slate-900 dark:text-white">{suspensionUser.email || suspensionUser.name}</span>? They will be locked out of search, chats, and property listing capabilities instantly.
+                    </p>
+                  </>
+                )}
+
+                <div className="flex gap-2.5">
+                  <button 
+                    onClick={() => setSuspensionUser(null)}
+                    disabled={isUpdatingSuspension}
+                    className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold rounded-none text-xs tracking-wider uppercase transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={executeSuspensionToggle}
+                    disabled={isUpdatingSuspension}
+                    className={`flex-1 px-4 py-3 text-white font-bold rounded-none text-xs tracking-wider uppercase transition-colors disabled:opacity-50 flex justify-center items-center gap-2 ${
+                      (suspensionUser as any).isSuspended 
+                        ? 'bg-emerald-600 hover:bg-emerald-700' 
+                        : 'bg-amber-600 hover:bg-amber-700'
+                    }`}
+                  >
+                    {isUpdatingSuspension ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (suspensionUser as any).isSuspended ? (
+                      'Unsuspend'
+                    ) : (
+                      'Suspend'
+                    )}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

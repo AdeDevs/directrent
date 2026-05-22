@@ -6,6 +6,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { Listing } from './types';
 import ScrollToTop from './components/ScrollToTop';
+import { ShieldAlert } from 'lucide-react';
 
 // Lazy load components for code splitting
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
@@ -61,8 +62,51 @@ const ListingPreviewHandler = () => {
   );
 };
 
+const SuspendedScreen = ({ onLogout }: { onLogout: () => void }) => {
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-slate-100 font-sans selection:bg-rose-500/30 selection:text-white">
+      <div className="max-w-md w-full border border-slate-800 bg-slate-950/40 backdrop-blur-md p-8 text-center relative overflow-hidden shadow-2xl">
+        <div className="absolute top-0 left-0 w-full h-1 bg-rose-600" />
+        
+        <div className="w-16 h-16 bg-rose-950/30 border border-rose-800/40 text-rose-500 rounded-none flex items-center justify-center mx-auto mb-6">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+
+        <h1 className="text-xl font-bold uppercase tracking-widest text-white mb-2 font-sans">
+          Access Restriction
+        </h1>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-rose-500 font-mono mb-6">
+          Security Policy Enforcement
+        </p>
+
+        <p className="text-sm text-slate-400 leading-relaxed mb-6">
+          Your account has been suspended by a moderator for violating DirectRent's standard of conduct or posting guidelines. This administrative lock restricts all search, creation, and communication capabilities.
+        </p>
+
+        <div className="p-4 bg-slate-900 border border-slate-800 text-left rounded-none font-mono text-xs text-slate-500 space-y-1.5 mb-8">
+          <div className="flex justify-between">
+            <span className="text-slate-600 font-bold uppercase text-[10px]">Enforcement:</span>
+            <span className="text-rose-500 font-bold">SUSPENSION</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-600 font-bold uppercase text-[10px]">Status:</span>
+            <span>GLOBAL ACCESS RESTRICTED</span>
+          </div>
+        </div>
+
+        <button
+          onClick={onLogout}
+          className="w-full py-4 px-6 bg-rose-700 hover:bg-rose-600 text-white text-xs font-bold uppercase tracking-widest transition-all shadow-md focus:ring-2 focus:ring-rose-500 focus:outline-none"
+        >
+          Disconnect Account
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const AppContent = () => {
-  const { view, isLoading } = useAuth();
+  const { view, isLoading, user, logout } = useAuth();
   const path = window.location.pathname;
 
   // Handle views based on AuthContext state
@@ -85,6 +129,11 @@ const AppContent = () => {
 
   if (isLoading) {
     return <LoadingScreen message="Initializing DirectRent..." />;
+  }
+
+  // Intercept access for suspended users
+  if (user && (user as any).isSuspended) {
+    return <SuspendedScreen onLogout={logout} />;
   }
 
   // Priority: If path is listing detail, show it regardless of view state

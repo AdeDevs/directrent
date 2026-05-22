@@ -383,3 +383,19 @@ export const purgeUserData = async (userId: string) => {
   }
 };
 
+export const toggleUserSuspension = async (userId: string, isSuspended: boolean) => {
+  if (!userId) return;
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      isSuspended: isSuspended,
+      suspendedAt: isSuspended ? new Date().toISOString() : null
+    });
+    await logModeratorAction(isSuspended ? 'suspend' : 'approve', 'user', userId);
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `users/${userId}`);
+    throw error;
+  }
+};
+

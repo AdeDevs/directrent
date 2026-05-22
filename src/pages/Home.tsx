@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Search, Settings2, MapPin, FilterX, Home as HomeIcon, Trash2, Bell, Map, LayoutGrid, Navigation, Info } from 'lucide-react';
-import { APIProvider, Map as GoogleMap, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef } from '@vis.gl/react-google-maps';
+import { Search, Settings2, MapPin, FilterX, Home as HomeIcon, Trash2, Bell, Map, LayoutGrid, Navigation, Info, Compass, RotateCcw, Building2, Layers, Globe } from 'lucide-react';
+import { APIProvider, Map as GoogleMap, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef, useMap } from '@vis.gl/react-google-maps';
 import ListingCard from '../components/ListingCard';
 import SafeImage from '../components/SafeImage';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +11,110 @@ import { purgeListingData } from '../utils/adminCleanup';
 import { Listing, Notification } from '../types';
 import NotificationBadge from '../components/NotificationBadge';
 import { GoogleMapsGuard } from '../components/GoogleMapsGuard';
+
+// Ultra-minimal high-end light styling - hides schools, shops, transit clutter
+const LIGHT_MAP_STYLE = [
+  {
+    "featureType": "poi",
+    "elementType": "all",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "transit",
+    "elementType": "all",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "road",
+    "elementType": "labels.icon",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "administrative.land_parcel",
+    "elementType": "labels",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry.fill",
+    "stylers": [{ "color": "#e0f2fe" }]
+  },
+  {
+    "featureType": "landscape",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#f8fafc" }]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#f1f5f9" }]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry.fill",
+    "stylers": [{ "color": "#e2e8f0" }]
+  }
+];
+
+// Dark Space minimal map style matching DirectRent layout
+const DARK_MAP_STYLE = [
+  {
+    "featureType": "all",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#94a3b8" }]
+  },
+  {
+    "featureType": "all",
+    "elementType": "labels.text.stroke",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "administrative",
+    "elementType": "geometry.stroke",
+    "stylers": [{ "color": "#1e293b" }]
+  },
+  {
+    "featureType": "landscape",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#020617" }]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "all",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#0f172a" }]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#1e293b" }]
+  },
+  {
+    "featureType": "transit",
+    "elementType": "all",
+    "stylers": [{ "visibility": "off" }]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#090d16" }]
+  }
+];
+
+const getMarkerIcon = (type: string) => {
+  const norm = type?.toLowerCase() || '';
+  if (norm.includes('contain') || norm.includes('self')) {
+    return <Building2 className="w-3.5 h-3.5" />;
+  } else if (norm.includes('shared')) {
+    return <Layers className="w-3.5 h-3.5" />;
+  } else {
+    return <HomeIcon className="w-3.5 h-3.5" />;
+  }
+};
 
 const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing) => void }> = ({ listing, onClick }) => {
   const [markerRef, marker] = useAdvancedMarkerRef();
@@ -26,11 +130,17 @@ const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing
         position={{ lat: listing.latitude, lng: listing.longitude }}
         onClick={() => setInfoWindowShown(true)}
       >
-        <div className="group cursor-pointer">
-          <div className="bg-primary-600 text-white px-2.5 py-1 rounded-full text-[11px] font-black shadow-xl shadow-primary-500/30 transform -translate-y-full mb-1 flex items-center gap-1 group-hover:scale-110 transition-all duration-300 border-2 border-white dark:border-slate-900">
-            ₦{listing.priceValue >= 1000000 ? `${(listing.priceValue / 1000000).toFixed(1)}M` : `${(listing.priceValue / 1000).toFixed(0)}k`}
+        <div className="group cursor-pointer flex flex-col items-center">
+          {/* Stunning Property Tag */}
+          <div className="bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-full text-xs font-black shadow-xl shadow-primary-500/30 transform -translate-y-full mb-1 flex items-center gap-1.5 group-hover:scale-110 group-hover:bg-indigo-600 transition-all duration-300 border-2 border-white dark:border-slate-900">
+            {getMarkerIcon(listing.type)}
+            <span>₦{listing.priceValue >= 1000000 ? `${(listing.priceValue / 1000000).toFixed(1)}M` : `${(listing.priceValue / 1000).toFixed(0)}k`}</span>
           </div>
-          <div className="w-3.5 h-3.5 bg-primary-600 border-2 border-white dark:border-slate-900 rounded-full shadow-lg mx-auto group-hover:scale-125 transition-transform" />
+          {/* Glowing pulse marker point */}
+          <div className="relative flex items-center justify-center -translate-y-2">
+            <div className="absolute w-6 h-6 bg-primary-500/40 rounded-full animate-ping pointer-events-none" />
+            <div className="w-3.5 h-3.5 bg-primary-600 border-2 border-white dark:border-slate-900 rounded-full shadow-lg relative z-10 group-hover:scale-125 transition-all duration-300" />
+          </div>
         </div>
       </AdvancedMarker>
 
@@ -72,6 +182,178 @@ const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing
   );
 };
 
+// Custom interactive dashboard overlays for rotation, elevation tilt (3D), and zooming controls
+const MapControlsOverlay: React.FC = () => {
+  const map = useMap();
+  const [currentTilt, setCurrentTilt] = useState(0);
+  const [currentHeading, setCurrentHeading] = useState(0);
+  const [mapType, setMapType] = useState('roadmap');
+
+  useEffect(() => {
+    if (!map) return;
+    setCurrentTilt(map.getTilt() || 0);
+    setCurrentHeading(map.getHeading() || 0);
+
+    const listener = map.addListener('idle', () => {
+      setCurrentTilt(map.getTilt() || 0);
+      setCurrentHeading(map.getHeading() || 0);
+      const type = map.getMapTypeId() || 'roadmap';
+      setMapType(type);
+    });
+
+    return () => {
+      if (listener) listener.remove();
+    };
+  }, [map]);
+
+  const handleMapTypeChange = (type: string) => {
+    if (!map) return;
+    map.setMapTypeId(type);
+    setMapType(type);
+  };
+
+  const toggleTilt = () => {
+    if (!map) return;
+    const nextTilt = currentTilt > 10 ? 0 : 45;
+    map.setTilt(nextTilt);
+    setCurrentTilt(nextTilt);
+    if (nextTilt > 10) {
+      const currentZoom = map.getZoom() || 12;
+      if (currentZoom < 15.5) {
+        map.setZoom(16.5);
+      }
+    }
+  };
+
+  const handleRotate = (degrees: number) => {
+    if (!map) return;
+    const newHeading = (currentHeading + degrees + 360) % 360;
+    map.setHeading(newHeading);
+    setCurrentHeading(newHeading);
+  };
+
+  const resetNorth = () => {
+    if (!map) return;
+    map.setHeading(0);
+    setCurrentHeading(0);
+  };
+
+  const handleZoom = (amount: number) => {
+    if (!map) return;
+    const zoom = map.getZoom() || 12;
+    map.setZoom(zoom + amount);
+  };
+
+  return (
+    <div className="absolute bottom-28 lg:bottom-6 right-4 lg:right-6 flex flex-col gap-3 z-30 pointer-events-auto items-end">
+      {/* Dynamic Map Mode Tabs Selector */}
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 flex gap-1">
+        {[
+          { id: 'roadmap', label: 'Minimal', icon: <Map className="w-3.5 h-3.5" /> },
+          { id: 'satellite', label: 'Satellite', icon: <Globe className="w-3.5 h-3.5" /> },
+          { id: 'hybrid', label: '3D Hybrid', icon: <Layers className="w-3.5 h-3.5" /> },
+        ].map((type) => (
+          <button
+            key={type.id}
+            onClick={() => handleMapTypeChange(type.id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${mapType === type.id ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20 scale-[1.03]' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            title={`Switch to ${type.label}`}
+          >
+            {type.icon}
+            <span className="hidden sm:inline">{type.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-3 items-start">
+        {/* 2D/3D Control Card */}
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-2 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 flex flex-col gap-1 items-center">
+          {/* Tilt Toggle */}
+          <button 
+            onClick={toggleTilt}
+            className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all ${currentTilt > 10 ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            title="Tilt map to 3D perspective pitch"
+          >
+            <span className="text-[10px] font-black leading-none">3D</span>
+            <span className="text-[7px] opacity-70 mt-0.5">{currentTilt > 10 ? 'ACTIVE' : 'OFF'}</span>
+          </button>
+
+          <div className="w-6 h-px bg-slate-100 dark:bg-slate-800 my-1" />
+
+          {/* Rotate Left Button */}
+          <button 
+            onClick={() => handleRotate(-45)}
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title="Rotate left 45°"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+
+          {/* Compass Rotate Button */}
+          <button 
+            onClick={resetNorth}
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 relative transition-colors"
+            title="Reset north alignment"
+          >
+            <Compass 
+              className="w-5 h-5 text-primary-600 transition-transform duration-300" 
+              style={{ transform: `rotate(${-currentHeading}deg)` }}
+            />
+            {currentHeading !== 0 && (
+              <span className="absolute bottom-1 right-1 text-[8px] scale-[0.8] font-black font-mono text-primary-500">
+                {Math.round(currentHeading)}°
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Custom zoom controls card */}
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 flex flex-col gap-1 items-center">
+          <button 
+            onClick={() => handleZoom(1)}
+            className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title="Zoom In"
+          >
+            ＋
+          </button>
+          <div className="w-5 h-px bg-slate-100 dark:bg-slate-800" />
+          <button 
+            onClick={() => handleZoom(-1)}
+            className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title="Zoom Out"
+          >
+            －
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Auto-centers and zooms the map comfortably on the active listings so users aren't left in the Lagoon
+const MapCenteringController: React.FC<{ listings: Listing[] }> = ({ listings }) => {
+  const map = useMap();
+
+  const listingsHash = listings.map(l => l.id).join(',');
+  useEffect(() => {
+    if (!map || listings.length === 0) return;
+
+    // Find first listing with valid lat/lng coordinates
+    const firstWithCoords = listings.find(l => 
+      typeof l.latitude === 'number' && typeof l.longitude === 'number' && l.latitude !== 0 && l.longitude !== 0
+    );
+
+    if (firstWithCoords && firstWithCoords.latitude && firstWithCoords.longitude) {
+      map.panTo({ lat: firstWithCoords.latitude, lng: firstWithCoords.longitude });
+      if ((map.getZoom() || 0) < 13) {
+        map.setZoom(14.5);
+      }
+    }
+  }, [map, listingsHash]);
+
+  return null;
+};
+
 const Home = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
@@ -83,6 +365,15 @@ const Home = () => {
   const [itemsLoaded, setItemsLoaded] = useState(12);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     setItemsLoaded(12); // Reset when filters change
@@ -353,11 +644,14 @@ const Home = () => {
             <div className="flex-1 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl relative min-h-[300px]">
               <GoogleMapsGuard>
                 <GoogleMap 
-                  defaultCenter={{ lat: 6.5244, lng: 3.3792 }} // Lagos center
-                  defaultZoom={12}
+                  defaultCenter={{ lat: 6.4311, lng: 3.4158 }} // Lekki Phase 1 center
+                  defaultZoom={13}
                   defaultTilt={45} // 3D View
                   defaultHeading={0}
-                  mapId="LISTINGS_MAP"
+                  gestureHandling={'cooperative'}
+                  disableDefaultUI={true}
+                  styles={isDark ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
+                  mapId="DEMO_MAP_ID"
                   internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
                   className="w-full h-full"
                 >
@@ -368,6 +662,8 @@ const Home = () => {
                       onClick={setCurrentListing}
                     />
                   ))}
+                  <MapControlsOverlay />
+                  <MapCenteringController listings={filteredListings} />
                 </GoogleMap>
               </GoogleMapsGuard>
               <div className="absolute top-4 left-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-3 rounded-xl border border-slate-100 dark:border-slate-800 shadow-lg flex items-center gap-2">
@@ -381,7 +677,7 @@ const Home = () => {
             </div>
             
             {/* Listing List Section */}
-            <div className="w-full lg:w-[400px] xl:w-[450px] overflow-y-auto pr-2 space-y-4">
+            <div className="hidden lg:block w-full lg:w-[400px] xl:w-[450px] overflow-y-auto pr-2 space-y-4">
                 {visibleListings.length > 0 ? (
                   visibleListings.map((listing) => (
                     <div key={`sidebar-listing-${listing.id}`} className="border-b border-slate-100 dark:border-slate-800 pb-4">

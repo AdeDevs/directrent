@@ -12,6 +12,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isUserSuspended() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isSuspended', false) == true;
+    }
+
   function isGodMode() {
     return isSignedIn() && (
       request.auth.token.email.lower() == 'adeyemiakinyemi01@gmail.com' ||
@@ -163,7 +169,7 @@ service cloud.firestore {
     // Public Listings
     match /listings/{listingId} {
       allow list, get: if true;
-      allow create: if isSignedIn() && isValidId(listingId) && isValidListing(incoming()) && (
+      allow create: if isSignedIn() && !isUserSuspended() && isValidId(listingId) && isValidListing(incoming()) && (
         isAdmin() || (
           incoming().agent.id == request.auth.uid && (
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('verificationLevel', 'none').toLowerCase() == 'verified' ||
@@ -173,13 +179,15 @@ service cloud.firestore {
       );
       allow update: if isSignedIn() && (
         isAdmin() ||
-        // Action: Agent Edit
-        (existing().agent.id == request.auth.uid && isValidListing(incoming()) && incoming().agent.id == existing().agent.id) ||
-        // Action: Engagement Incr (Public)
-        (incoming().diff(existing()).affectedKeys().hasOnly(['viewCount', 'favoritesCount', 'inquiryCount', 'updatedAt']) && 
-         incoming().updatedAt == request.time)
+        (!isUserSuspended() && (
+          // Action: Agent Edit
+          (existing().agent.id == request.auth.uid && isValidListing(incoming()) && incoming().agent.id == existing().agent.id) ||
+          // Action: Engagement Incr (Public)
+          (incoming().diff(existing()).affectedKeys().hasOnly(['viewCount', 'favoritesCount', 'inquiryCount', 'updatedAt']) && 
+           incoming().updatedAt == request.time)
+        ))
       );
-      allow delete: if isAdmin() || (isSignedIn() && existing().agent.id == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && !isUserSuspended() && existing().agent.id == request.auth.uid);
     }
 
     // User Profiles (Pillar 6 Hardening)
@@ -193,12 +201,15 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create: if isOwner(userId) && 
                     incoming().keys().hasAll(['name', 'role']) && 
-                    isValidUser(incoming());
+                    isValidUser(incoming()) &&
+                    (!('isSuspended' in incoming()) || incoming().isSuspended == false);
       allow update: if (isOwner(userId) || isAdmin()) && (
         isAdmin() ||
         (isThemeUpdate() && isValidUser(incoming())) ||
         (
           isValidUser(incoming()) &&
+          // Prevent self-suspension manipulation
+          (!('isSuspended' in incoming().diff(existing()).affectedKeys())) &&
           // Prevent role/email spoofing
           (!('role' in incoming().diff(existing()).affectedKeys()) || 
             incoming().get('role', '') == existing().get('role', '')) &&
@@ -222,31 +233,35 @@ service cloud.firestore {
     }
 
     match /conversations/{convId} {
-      allow get: if isSignedIn() && (isAdmin() || convId.matches('.*' + request.auth.uid + '.*'));
+      allow get: if isSignedIn() && (isAdmin() || (!isUserSuspended() && convId.matches('.*' + request.auth.uid + '.*')));
       allow list: if isSignedIn() && (
         isAdmin() || 
-        (resource.data.tenantId == request.auth.uid) || 
-        (resource.data.agentId == request.auth.uid)
+        (!isUserSuspended() && (
+          (resource.data.tenantId == request.auth.uid) || 
+          (resource.data.agentId == request.auth.uid)
+        ))
       );
       
-      allow create: if isSignedIn() && isValidConversation(incoming()) && (
+      allow create: if isSignedIn() && !isUserSuspended() && isValidConversation(incoming()) && (
         incoming().tenantId == request.auth.uid || 
         incoming().agentId == request.auth.uid || 
         isAdmin()
       );
 
       allow update: if isSignedIn() && (
-        resource.data.tenantId == request.auth.uid || 
-        resource.data.agentId == request.auth.uid || 
-        isAdmin()
+        isAdmin() ||
+        (!isUserSuspended() && (
+          resource.data.tenantId == request.auth.uid || 
+          resource.data.agentId == request.auth.uid
+        ))
       ) && isValidConversation(incoming());
       
       allow delete: if isAdmin();
 
       match /messages/{msgId} {
-        allow read: if isSignedIn() && (isAdmin() || convId.matches('.*' + request.auth.uid + '.*'));
+        allow read: if isSignedIn() && (isAdmin() || (!isUserSuspended() && convId.matches('.*' + request.auth.uid + '.*')));
 
-        allow create: if isSignedIn() && isValidMessage(incoming()) && (
+        allow create: if isSignedIn() && !isUserSuspended() && isValidMessage(incoming()) && (
           incoming().tenantId == request.auth.uid || 
           incoming().agentId == request.auth.uid || 
           isAdmin() ||
@@ -260,22 +275,22 @@ service cloud.firestore {
     // Reviews
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if isSignedIn() && incoming().tenantId == request.auth.uid;
+      allow create: if isSignedIn() && !isUserSuspended() && incoming().tenantId == request.auth.uid;
       allow delete: if isAdmin();
     }
 
     // Tours (Pillar 8 Hardening)
     match /tours/{tourId} {
-      allow read: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && incoming().tenantId == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (isAdmin() || (!isUserSuspended() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid)));
+      allow create: if isSignedIn() && !isUserSuspended() && incoming().tenantId == request.auth.uid;
+      allow update: if isSignedIn() && (isAdmin() || (!isUserSuspended() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid)));
       allow delete: if isAdmin();
     }
 
     // Verifications (Pillar 6)
     match /verifications/{verifyId} {
-      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && !isUserSuspended() && incoming().userId == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && !isUserSuspended() && resource.data.userId == request.auth.uid);
       allow update, delete: if isAdmin();
     }
 
@@ -283,7 +298,7 @@ service cloud.firestore {
     match /notifications/{notifId} {
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && isValidNotification(incoming());
+      allow create: if isSignedIn() && !isUserSuspended() && isValidNotification(incoming());
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid && 
                     incoming().diff(existing()).affectedKeys().hasOnly(['read']);
       allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
@@ -291,7 +306,7 @@ service cloud.firestore {
 
     // Reports
     match /reports/{reportId} {
-      allow create: if isSignedIn() && incoming().reporterId == request.auth.uid;
+      allow create: if isSignedIn() && !isUserSuspended() && incoming().reporterId == request.auth.uid;
       allow get, list, update, delete: if isAdmin();
     }
 
@@ -310,7 +325,7 @@ service cloud.firestore {
     // Vault (Pillar 6)
     match /vault/{vaultId} {
       allow list, get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && incoming().userId == request.auth.uid && 
+      allow create: if isSignedIn() && !isUserSuspended() && incoming().userId == request.auth.uid && 
                     (incoming().createdAt == request.time || !('createdAt' in incoming()));
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
