@@ -821,21 +821,98 @@ const Auth = () => {
   ) : null;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col p-6 transition-colors duration-300">
-      <header className="flex items-center mb-8">
-        <button onClick={() => setView('landing')} className="p-2 -ml-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
-          <X className="w-6 h-6" />
-        </button>
-        <div className="mx-auto flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <Home className="text-white w-5 h-5" />
-            </div>
-             <span className="font-semibold text-slate-900 dark:text-white tracking-tight">DirectRent</span>
+    <div className="min-h-screen lg:h-screen bg-slate-950 text-white lg:grid lg:grid-cols-12 transition-colors duration-300 relative lg:overflow-hidden">
+      {/* Brand Column left (Desktop Only - 5 columns) */}
+      <div className="hidden lg:flex lg:col-span-5 flex-col justify-between p-12 relative overflow-hidden select-none lg:h-full">
+        {/* Cinematic Background Image, Overlay and Grid */}
+        <div className="absolute inset-0 z-0">
+          <img 
+            src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80" 
+            alt="Premium Real Estate" 
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover"
+          />
+          {/* Layered luxury brand gradients */}
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-slate-900/85 to-slate-950/95" />
+          <div className="absolute inset-0 bg-gradient-to-r from-primary-950/20 to-indigo-950/20 mix-blend-multiply" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-15" />
+          <div className="absolute top-[20%] left-[-10%] w-[350px] h-[350px] bg-primary-500/20 rounded-full blur-[100px] opacity-50 pointer-events-none" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[300px] h-[300px] bg-indigo-500/20 rounded-full blur-[110px] opacity-40 pointer-events-none" />
         </div>
-        <div className="w-10" />
-      </header>
 
-      <main className="max-w-md mx-auto w-full pb-12">
+        <div className="relative z-10 flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setView('landing')}>
+          <div className="w-9 h-9 p-1.5 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/20">
+            <Home className="text-white w-5 h-5" />
+          </div>
+          <span className="font-display font-black tracking-tight text-white text-lg leading-none">DirectRent</span>
+        </div>
+
+        {/* Dynamic Contextual Text & Interactive Card Overlay */}
+        <div className="relative z-10 my-auto py-12 space-y-8">
+          <div className="space-y-4">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/60 backdrop-blur-md border border-white/10 text-[10px] font-black uppercase text-primary-400 tracking-wider">
+              Verify • Search • Agree
+            </span>
+            <h2 className="font-display text-4xl font-extrabold text-white tracking-tight leading-[1.1]">
+              Skip Shady Agents. <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-450 via-indigo-350 to-indigo-250">Interact Directly.</span>
+            </h2>
+            <p className="text-slate-350 text-sm leading-relaxed font-light">
+              Connect directly with verified landlords and trusted developers. Transparent contracts, real coordinates, zero surprise inspections fees.
+            </p>
+          </div>
+
+          {/* Quick Stats Overlay Visual Card (Glassmorphic) */}
+          <div className="bg-slate-950/35 backdrop-blur-xl border border-white/10 p-5 rounded-3xl space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800/30 pb-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Credibility Metrics</span>
+              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full text-[9px] font-black">LIVE</span>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <span className="block text-xl font-extrabold text-white font-mono">0%</span>
+                <span className="text-[8px] text-slate-400 uppercase tracking-widest font-semibold">Inspection Tax</span>
+              </div>
+              <div>
+                <span className="block text-xl font-extrabold text-primary-300 font-mono">2.5k+</span>
+                <span className="text-[8px] text-slate-400 uppercase tracking-widest font-semibold">Satisfied Users</span>
+              </div>
+              <div>
+                <span className="block text-xl font-extrabold text-indigo-350 font-mono">Pure</span>
+                <span className="text-[8px] text-slate-400 uppercase tracking-widest font-semibold">Direct Deals</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative z-10">
+          <p className="text-[10px] text-slate-400 font-mono">
+            DirectRent Nigeria © 2026. All rights reserved. Registered landlord credentials strictly validated.
+          </p>
+        </div>
+      </div>
+
+      {/* Right Column (Form Panel) */}
+      <div className="lg:col-span-7 flex flex-col justify-between min-h-screen lg:h-full lg:overflow-y-auto px-6 py-8 sm:px-12 sm:py-12 bg-white dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-300">
+        <header className="flex items-center justify-between pb-4">
+          <button onClick={() => setView('landing')} className="p-2 -ml-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-1.5 group">
+            <X className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline">Back</span>
+          </button>
+          
+          {/* Logo on Mobile/Tablet only */}
+          <div className="flex items-center gap-1.5 lg:hidden cursor-pointer" onClick={() => setView('landing')}>
+            <div className="w-7 h-7 bg-primary-600 rounded-lg flex items-center justify-center">
+              <Home className="text-white w-4 h-4" />
+            </div>
+            <span className="font-display font-black text-sm text-slate-900 dark:text-white leading-none">DirectRent</span>
+          </div>
+
+          <div className="w-10 lg:hidden" />
+        </header>
+
+        <main className="max-w-md mx-auto w-full py-6 md:py-12 flex-1 flex flex-col justify-center">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">
             {isResetMode ? 'Reset password' : (authMode === 'login' ? 'Welcome back' : (signupStep === 1 ? 'Create account' : 'Verify Identity'))}
@@ -1512,6 +1589,14 @@ const Auth = () => {
           )}
         </form>
       </main>
+      
+      {/* Dynamic desktop helper footer on form section */}
+      <footer className="text-center pt-4 border-t border-slate-100 dark:border-slate-850">
+        <p className="text-xs text-slate-400 dark:text-slate-500">
+          By signing up, you agree to our <span className="underline cursor-pointer hover:text-primary-500">Terms of Use</span> and <span className="underline cursor-pointer hover:text-primary-500">Privacy Policy</span>.
+        </p>
+      </footer>
+    </div>
     </div>
   );
 };

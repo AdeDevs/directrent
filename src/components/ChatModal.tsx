@@ -626,7 +626,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-xl sm:rounded-2xl shadow-2xl flex flex-col h-[90vh] sm:h-[650px] max-h-[95vh] overflow-hidden m-0 sm:m-4 pointer-events-auto"
+            className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-xl sm:rounded-2xl shadow-2xl flex flex-col h-[90vh] sm:h-[650px] max-h-[95vh] overflow-hidden m-0 sm:m-4 pointer-events-auto border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300"
           >
             {/* WhatsApp Disclaimer Modal */}
             <AnimatePresence>
@@ -643,7 +643,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                     initial={{ opacity: 0, scale: 0.9, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                    className="relative w-full max-w-[320px] bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-2xl border border-slate-100 dark:border-slate-800"
+                    className="relative w-full max-w-[320px] bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-2xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300"
                   >
                     <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-xl flex items-center justify-center mx-auto mb-4">
                       <ShieldCheck className="w-6 h-6" />
@@ -671,60 +671,54 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
               )}
             </AnimatePresence>
             {/* Header */}
-            <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
-              <div className="flex items-center gap-2.5 sm:gap-3 text-left">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold border border-slate-100 dark:border-slate-800 overflow-hidden shrink-0 uppercase text-xs sm:text-base scale-110">
+            <div className="px-4 py-4 border-b border-slate-105 dark:border-slate-800/80 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0 shadow-sm">
+              <div className="flex items-center gap-3.5 text-left">
+                <div className="w-10 h-10 rounded-2xl bg-primary-50 dark:bg-slate-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-extrabold border border-slate-150/60 dark:border-slate-700 overflow-hidden shrink-0 uppercase text-sm relative shadow-inner">
                   {otherUser?.avatarUrl ? (
                     <img src={otherUser.avatarUrl} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
                   ) : (
                     (otherUser?.name || listing.agent?.name || 'A').charAt(0)
                   )}
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full" />
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="font-display font-bold text-slate-900 dark:text-white text-xs sm:text-sm leading-none truncate max-w-[120px] sm:max-w-none tracking-tight">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <h3 className="font-display font-extrabold text-slate-900 dark:text-white text-sm sm:text-base leading-tight truncate tracking-tight">
                       {otherUser?.name || listing.agent?.name}
                     </h3>
                     {otherUser?.verificationLevel && (
-                      <>
-                        <div className="md:hidden inline-block">
-                          <VerificationBadge level={otherUser.verificationLevel} role={otherUser.role} showText={false} className="px-1 py-0.5" />
-                        </div>
-                        <div className="hidden md:inline-block">
-                          <VerificationBadge level={otherUser.verificationLevel} role={otherUser.role} showText={true} className="px-1 py-0.5" />
-                        </div>
-                      </>
+                      <VerificationBadge level={otherUser.verificationLevel} role={otherUser.role} showText={false} className="scale-90" />
                     )}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Active</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <p className="text-[9.5px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-wider">Active Secure Node</p>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1 sm:gap-2">
-                <button 
-                  onClick={onClose}
-                  className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full text-slate-400 dark:text-slate-500 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+              <button 
+                onClick={onClose}
+                className="w-9 h-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer border border-transparent hover:border-slate-200/50 dark:hover:border-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             {/* Property Reference Banner */}
-            <div className="px-3 sm:px-4 py-2 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 sm:gap-3 shrink-0">
-              <SafeImage 
-                src={listing.image} 
-                className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg object-cover border border-slate-200 dark:border-slate-800" 
-                alt={listing.title}
-              />
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-[9px] font-display font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">Inquiry</p>
-                <h4 className="text-[10px] sm:text-xs font-display font-bold text-slate-700 dark:text-slate-300 truncate tracking-tight">{listing.title}</h4>
+            <div className="px-4.5 py-3.5 bg-slate-50/70 dark:bg-slate-950/40 border-b border-slate-105 dark:border-slate-800/60 flex items-center gap-3.5 shrink-0 backdrop-blur-md">
+              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-slate-150 dark:border-slate-800 relative group/ref">
+                <SafeImage 
+                  src={listing.image} 
+                  className="w-full h-full object-cover transition-transform group-hover/ref:scale-105 duration-300" 
+                  alt={listing.title}
+                />
               </div>
-              <div className="bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 shrink-0">
-                <p className="text-[10px] font-bold text-primary-600 dark:text-primary-400">{listing.price}</p>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-[8.5px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Referenced Rental</p>
+                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-250 truncate tracking-tight">{listing.title}</h4>
+              </div>
+              <div className="bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-150/60 dark:border-slate-800/80 shrink-0 shadow-sm">
+                <p className="text-xs font-black text-primary-600 dark:text-primary-450">{listing.price}</p>
               </div>
             </div>
 
@@ -733,7 +727,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
               <motion.div 
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
-                className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 overflow-x-auto shrink-0 scrollbar-hide"
+                className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 overflow-x-auto shrink-0 scrollbar-hide"
               >
                 <div className="p-3 flex items-center gap-2 min-w-max">
                   {currentUser.role === 'tenant' && (
@@ -858,7 +852,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                 </div>
               ) : messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-6 sm:p-8">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white dark:bg-slate-900 rounded-2xl shadow-sm flex items-center justify-center mb-4 border border-slate-100 dark:border-slate-800 text-primary-200 dark:text-primary-800">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white dark:bg-slate-900 rounded-2xl shadow-sm flex items-center justify-center mb-4 border border-slate-200 dark:border-slate-800 text-primary-200 dark:text-primary-800">
                     <MessageSquare className="w-7 h-7 sm:w-8 sm:h-8" />
                   </div>
                   <h4 className="font-bold text-slate-900 dark:text-white mb-2">No conversation history</h4>
@@ -890,7 +884,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                         className={`max-w-[85%] px-4 py-2.5 rounded-[22px] text-[13px] sm:text-sm shadow-sm transition-colors font-sans tracking-tight ${
                           msg.senderId === currentUser.id 
                             ? 'bg-blue-500 text-white rounded-br-none shadow-blue-500/10' 
-                            : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-700 rounded-bl-none shadow-black/5'
+                            : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-none shadow-black/5'
                         }`}
                       >
                         {msg.content}
@@ -903,14 +897,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
             </div>
 
             {/* Input Area */}
-            <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+            <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
               <div className="relative group flex items-center gap-3">
                 <div className="relative flex-1">
                   {isRecording ? (
                     <motion.div 
                       initial={{ opacity: 0, x: 20, scale: 0.95 }}
                       animate={{ opacity: 1, x: 0, scale: 1 }}
-                      className="w-full flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 sm:py-2.5 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm"
+                      className="w-full flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 sm:py-2.5 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm"
                     >
                       <div className="flex items-center gap-2 px-2 py-1 bg-rose-100 dark:bg-rose-900/30 rounded-full">
                         <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shrink-0" />

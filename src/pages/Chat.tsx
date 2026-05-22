@@ -74,8 +74,8 @@ const ConversationAvatar = ({
   const avatarUrl = participant?.avatarUrl || initialImage;
 
   return (
-    <div className="relative shrink-0 mt-0.5">
-      <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-primary-50 dark:bg-primary-900/10 overflow-hidden border border-slate-100 dark:border-slate-800 shadow-inner group-hover:scale-105 transition-transform duration-300 flex items-center justify-center">
+    <div className="relative shrink-0 flex items-center">
+      <div className="w-12 h-12 sm:w-15 sm:h-15 rounded-full bg-slate-50 dark:bg-slate-800 overflow-hidden border border-slate-200/80 dark:border-slate-700/80 shadow-inner group-hover:scale-105 transition-transform duration-500 flex items-center justify-center">
         {avatarUrl ? (
           <img
             src={avatarUrl}
@@ -84,17 +84,17 @@ const ConversationAvatar = ({
             alt=""
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-bold text-lg">
-            {(participant?.name || initialName).charAt(0)}
+          <div className="w-full h-full flex items-center justify-center bg-primary-50 dark:bg-primary-950/20 text-primary-600 dark:text-primary-450 font-extrabold text-lg font-sans">
+            {(participant?.name || initialName || "?").charAt(0)}
           </div>
         )}
       </div>
       {/* Property Image - Small Overlay */}
-      <div className="absolute -bottom-1 -right-1 w-5.5 h-5.5 sm:w-7 sm:h-7 rounded-lg bg-white dark:bg-slate-900 border-[2px] sm:border-[3px] border-white dark:border-slate-900 shadow-lg overflow-hidden">
+      <div className="absolute -bottom-1 -right-1 w-6 h-6 sm:w-7.5 sm:h-7.5 rounded-xl bg-white dark:bg-slate-900 border-[2.5px] border-white dark:border-slate-900 shadow-md overflow-hidden flex-shrink-0">
         {listingImage ? (
           <SafeImage 
             src={listingImage} 
-            className="w-full h-full object-cover opacity-80"
+            className="w-full h-full object-cover opacity-95 group-hover:scale-105 transition-transform duration-500"
             alt="" 
           />
         ) : (
@@ -128,10 +128,10 @@ const ConversationRow = ({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       onClick={onClick}
-      className="group relative bg-white dark:bg-slate-900 flex items-start gap-3 sm:gap-4 p-2.5 sm:p-3.5 rounded-lg sm:rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-primary-500/5 dark:hover:shadow-black/30 hover:border-primary-100 dark:hover:border-primary-900 transition-all cursor-pointer active:scale-[0.99] w-full max-w-full overflow-hidden"
+      className="group relative bg-white dark:bg-slate-900 flex items-center gap-4 p-4 rounded-3xl border border-slate-150/70 dark:border-slate-800/80 shadow-sm hover:shadow-2xl hover:shadow-slate-200/30 dark:hover:shadow-black/30 hover:border-primary-150 dark:hover:border-primary-900/40 transition-all duration-300 cursor-pointer active:scale-[0.98] w-full max-w-full overflow-hidden"
     >
       <ConversationAvatar 
         userId={participantId}
@@ -140,60 +140,60 @@ const ConversationRow = ({
         listingImage={conv.listingImage}
       />
 
-      <div className="flex-1 min-w-0 flex flex-col gap-1 pr-6 sm:pr-8">
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5 pr-4 sm:pr-8">
         <div className="flex items-center justify-between gap-2 min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <h4 className="font-display font-bold text-slate-900 dark:text-white text-base sm:text-lg truncate tracking-tight min-w-0 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h4 className="font-display font-extrabold text-slate-900 dark:text-white text-sm sm:text-base leading-tight truncate tracking-tight min-w-0 group-hover:text-primary-600 dark:group-hover:text-primary-450 transition-colors">
               {displayName}
             </h4>
             {participant?.verificationLevel && (
               <VerificationBadge level={participant.verificationLevel} role={participant.role} showText={false} className="scale-90" />
             )}
           </div>
-          <span className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0 group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors">
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0 group-hover:text-slate-500 transition-colors">
             {getTimeAgo(conv.updatedAt)}
           </span>
         </div>
 
         {unreadCount ? (
-          <div className="absolute top-1/2 -translate-y-1/2 right-3 sm:right-4 flex items-center justify-center pointer-events-none">
-            <div className="min-w-[20px] h-[20px] px-1 flex items-center justify-center bg-primary-600 text-white text-[11px] font-bold rounded-full shadow-sm animate-in fade-in zoom-in duration-300">
+          <div className="absolute top-1/2 -translate-y-1/2 right-4 flex items-center justify-center pointer-events-none">
+            <div className="min-w-[20px] h-[20px] px-1.5 flex items-center justify-center bg-primary-600 text-white text-[10px] font-black rounded-full shadow-sm animate-pulse">
                {unreadCount}
             </div>
           </div>
         ) : null}
 
-        <div className="flex min-w-0">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <span
-            className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg shrink-0 shadow-sm ${
+            className={`text-[8.5px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0 border ${
               getStatusConfig(conv.status || "inquiry").color
             }`}
           >
             {getStatusConfig(conv.status || "inquiry").label}
           </span>
+          
+          <div className="flex items-center gap-1 min-w-0 opacity-80">
+            <Home className="w-3 h-3 text-slate-400 dark:text-slate-550 shrink-0" />
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 truncate uppercase tracking-wider min-w-0">
+              {conv.listingTitle}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1 min-w-0">
-          <Home className="w-3 h-3 text-slate-300 dark:text-slate-700 shrink-0" />
-          <p className="text-[10px] sm:text-xs font-display font-black text-slate-400 dark:text-slate-500 truncate uppercase tracking-widest min-w-0 opacity-70">
-            {conv.listingTitle}
-          </p>
-        </div>
-
-        <div className="text-sm text-slate-500 dark:text-slate-400 leading-snug font-medium line-clamp-2 break-words min-w-0 overflow-hidden opacity-80 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
+        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-normal line-clamp-1 break-words min-w-0 overflow-hidden pr-2">
           {conv.lastMessage.includes("Audio message") ? (
-            <>
-              <div className="flex items-center gap-1 text-primary-600 dark:text-primary-400">
-                <Mic className="w-3.5 h-3.5" />
-                <span className="font-bold">Audio</span>
-              </div>
-            </>
+            <span className="flex items-center gap-1.5 text-primary-600 dark:text-primary-450 font-extrabold text-xs">
+              <Mic className="w-3.5 h-3.5" />
+              <span>Voice Note</span>
+            </span>
           ) : (
-            conv.lastMessage.length > 70
-              ? conv.lastMessage.substring(0, 70) + "..."
-              : conv.lastMessage
+            conv.lastMessage
           )}
-        </div>
+        </p>
+      </div>
+
+      <div className="hidden sm:flex shrink-0 items-center justify-center w-8 h-8 rounded-full border border-slate-200 dark:border-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800 group-hover:translate-x-0.5 transition-all">
+        <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-550 group-hover:text-primary-500 dark:group-hover:text-primary-450 transition-colors" />
       </div>
     </motion.div>
   );
@@ -236,22 +236,28 @@ const Inbox = () => {
       case "contract_requested":
         return {
           label: "Contract Requested",
-          color: "text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30",
+          color: "text-primary-705 bg-primary-50/50 dark:bg-primary-950/20 border-primary-100/60 dark:border-primary-900/40 text-primary-700 dark:text-primary-400",
         };
       case "contract_sent":
         return {
           label: "Review Contract",
-          color: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30",
+          color: "text-amber-705 bg-amber-50/50 dark:bg-amber-955/20 border-amber-100/60 dark:border-amber-950/40 text-amber-700 dark:text-amber-450",
         };
       case "paid":
         return {
           label: "Deposit Paid",
-          color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30",
+          color: "text-emerald-705 bg-emerald-50/50 dark:bg-emerald-955/20 border-emerald-100/60 dark:border-emerald-905/30 text-emerald-700 dark:text-emerald-400",
         };
       case "completed":
-        return { label: "Completed", color: "text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800" };
+        return { 
+          label: "Completed", 
+          color: "text-slate-500 dark:text-slate-450 bg-slate-55/80 dark:bg-slate-800/60 border-slate-150 dark:border-slate-700/60" 
+        };
       default:
-        return { label: "Inquiry", color: "text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800" };
+        return { 
+          label: "Inquiry", 
+          color: "text-slate-600 dark:text-slate-400 bg-slate-55/80 dark:bg-slate-850/60 border-slate-150 dark:border-slate-700/60" 
+        };
     }
   };
 
@@ -314,72 +320,79 @@ const Inbox = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4 bg-white dark:bg-slate-950 transition-colors duration-300">
-        <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-800 border-t-primary-600 dark:border-t-primary-500 rounded-full animate-spin" />
-        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest animate-pulse">
-          Fetching chat data...
+      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4 bg-slate-50/50 dark:bg-slate-950 transition-colors duration-300">
+        <div className="w-10 h-10 border-3 border-slate-200 dark:border-slate-800 border-t-primary-600 dark:border-t-primary-500 rounded-full animate-spin" />
+        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest animate-pulse">
+          Fetching messages...
         </p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-300">
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
-        <div className="w-full max-w-full px-2 h-16 flex items-center justify-between">
-          <h1 className="text-xl sm:text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight ml-2">
-            Messages
-          </h1>
+    <div className="min-h-screen bg-slate-50/30 dark:bg-slate-950 transition-colors duration-300">
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80">
+        <div className="w-full max-w-none px-4 h-18 flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-450 leading-none">Your Chats</span>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+              Messages
+            </h1>
+          </div>
+          
           <button 
             onClick={() => setActiveTab('notifications')}
-            className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group mr-1"
+            className="p-2.5 relative hover:bg-slate-100/85 dark:hover:bg-slate-800/80 rounded-full transition-colors group border border-slate-150/40 dark:border-slate-800"
           >
-            <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 transition-colors" />
+            <Bell className="w-5 h-5 text-slate-700 dark:text-slate-300 group-hover:text-primary-600 transition-colors" />
             <NotificationBadge />
           </button>
         </div>
       </header>
 
-      <main className="pt-[72px] px-[15px] pb-[14px] mb-0" style={{ paddingTop: "20px" }}>
+      <main className="w-full max-w-none px-4 py-6">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="w-full"
+          className="w-full space-y-6"
         >
           {/* Search Section */}
-          <div className="mb-6">
-            <div className="relative group max-w-full">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 dark:text-slate-600 group-focus-within:text-primary-500 transition-colors" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search conversations..."
-                className="w-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm rounded-lg py-3.5 pl-12 pr-4 text-sm outline-none focus:ring-4 focus:ring-primary-500/5 focus:border-primary-500/20 dark:focus:ring-primary-900/20 dark:focus:border-primary-800 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 font-sans tracking-tight dark:text-white"
-              />
-            </div>
+          <div className="relative group max-w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 group-focus-within:text-primary-600 transition-colors" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by sender, property name or keyword..."
+              className="w-full bg-white dark:bg-slate-900 border border-slate-150/80 dark:border-slate-800 shadow-sm rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-primary-500/5 focus:border-primary-500/30 dark:focus:border-primary-500/30 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600"
+            />
           </div>
 
           {/* Chat List */}
-          <div className="space-y-2.5 sm:space-y-4 pb-[110px]" style={{paddingBottom:0}}>
+          <div className="space-y-3.5 pb-20">
             <AnimatePresence mode="popLayout">
               {filteredConversations.length === 0 ? (
                 <motion.div
                   key="empty-inbox"
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/40 dark:shadow-black/40 flex flex-col items-center justify-center py-20 sm:py-32 px-8 text-center"
+                  className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-150/80 dark:border-slate-800 shadow-md flex flex-col items-center justify-center py-20 px-6 text-center max-w-md mx-auto"
                 >
-                  <div className="w-20 h-20 bg-primary-50 dark:bg-primary-900/20 rounded-full flex items-center justify-center mb-6 text-primary-200 dark:text-primary-800 scale-110">
-                    <MessageSquare className="w-10 h-10" />
+                  <div className="w-16 h-16 bg-primary-50 dark:bg-primary-950/20 rounded-2xl flex items-center justify-center mb-6 text-primary-550 dark:text-primary-450 border border-primary-100 dark:border-primary-900/40 shadow-inner">
+                    <MessageSquare className="w-7 h-7" />
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                  <h3 className="text-lg font-display font-extrabold text-slate-900 dark:text-white mb-2">
                     Your inbox is clear
                   </h3>
-                  <p className="text-sm text-slate-400 dark:text-slate-500 max-w-[260px] leading-relaxed font-medium">
-                    When you inquire about a property, your chats will appear
-                    here instantly.
+                  <p className="text-sm text-slate-450 dark:text-slate-400 leading-relaxed font-light mb-6">
+                    Inquire on verified rentals or start a dialogue with any vetted owner, and your messages will land here instantenously.
                   </p>
+                  <button
+                    onClick={() => setActiveTab("home")}
+                    className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
+                  >
+                    Find Listings
+                  </button>
                 </motion.div>
               ) : (
                 filteredConversations.map((conv) => (

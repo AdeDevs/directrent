@@ -173,32 +173,32 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
         </button>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="max-w-none px-4 py-8 space-y-8 pb-32">
         {/* Header Hero Card */}
-        <section className="bg-slate-50 dark:bg-[#0f172a] rounded-[24px] p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 border border-slate-200 dark:border-white/5 shadow-xl">
+        <section className="bg-white/80 dark:bg-slate-900/60 rounded-[32px] p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-2xl shadow-slate-200/40 dark:shadow-none backdrop-blur-xl transition-all duration-300">
           <div className="flex flex-col md:flex-row items-center gap-6">
             <div className="relative group">
-              <div className="w-24 h-24 md:w-32 md:h-32 rounded-[20px] overflow-hidden ring-4 ring-white dark:ring-white/5 shadow-xl">
+              <div className="w-24 h-24 md:w-32 md:h-32 rounded-[28px] overflow-hidden ring-4 ring-slate-100 dark:ring-white/10 shadow-xl">
                 <SafeImage 
                   src={agent.avatarUrl || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&h=400&auto=format&fit=crop"} 
                   alt={fullName}
-                  className="w-full h-full object-cover grayscale-[0.1] group-hover:grayscale-0 transition-all duration-500"
+                  className="w-full h-full object-cover transition-all duration-500"
                 />
               </div>
-              <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-4 border-slate-50 dark:border-[#0f172a] animate-pulse" />
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-4 border-white dark:border-slate-900 animate-pulse" />
             </div>
             
             <div className="text-center md:text-left space-y-3">
-              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{fullName}</h1>
+              <div className="flex flex-col md:flex-row md:items-center gap-2.5 md:gap-4">
+                <h1 className="text-2xl md:text-3.5xl font-display font-black tracking-tight text-slate-900 dark:text-white">{fullName}</h1>
                 {isVerified && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-wider">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-wider self-center">
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    Verified Agent
+                    Verified Broker
                   </span>
                 )}
               </div>
-              <p className="flex items-center justify-center md:justify-start gap-2 text-slate-500 dark:text-slate-400 text-sm font-medium">
+              <p className="flex items-center justify-center md:justify-start gap-2 text-slate-500 dark:text-slate-400 text-sm font-semibold uppercase tracking-wider">
                 <MapPin className="w-4 h-4 text-primary-500" />
                 {agent.city || 'Lagos'}, Nigeria
               </p>
@@ -208,13 +208,13 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
           <div className="flex items-center gap-3 w-full md:w-auto">
             <button 
               onClick={() => document.getElementById('featured-listings')?.scrollIntoView({ behavior: 'smooth' })}
-              className="flex-1 md:flex-none px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/5 text-slate-700 dark:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700"
+              className="flex-1 md:flex-none h-12 px-6 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm border border-transparent dark:border-slate-700"
             >
               View Listings
             </button>
             <button 
               onClick={() => setShowChatModal(true)}
-              className="flex-1 md:flex-none px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-white dark:text-slate-950 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20"
+              className="flex-1 md:flex-none h-12 px-6 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-primary-500/10 active:scale-95"
             >
               Message Agent
             </button>
@@ -223,36 +223,36 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
 
         {/* Stats Row */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-slate-50 dark:bg-[#0f172a] rounded-[24px] p-6 border border-slate-200 dark:border-white/5 flex items-center gap-5 group hover:border-emerald-500/30 transition-all shadow-sm">
-            <div className="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500">
+          <div className="bg-white/80 dark:bg-slate-900/40 rounded-[28px] p-6 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex items-center gap-5 group transition-all duration-300 shadow-sm hover:shadow-md backdrop-blur-sm">
+            <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-500">
               <Star className="w-6 h-6 fill-current" />
             </div>
             <div>
               <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-slate-900 dark:text-white">{stats.avgRating > 0 ? stats.avgRating.toFixed(1) : '5.0'}</span>
-                <span className="text-slate-500 text-xs font-bold">/ 5.0</span>
+                <span className="text-2xl sm:text-3xl font-display font-black text-slate-900 dark:text-white">{stats.avgRating > 0 ? stats.avgRating.toFixed(1) : '5.0'}</span>
+                <span className="text-slate-400 text-xs font-bold">/ 5.0</span>
               </div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{stats.totalReviews} TOTAL REVIEWS</p>
+              <p className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest">{stats.totalReviews} TOTAL REVIEWS</p>
             </div>
           </div>
 
-          <div className="bg-slate-50 dark:bg-[#0f172a] rounded-[24px] p-6 border border-slate-200 dark:border-white/5 flex items-center gap-5 group hover:border-emerald-500/30 transition-all shadow-sm">
-            <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500 uppercase">
+          <div className="bg-white/80 dark:bg-slate-900/40 rounded-[28px] p-6 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex items-center gap-5 group transition-all duration-300 shadow-sm hover:shadow-md backdrop-blur-sm">
+            <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 uppercase">
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white">{stats.completedTxns}</div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">RENTALS COMPLETED</p>
+              <div className="text-2xl sm:text-3xl font-display font-black text-slate-900 dark:text-white">{stats.completedTxns}</div>
+              <p className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest">RENTALS COMPLETED</p>
             </div>
           </div>
 
-          <div className="bg-slate-50 dark:bg-[#0f172a] rounded-[24px] p-6 border border-slate-200 dark:border-white/5 flex items-center gap-5 group hover:border-emerald-500/30 transition-all shadow-sm">
-            <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500">
+          <div className="bg-white/80 dark:bg-slate-900/40 rounded-[28px] p-6 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex items-center gap-5 group transition-all duration-300 shadow-sm hover:shadow-md backdrop-blur-sm">
+            <div className="w-12 h-12 bg-primary-500/10 rounded-2xl flex items-center justify-center text-primary-550 dark:text-primary-400">
               <Clock className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white">{stats.responseTime}</div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">AVG. RESPONSE TIME</p>
+              <div className="text-2xl sm:text-3xl font-display font-black text-slate-900 dark:text-white">{stats.responseTime}</div>
+              <p className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest">AVG. RESPONSE TIME</p>
             </div>
           </div>
         </section>
@@ -261,7 +261,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column: About */}
           <section className="lg:col-span-1">
-            <div className="bg-slate-50 dark:bg-[#0f172a] rounded-[24px] p-8 border border-slate-200 dark:border-white/5 h-full flex flex-col shadow-sm">
+            <div className="bg-slate-50 dark:bg-[#0f172a] rounded-[24px] p-8 border-[0.5px] border-slate-250 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 h-full flex flex-col shadow-sm transition-all duration-300">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-500">
                   <UserCheck className="w-5 h-5" />
@@ -304,13 +304,13 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
             </div>
 
             {featuredListings.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-6">
                 {featuredListings.map((listing) => (
                   <motion.div 
                     key={`agent-listing-${listing.id}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white dark:bg-[#0f172a] rounded-[20px] overflow-hidden border border-slate-200 dark:border-white/5 hover:border-emerald-500/30 transition-all group cursor-pointer shadow-sm"
+                    className="bg-white dark:bg-[#0f172a] rounded-[20px] overflow-hidden border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300 group cursor-pointer shadow-sm"
                   >
                     <div className="relative aspect-[4/3]">
                       <SafeImage src={listing.image} alt={listing.title} className="w-full h-full object-cover" />
@@ -350,7 +350,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
         </div>
 
         {/* Client Testimonials */}
-        <section className="bg-slate-50 dark:bg-[#0f172a] rounded-[24px] p-8 border border-slate-200 dark:border-white/5 space-y-8 shadow-sm">
+        <section className="bg-slate-50 dark:bg-[#0f172a] rounded-[24px] p-8 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 space-y-8 shadow-sm transition-all duration-300">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/5 pb-6">
             <div className="flex items-center gap-3">
               <MessageSquare className="w-5 h-5 text-emerald-500" />
@@ -366,7 +366,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
               {reviews.slice(0, 3).map((review) => (
                 <div 
                   key={`agent-review-${review.id}`}
-                  className="space-y-4 p-6 bg-white dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm"
+                  className="space-y-4 p-6 bg-white dark:bg-slate-800/30 rounded-2xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-sm transition-all duration-300"
                 >
                   <div className="flex items-center gap-1 text-amber-500">
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -376,7 +376,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                   <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed italic line-clamp-4">
                     "{review.comment}"
                   </p>
-                  <div className="flex items-center gap-3 pt-4 border-t border-slate-100 dark:border-white/5">
+                  <div className="flex items-center gap-3 pt-4 border-t border-slate-200 dark:border-white/5">
                     <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold uppercase">
                       {review.tenantName?.charAt(0) || 'U'}
                     </div>

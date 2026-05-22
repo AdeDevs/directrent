@@ -57,7 +57,7 @@ const FAQ = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 px-4 h-16 flex items-center gap-4">
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center gap-4">
         <button 
           onClick={() => setActiveTab('profile')}
           className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
@@ -75,14 +75,14 @@ const FAQ = () => {
             placeholder="Search for answers..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-primary-500/30 focus:ring-4 focus:ring-primary-500/10 transition-all font-sans"
+            className="w-full bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-slate-900 dark:text-white outline-none focus-within:border-primary-500/30 focus-within:ring-4 focus-within:ring-primary-500/10 transition-all font-sans"
           />
         </div>
 
         {searchQuery ? (
           <div className="space-y-3">
             {filteredQuestions.map((faq) => (
-              <div key={`faq-search-${faq.q.replace(/\s+/g, '-').toLowerCase()}`} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+              <div key={`faq-search-${faq.q.replace(/\s+/g, '-').toLowerCase()}`} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-400 dark:hover:border-slate-700 transition-colors">
                 <h3 className="font-bold text-slate-900 dark:text-white mb-2">{faq.q}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">{faq.a}</p>
               </div>
@@ -111,7 +111,7 @@ const FAQ = () => {
                     return (
                       <div 
                         key={`faq-item-${faq.q.replace(/\s+/g, '-').toLowerCase()}`}
-                        className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-300 ${isOpen ? 'border-primary-500/30 ring-4 ring-primary-500/5 shadow-md' : 'border-slate-100 dark:border-slate-800 shadow-sm'}`}
+                        className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-300 ${isOpen ? 'border-primary-500/30 ring-4 ring-primary-500/5 shadow-md' : 'border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-400 dark:hover:border-slate-700'}`}
                       >
                         <button 
                           onClick={() => setOpenIdx(isOpen ? null : globalIdx)}
@@ -131,7 +131,7 @@ const FAQ = () => {
                               className="overflow-hidden"
                             >
                               <div className="px-5 pb-5 pt-0">
-                                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
                                   {faq.a}
                                 </p>
                               </div>
@@ -147,7 +147,7 @@ const FAQ = () => {
           </div>
         )}
 
-        <div className="mt-12 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 text-center shadow-xl shadow-slate-200/50 dark:shadow-none">
+        <div className="mt-12 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-205 dark:border-slate-800 text-center shadow-xl shadow-slate-200/50 dark:shadow-none">
           <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 text-blue-500">
             <UserSearch className="w-8 h-8" />
           </div>

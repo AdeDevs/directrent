@@ -67,7 +67,7 @@ export default function MyListings() {
       value: listings.length, 
       icon: <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 dark:text-indigo-400" />,
       color: 'bg-indigo-50 dark:bg-indigo-900/20',
-      borderColor: 'border-indigo-100/50 dark:border-indigo-800/30'
+      borderColor: 'border-indigo-200/60 dark:border-indigo-800/40'
     },
     { 
       label: 'Live', 
@@ -75,7 +75,7 @@ export default function MyListings() {
       value: listings.filter(l => l.isApproved).length, 
       icon: <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400" />,
       color: 'bg-emerald-50 dark:bg-emerald-900/20',
-      borderColor: 'border-emerald-100/50 dark:border-emerald-800/30'
+      borderColor: 'border-emerald-200/60 dark:border-emerald-800/40'
     },
     { 
       label: 'Pending', 
@@ -83,7 +83,7 @@ export default function MyListings() {
       value: listings.filter(l => !l.isApproved).length, 
       icon: <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 dark:text-amber-400" />,
       color: 'bg-amber-50 dark:bg-amber-900/20',
-      borderColor: 'border-amber-100/50 dark:border-amber-800/30'
+      borderColor: 'border-amber-200/60 dark:border-amber-800/40'
     },
   ];
 
@@ -162,7 +162,7 @@ export default function MyListings() {
                 layout
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex gap-3 sm:gap-4 group cursor-pointer active:scale-[0.98] transition-all"
+                className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 shadow-sm flex gap-3 sm:gap-4 group cursor-pointer active:scale-[0.98] transition-all"
                 onClick={() => setCurrentListing(listing)}
               >
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl sm:rounded-2xl overflow-hidden flex-shrink-0 relative">

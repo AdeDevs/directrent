@@ -74,7 +74,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect
             onLocationSelect({ address: '', lat: 0, lng: 0, placeId: '' });
           }
         }}
-        className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+        className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
       />
       {!placesLib && (
         <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -87,7 +87,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect
         .pac-container {
           border-radius: 1rem;
           margin-top: 8px;
-          border: 1px solid #f1f5f9;
+          border: 1px solid #e2e8f0;
           box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
           font-family: inherit;
           z-index: 9999;

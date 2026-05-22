@@ -82,14 +82,15 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 15 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      className="h-full"
+      transition={{ duration: 0.4 }}
+      className="h-full w-full"
     >
       <div 
       onClick={onViewDetails}
-      className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-slate-200/40 dark:hover:shadow-black/20 transition-all duration-300 flex flex-col h-full group cursor-pointer"
+      className="bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-sm hover:shadow-2xl hover:shadow-slate-200/45 dark:hover:shadow-black/25 transition-all duration-300 flex flex-col h-full group cursor-pointer relative"
     >
       <div className="relative aspect-[4/3] overflow-hidden group/image">
         <AnimatePresence mode="wait">
@@ -103,153 +104,165 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
             <SafeImage 
               src={images[currentImageIndex]} 
               alt={listing.title} 
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover group-hover/image:scale-[1.04] transition-transform duration-700 ease-out"
             />
           </motion.div>
         </AnimatePresence>
 
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/45 via-transparent to-transparent opacity-80 group-hover/image:opacity-60 transition-opacity" />
+
         {hasMultipleImages && (
           <>
-            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover/image:opacity-100 transition-opacity" />
-            
             <button 
               onClick={prevImage}
-              className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/40 text-white rounded-full backdrop-blur-sm opacity-0 group-hover/image:opacity-100 transition-all hover:bg-black/60 z-10"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-white/95 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 rounded-full backdrop-blur-md opacity-0 group-hover/image:opacity-100 shadow-md transition-all hover:bg-white hover:scale-105 z-10"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
             <button 
               onClick={nextImage}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/40 text-white rounded-full backdrop-blur-sm opacity-0 group-hover/image:opacity-100 transition-all hover:bg-black/60 z-10"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-white/95 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 rounded-full backdrop-blur-md opacity-0 group-hover/image:opacity-100 shadow-md transition-all hover:bg-white hover:scale-105 z-10"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
 
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+            <div className="absolute bottom-3.5 left-1/2 -translate-x-1/2 flex gap-1.5 z-10 bg-slate-950/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10">
               {images.map((_, idx) => (
                 <div 
                   key={`dot-${listing.id}-${idx}`}
-                  className={`w-1 h-1 rounded-full bg-white transition-all ${idx === currentImageIndex ? 'scale-125' : 'opacity-40'}`}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentImageIndex ? 'w-3.5 bg-white' : 'w-1.5 bg-white/60'}`}
                 />
               ))}
             </div>
 
             <div 
               onClick={(e) => { e.stopPropagation(); setIsGalleryOpen(true); }}
-              className="absolute top-3 right-12 px-2 py-1 bg-black/60 backdrop-blur-md rounded-lg text-[8px] font-bold text-white uppercase tracking-tighter opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center gap-1.5 hover:bg-black/80 ring-1 ring-white/10"
+              className="absolute top-3 right-12 px-2.5 py-1 bg-slate-950/60 backdrop-blur-xl rounded-full text-[8px] font-black text-white uppercase tracking-wider opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center gap-1.5 hover:bg-slate-950/80 border border-white/10"
             >
               <Maximize2 className="w-2.5 h-2.5" />
               {currentImageIndex + 1} / {images.length} Photos
             </div>
           </>
         )}
-        <div className="absolute top-3 left-3 flex flex-col items-start gap-2">
+        <div className="absolute top-3.5 left-3.5 flex flex-col items-start gap-1.5">
           {renderBadges()}
           {listing.slotsLeft && (
-            <span className="bg-rose-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm">
-              Only {listing.slotsLeft} Left
+            <span className="bg-rose-500 text-white px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider shadow-sm flex items-center gap-1 border border-rose-450/20">
+              <span className="h-1.5 w-1.5 bg-white rounded-full animate-pulse" />
+              <span>Only {listing.slotsLeft} Left</span>
             </span>
           )}
         </div>
         {!hideHeart && !isAgentView && !isAgent && (
           <button 
             onClick={(e) => { e.stopPropagation(); toggleFavorite(listing.id, listing.agent?.id); }}
-            className={`absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all cursor-pointer active:scale-90 ${isFav ? 'bg-primary-50 dark:bg-primary-900/40 text-primary-600 shadow-lg shadow-primary-200/50 dark:shadow-none' : 'bg-white/30 dark:bg-slate-800/30 text-white hover:bg-white dark:hover:bg-slate-800 hover:text-primary-600 transition-colors'}`}
+            className={`absolute top-3.5 right-3.5 p-2 rounded-full backdrop-blur-xl shadow-md transition-all cursor-pointer active:scale-95 ${isFav ? 'bg-primary-600 text-white border border-primary-500' : 'bg-white/70 hover:bg-white text-slate-800 border border-white/20'}`}
           >
-            <Bookmark className={`w-3.5 h-3.5 transition-colors ${isFav ? 'fill-current text-primary-600 dark:text-primary-400' : 'text-white'}`} />
+            <Bookmark className={`w-4 h-4 transition-colors ${isFav ? 'fill-current text-white' : 'text-slate-850'}`} />
           </button>
         )}
       </div>
 
-      <div className="p-3 sm:p-5 flex flex-col flex-1">
-        <div className="flex justify-between items-start sm:items-center mb-1 sm:mb-2 gap-2">
-          <h3 className="text-slate-900 dark:text-white text-xs sm:text-base font-display font-bold leading-tight group-hover:text-primary-600 transition-colors uppercase tracking-tight">
+      <div className="p-5 flex flex-col flex-1 bg-white dark:bg-slate-900 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/50">
+        <div className="flex justify-between items-start gap-3 mb-2">
+          <h3 className="text-slate-900 dark:text-white text-base font-display font-extrabold leading-snug group-hover:text-primary-600 dark:group-hover:text-primary-450 transition-colors tracking-tight line-clamp-1">
             {listing.title}
           </h3>
-          <div className="text-primary-600 dark:text-primary-400 font-bold text-[10px] sm:text-sm bg-primary-50 dark:bg-primary-900/20 px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg sm:rounded-xl whitespace-nowrap tracking-tighter shadow-sm">
-            {listing.price}
-          </div>
         </div>
 
-        <div className="space-y-0.5 sm:space-y-0 mb-3 sm:mb-4">
-          <div className="flex items-center gap-1 sm:gap-1.5 text-slate-500 dark:text-slate-400">
-            <MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-primary-500" />
-            <span className="text-[10px] sm:text-xs font-bold tracking-wide uppercase">{listing.location}</span>
-          </div>
+        <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 mb-3.5">
+          <MapPin className="w-3.5 h-3.5 text-primary-500 flex-shrink-0" />
+          <span className="text-[11px] font-bold tracking-wide uppercase truncate">{listing.location}</span>
           {listing.landmark && (
-            <p className="text-[9px] sm:text-[11px] text-slate-400 dark:text-slate-500 font-bold ml-4 sm:ml-5.5 tracking-tight uppercase -mt-0.5">
-              {listing.landmark}
-            </p>
+            <span className="text-[11px] text-slate-450 dark:text-slate-500 truncate font-medium">• {listing.landmark}</span>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-1 mb-4 sm:mb-5">
+        <div className="flex flex-wrap gap-1.5 mb-4.5">
           {(listing.amenities || []).slice(0, 3).map((amenity, idx) => (
-            <span key={`card-amenity-${listing.id}-${amenity}-${idx}`} className="px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-md text-[8px] sm:text-[9px] font-bold uppercase tracking-wider border border-slate-100/50 dark:border-slate-700/50">
+            <span key={`card-amenity-${listing.id}-${amenity}-${idx}`} className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800/80 text-slate-550 dark:text-slate-350 rounded-full text-[9px] font-bold uppercase tracking-wider border border-slate-250 dark:border-slate-700/60">
               {amenity}
             </span>
           ))}
         </div>
 
         {!hideAgent && !isAgentView && listing.agent && (
-          <div className="pt-3 sm:pt-4 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between mb-4 sm:mb-5">
-            <div className="flex items-center gap-2 sm:gap-2.5 cursor-pointer hover:opacity-80 transition-opacity">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 overflow-hidden border-2 border-slate-50 dark:border-slate-800 shadow-sm relative">
+          <div className="pt-4 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/60 flex items-center justify-between mb-4.5">
+            <div className="flex items-center gap-2.5 cursor-pointer hover:opacity-85 transition-opacity">
+              <div className="w-8.5 h-8.5 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-500 dark:text-slate-400 overflow-hidden border border-slate-250 dark:border-slate-800 shadow-inner relative">
                 {(listing.agent as any).avatarUrl ? (
                   <img src={(listing.agent as any).avatarUrl} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
                 ) : (
                   listing.agent.name.charAt(0)
                 )}
               </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate max-w-[80px] sm:max-w-[100px]">{listing.agent.name}</span>
-                  {listing.agent.isVerified && <BadgeCheck className="w-3.5 h-3.5 text-blue-500" />}
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1 leading-none">
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-200 truncate max-w-[120px]">{listing.agent.name}</span>
+                  {listing.agent.isVerified && <BadgeCheck className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
                 </div>
-                <div className="flex items-center gap-0.5 text-amber-500">
-                  <Star className="w-2 h-2 fill-current" />
-                  <span className="text-[8px] sm:text-[9px] font-bold tracking-tight uppercase">{listing.agent.rating} Rating</span>
+                <div className="flex items-center gap-0.5 text-amber-500 mt-0.5">
+                  <Star className="w-2.5 h-2.5 fill-current" />
+                  <span className="text-[9px] font-black tracking-tight uppercase leading-none">{listing.agent.rating} Rating</span>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        <div className="mt-auto flex items-center gap-1.5 sm:gap-2">
-          {(!isAgentView && listing.verified) && (
-            <div className="flex items-center gap-1 sm:gap-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-2 sm:px-3 h-9 sm:h-11 rounded-lg sm:rounded-xl border border-emerald-100 dark:border-emerald-800 shadow-sm cursor-default" title="Verified Property">
-              <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline-block text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">Verified</span>
+        {/* Beautiful bottom details and pricing bar - Stacks beautifully on narrow viewports/cards, expands on wider views */}
+        <div className="mt-auto pt-4 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-transparent">
+          <div className="flex items-center justify-between sm:flex-col sm:items-start w-full sm:w-auto">
+            <div className="flex flex-col">
+              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Annual Rent</span>
+              <span className="text-slate-900 dark:text-white font-sans font-black text-base sm:text-lg leading-none tracking-tight">
+                {listing.price}
+              </span>
             </div>
-          )}
-          {isAgentView ? (
-            <div className="flex-1 flex gap-2">
-              <button 
-                onClick={(e) => { e.stopPropagation(); onEdit?.(); }}
-                className="flex-1 h-9 sm:h-11 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-bold text-white bg-primary-600 hover:bg-primary-700 uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98]"
-              >
-                Edit
-              </button>
-              <button 
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  setShowDeleteModal(true);
-                }}
-                className="px-3 sm:px-4 h-9 sm:h-11 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 hover:bg-rose-600 hover:text-white uppercase tracking-widest transition-all flex items-center justify-center active:scale-[0.98]"
-              >
-                Delete
-              </button>
-            </div>
-          ) : (
-            <div className="flex-1 flex gap-2">
+            
+            {(!isAgentView && listing.verified) && (
+              <div className="sm:hidden flex items-center justify-center bg-emerald-50 dark:bg-emerald-950/30 text-emerald-750 dark:text-emerald-400 px-2 py-1 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30 shadow-none gap-1 leading-none" title="Verified Property">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="text-[8.5px] font-black uppercase tracking-wider">Verified</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 w-full sm:w-auto mt-1 sm:mt-0">
+            {(!isAgentView && listing.verified) && (
+              <div className="hidden sm:flex items-center justify-center bg-emerald-50 dark:bg-emerald-955/20 text-emerald-750 dark:text-emerald-400 w-9.5 h-9.5 rounded-xl border border-emerald-100 dark:border-emerald-900/40 shadow-sm" title="Verified Property">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+            )}
+            
+            {isAgentView ? (
+              <div className="flex gap-1.5 w-full sm:w-auto">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onEdit?.(); }}
+                  className="flex-1 sm:flex-none h-9.5 px-4 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-150/85 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 uppercase tracking-widest transition-all shadow-sm active:scale-95"
+                >
+                  Edit
+                </button>
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setShowDeleteModal(true);
+                  }}
+                  className="flex-1 sm:flex-none h-9.5 px-3 rounded-xl text-xs font-bold text-rose-650 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 border border-rose-150 dark:border-rose-900 uppercase tracking-widest transition-all shadow-sm active:scale-95"
+                >
+                  Delete
+                </button>
+              </div>
+            ) : (
               <button 
                 onClick={onViewDetails}
-                className="flex-1 h-9 sm:h-11 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-bold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-600 hover:text-white dark:hover:bg-primary-600 dark:hover:text-white uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm border border-primary-100 dark:border-primary-800 cursor-pointer active:scale-[0.98]"
+                className="flex-1 sm:flex-none h-10 px-5 rounded-xl text-xs font-black uppercase tracking-widest text-white bg-primary-600 hover:bg-primary-700 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-primary-500/10 active:scale-95 cursor-pointer"
               >
-                View <span className="hidden sm:inline">Details</span> <ArrowUpRight className="w-3 h-3" />
+                <span>View Details</span>
+                <ArrowUpRight className="w-4 h-4" />
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

@@ -722,72 +722,77 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-[0] transition-colors duration-300">
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
-        <div className="w-full max-w-full px-2 h-16 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight ml-2">
-            Profile
-          </h1>
+        <div className="w-full max-w-none px-4 h-18 flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Your Space</span>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+              Profile
+            </h1>
+          </div>
           <button 
             onClick={() => setActiveTab('notifications')}
-            className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group mr-1"
+            className="p-2.5 relative hover:bg-slate-100/80 dark:hover:bg-slate-800/80 rounded-full transition-colors group border border-slate-150/40 dark:border-slate-800"
           >
-            <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 transition-colors" />
+            <Bell className="w-5 h-5 text-slate-700 dark:text-slate-300 group-hover:text-primary-600 transition-colors" />
             <NotificationBadge />
           </button>
         </div>
       </header>
 
-      <main className="w-full pt-4 px-[15px] space-y-8 lg:space-y-12 pb-[14px] mb-0">
+      <main className="w-full max-w-none pt-6 pl-[15px] pr-4 space-y-6 pb-0">
         {showSuccess && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-4 rounded-2xl flex items-center gap-3 shadow-sm mx-1"
+            className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-800/80 p-4 rounded-2xl flex items-center gap-3 shadow-sm mx-1"
           >
-            <div className="w-8 h-8 bg-white dark:bg-slate-800 rounded-lg flex items-center justify-center text-emerald-500 shadow-sm">
+            <div className="w-8 h-8 bg-white dark:bg-slate-900 rounded-lg flex items-center justify-center text-emerald-500 shadow-sm shrink-0">
               <CheckCircle2 className="w-5 h-5" />
             </div>
-            <p className="text-sm font-bold text-emerald-900 dark:text-emerald-100 tracking-tight">
+            <p className="text-xs font-bold text-emerald-900 dark:text-emerald-300 tracking-tight">
               {successMessage}
             </p>
           </motion.div>
         )}
 
         {/* User Header Card */}
-        <section className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-4 transition-colors" style={{paddingLeft: 12, paddingRight: 12}}>
+        <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-150/80 dark:border-slate-800/80 shadow-sm flex flex-col sm:flex-row items-center gap-5 transition-colors">
           <div 
             onClick={() => setIsEditing(true)}
-            className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden flex-shrink-0 cursor-pointer relative group"
+            className="w-20 h-20 rounded-full bg-slate-50 dark:bg-slate-800 border-2 border-white dark:border-slate-700 shadow-md overflow-hidden flex-shrink-0 cursor-pointer relative group"
           >
             {user.avatarUrl ? (
               <img
                 src={user.avatarUrl}
                 alt={`${user.firstName} ${user.lastName}`}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div className="w-full h-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 text-xl font-black">
+              <div className="w-full h-full bg-primary-50 dark:bg-primary-950/40 flex items-center justify-center text-primary-600 dark:text-primary-450 text-2xl font-black">
                 {user.firstName ? user.firstName.charAt(0) : user.email.charAt(0)}
               </div>
             )}
-            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <Camera className="w-5 h-5 text-white" />
             </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight truncate">
+          
+          <div className="flex-1 min-w-0 text-center sm:text-left space-y-1">
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <h2 className="text-lg font-display font-extrabold text-slate-900 dark:text-white leading-tight truncate">
                 {user.firstName ? `${user.firstName} ${user.lastName}` : "Guest User"}
               </h2>
-              <VerificationBadge level={currentLevel} role={user.role} showText={false} />
+              <VerificationBadge level={currentLevel} role={user.role} showText={true} className="scale-95" />
             </div>
-            <p className="text-sm text-slate-400 dark:text-slate-500 font-medium truncate">
+            <p className="text-xs font-mono font-bold text-slate-400 dark:text-slate-500 truncate tracking-wide">
                {user.email || user.phoneNumber || "No contact info"}
             </p>
           </div>
+
           <button 
             onClick={() => setIsEditing(true)}
-            className="hidden sm:block text-xs font-black text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors px-3 py-2 bg-primary-50 dark:bg-primary-900/20 rounded-xl"
+            className="w-full sm:w-auto text-xs font-black text-primary-600 hover:text-primary-700 hover:bg-primary-100/30 dark:text-primary-400 dark:hover:bg-primary-900/20 transition-colors px-4.5 py-2.5 bg-primary-50 dark:bg-primary-900/10 rounded-xl"
           >
             Edit Profile
           </button>
@@ -795,30 +800,30 @@ const Profile = () => {
 
         {/* Bio Section */}
         {user.about && (
-          <section className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
-            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2">About</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed italic">
-              {user.about.replace(/(^|[.!?]\s+)([a-z])/g, (m, p1, p2) => p1 + p2.toUpperCase())}
+          <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-150/80 dark:border-slate-800/80 shadow-sm transition-colors">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2.5">About</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic font-light">
+              "{user.about.replace(/(^|[.!?]\s+)([a-z])/g, (m, p1, p2) => p1 + p2.toUpperCase())}"
             </p>
           </section>
         )}
 
         {/* General Settings */}
-        <section className="space-y-4">
-          <h3 className="text-lg font-bold text-slate-400 dark:text-slate-500 pl-2">General</h3>
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-50 dark:divide-slate-800 transition-colors">
+        <section className="space-y-3">
+          <h3 className="text-xs font-black tracking-widest text-slate-400 dark:text-slate-500 uppercase pl-2">General</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-150/80 dark:border-slate-800/80 shadow-sm overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/50 transition-colors select-none">
             <button 
               onClick={() => setIsEditing(true)}
-              className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
             >
-              <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-500 group-active:scale-95 transition-transform">
+              <div className="w-10 h-10 bg-blue-50 dark:bg-blue-955/40 rounded-2xl flex items-center justify-center text-blue-500 group-active:scale-95 transition-transform border border-blue-100/40 dark:border-blue-900/10">
                 <CircleUserRound className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Edit Profile</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Change profile picture, number, E-mail</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Edit Profile</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Change profile picture, email address, bio</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
+              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
             </button>
 
             {user.role === 'agent' && (
@@ -832,17 +837,17 @@ const Profile = () => {
             {!user.phoneVerified && (
                <button 
                 onClick={() => setShowPhoneInput(true)}
-                className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
+                className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
               >
-                <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/20 rounded-xl flex items-center justify-center text-orange-500 group-active:scale-95 transition-transform">
+                <div className="w-10 h-10 bg-orange-50 dark:bg-orange-955/40 rounded-2xl flex items-center justify-center text-orange-500 group-active:scale-95 transition-transform border border-orange-100/40 dark:border-orange-900/10">
                   <Fingerprint className="w-5 h-5" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Verify Identity</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Add phone number & NIN for trust</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Verify Identity</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium font-sans">Add phone number & national NIN credentials</p>
                 </div>
-                <div className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 rounded-lg text-[9px] font-black uppercase border border-orange-200 dark:border-orange-800">Urgent</div>
-                <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
+                <div className="px-2.5 py-1 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/35 text-rose-600 dark:text-rose-455 rounded-full text-[8.5px] font-black uppercase tracking-wider">Required</div>
+                <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
               </button>
             )}
 
@@ -851,74 +856,72 @@ const Profile = () => {
                 setPasswordError("");
                 setIsChangingPassword(true);
               }}
-              className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
             >
-              <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-500 group-active:scale-95 transition-transform">
+              <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-955/40 rounded-2xl flex items-center justify-center text-indigo-500 group-active:scale-95 transition-transform border border-indigo-100/40 dark:border-indigo-900/10">
                 <KeyRound className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">
                   {user.hasPassword ? 'Change Password' : 'Create Password'}
                 </p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Update and strengthen account security</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
+              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
             </button>
 
             <button 
               onClick={() => setActiveTab('terms')}
-              className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
             >
-              <div className="w-10 h-10 bg-cyan-50 dark:bg-cyan-900/20 rounded-xl flex items-center justify-center text-cyan-500 group-active:scale-95 transition-transform">
+              <div className="w-10 h-10 bg-cyan-50 dark:bg-cyan-955/40 rounded-2xl flex items-center justify-center text-cyan-500 group-active:scale-95 transition-transform border border-cyan-100/40 dark:border-cyan-900/10">
                 <FileText className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Terms of Use</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Platform rules and guidelines</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Terms of Use</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">DirectRent rules of engagement</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
+              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
             </button>
 
             <button 
               onClick={() => setShowVault(true)}
-              className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
             >
-              <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex items-center justify-center text-amber-500 group-active:scale-95 transition-transform">
+              <div className="w-10 h-10 bg-amber-50 dark:bg-amber-955/40 rounded-2xl flex items-center justify-center text-amber-500 group-active:scale-95 transition-transform border border-amber-100/40 dark:border-amber-900/10">
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">DirectRent Vault</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Safe storage for contracts & receipts</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">DirectRent Vault</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Safe storage for contracts & rent receipts</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
+              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
             </button>
 
-            <button className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
-              <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-500 group-active:scale-95 transition-transform">
+            <button className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group">
+              <div className="w-10 h-10 bg-blue-50 dark:bg-blue-955/40 rounded-2xl flex items-center justify-center text-blue-500 group-active:scale-95 transition-transform border border-blue-100/40 dark:border-blue-900/10">
                 <CreditCard className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Add Card</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Securely add payment method</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Add Card</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Securely add transaction cards</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
+              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
         </section>
 
         {/* Preferences Settings */}
-        <section className="space-y-4">
-          <h3 className="text-lg font-bold text-slate-400 dark:text-slate-500 pl-2">Preferences</h3>
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-50 dark:divide-slate-800 transition-colors">
-            {/* Theme Toggle */}
+        <section className="space-y-3">
+          <h3 className="text-xs font-black tracking-widest text-slate-400 dark:text-slate-500 uppercase pl-2">Preferences</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-150/80 dark:border-slate-800/80 shadow-sm overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/50 transition-colors select-none">
+            
+            {/* Theme Toggle Button */}
             <div 
-              onClick={() => {
-                console.log("Toggle row clicked");
-                handleToggleTheme();
-              }}
-              className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer"
+              onClick={handleToggleTheme}
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group cursor-pointer"
             >
-              <div className={`w-10 h-10 ${theme === 'dark' ? 'bg-amber-900/20 text-amber-500' : 'bg-slate-100 text-slate-600'} rounded-xl flex items-center justify-center group-active:scale-95 transition-all duration-300`}>
+              <div className={`w-10 h-10 ${theme === 'dark' ? 'bg-amber-950/40 text-amber-500 border border-amber-900/25' : 'bg-slate-100 text-slate-600 border border-slate-200/55'} rounded-2xl flex items-center justify-center group-active:scale-95 transition-all duration-300`}>
                 <AnimatePresence mode="wait">
                   {theme === 'dark' ? (
                     <motion.div
@@ -927,7 +930,7 @@ const Profile = () => {
                       animate={{ opacity: 1, rotate: 0 }}
                       exit={{ opacity: 0, rotate: 90 }}
                     >
-                      <Sun className="w-5 h-5" />
+                      <Sun className="w-5 h-5 text-amber-500" />
                     </motion.div>
                   ) : (
                     <motion.div
@@ -936,66 +939,66 @@ const Profile = () => {
                       animate={{ opacity: 1, rotate: 0 }}
                       exit={{ opacity: 0, rotate: 90 }}
                     >
-                      <Moon className="w-5 h-5" />
+                      <Moon className="w-5 h-5 text-slate-600" />
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Dark Mode</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Dark Mode</p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Switch between light and dark themes</p>
               </div>
               <div 
-                className={`w-12 h-6 ${theme === 'dark' ? 'bg-primary-600' : 'bg-slate-200 dark:bg-slate-700'} rounded-full flex items-center px-1 transition-all duration-300 relative`}
+                className={`w-11 h-6 ${theme === 'dark' ? 'bg-primary-600' : 'bg-slate-200'} rounded-full flex items-center px-1 transition-all duration-300 relative`}
               >
                 <motion.div 
                   layout
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                  animate={{ x: theme === 'dark' ? 24 : 0 }}
+                  animate={{ x: theme === 'dark' ? 20 : 0 }}
                   className="w-4 h-4 bg-white rounded-full shadow-sm z-10" 
                 />
               </div>
             </div>
 
             <div className="flex items-center gap-4 p-4 group">
-              <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-500 group-active:scale-95 transition-transform">
+              <div className="w-10 h-10 bg-blue-50 dark:bg-blue-955/40 rounded-2xl flex items-center justify-center text-blue-500 group-active:scale-95 transition-transform border border-blue-100/40 dark:border-blue-900/10">
                 <Bell className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Notification</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Customize your notification preferences</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Push Notifications</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Receive real-time chat and alert notifications</p>
               </div>
-              <div className="w-12 h-6 bg-blue-600 rounded-full flex items-center px-1">
-                <div className="w-4 h-4 bg-white rounded-full ml-auto" />
+              <div className="w-11 h-6 bg-primary-600 rounded-full flex items-center px-1">
+                <div className="w-4 h-4 bg-white rounded-full ml-auto shadow-sm" />
               </div>
             </div>
 
             <button 
               onClick={() => setActiveTab('faq')}
-              className="w-full flex items-center gap-4 p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group"
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
             >
-              <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-500 group-active:scale-95 transition-transform">
+              <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-955/40 rounded-2xl flex items-center justify-center text-indigo-500 group-active:scale-95 transition-transform border border-indigo-100/40 dark:border-indigo-900/10">
                 <HelpCircle className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">FAQ</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Find answers to common questions</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">FAQ</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Find instant answers to common questions</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-700" />
+              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
             </button>
 
             <button 
               onClick={() => setShowLogoutConfirm(true)}
-              className="w-full flex items-center gap-4 p-4 hover:bg-rose-50/50 dark:hover:bg-rose-900/20 transition-colors group"
+              className="w-full flex items-center gap-4 p-4 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
             >
-              <div className="w-10 h-10 bg-rose-50 dark:bg-rose-900/20 rounded-xl flex items-center justify-center text-rose-500 group-active:scale-95 transition-transform">
+              <div className="w-10 h-10 bg-rose-50 dark:bg-rose-955/40 rounded-2xl flex items-center justify-center text-rose-500 group-active:scale-95 transition-transform border border-rose-100/40 dark:border-rose-900/10">
                 <LogOut className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-rose-600 dark:text-rose-400">Log Out</p>
-                <p className="text-[10px] text-rose-400/70 dark:text-rose-500/50 font-medium">Securely log out of Account</p>
+                <p className="text-sm font-bold text-rose-650 dark:text-rose-400">Log Out</p>
+                <p className="text-[10px] text-rose-400/80 dark:text-rose-500/50 font-medium">Securely end your active session</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-rose-300 dark:text-rose-800" />
+              <ChevronRight className="w-4 h-4 text-rose-350 dark:text-rose-700 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
         </section>
@@ -1181,249 +1184,296 @@ const Profile = () => {
         {/* Fullscreen Edit Profile Overlay */}
         <AnimatePresence>
           {isEditing && (
-            <div className="fixed inset-0 z-[60] overflow-y-auto bg-slate-900/60 backdrop-blur-md">
+            <div className="fixed inset-0 z-[110] bg-slate-900/80 dark:bg-slate-950/85 backdrop-blur-xl flex items-center justify-center overflow-y-auto p-3 sm:p-6 cursor-default">
               <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                className="min-h-screen p-4 flex items-center justify-center"
-                onClick={() => {
-                  setIsEditing(false);
-                  cleanupPreview();
-                }}
+                initial={{ opacity: 0, scale: 0.96, y: 30 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 30 }}
+                transition={{ type: "spring", damping: 25, stiffness: 350 }}
+                className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-[0_32px_80px_-20px_rgba(0,0,0,0.18)] dark:shadow-black/80 border border-slate-100 dark:border-slate-800/80 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh] relative my-auto select-none"
+                onClick={(e) => e.stopPropagation()}
               >
-                <div 
-                  className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden border border-white/10"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="p-4 sm:p-8 space-y-4 sm:space-y-8">
-                      <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-3 sm:pb-6">
-                        <h3 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white tracking-tighter">Edit Profile</h3>
+                {/* Header */}
+                <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-slate-100 dark:border-slate-800/65 flex items-center justify-between bg-white/70 dark:bg-slate-900/70 backdrop-blur-md sticky top-0 z-10">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-400">Settings</span>
+                    <h3 className="text-xl sm:text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">Edit Profile</h3>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setIsEditing(false);
+                      cleanupPreview();
+                    }}
+                    className="p-2 sm:p-2.5 text-slate-400 hover:text-slate-900 dark:text-slate-500 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all duration-300"
+                    aria-label="Close dialog"
+                  >
+                    <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </button>
+                </div>
+
+                {/* Form Content Scrollable Area */}
+                <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-8 space-y-8 scrollbar-hide pb-12">
+                  
+                  {/* Photo Section with Beautiful Frame */}
+                  <div className="flex flex-col items-center text-center gap-3">
+                    <div className="relative group">
+                      <div 
+                        onClick={handleAvatarClick}
+                        className="w-24 h-24 sm:w-28 sm:h-28 rounded-[2rem] bg-slate-50 dark:bg-slate-800/50 border-4 border-slate-100 dark:border-slate-850 shadow-md flex items-center justify-center cursor-pointer overflow-hidden transition-all duration-300 group-hover:scale-103 group-hover:shadow-lg active:scale-97"
+                      >
+                        {previewUrl || user.avatarUrl ? (
+                          <img 
+                            src={previewUrl || user.avatarUrl || undefined} 
+                            alt="Preview" 
+                            className="w-full h-full object-cover group-hover:brightness-90 transition-all duration-300" 
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-primary-50 dark:bg-primary-950/20 flex flex-col items-center justify-center text-primary-500 font-display font-black text-3xl">
+                            {user.firstName ? user.firstName.charAt(0) : user.email.charAt(0)}
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white gap-1 backdrop-blur-[1px]">
+                          <Camera className="w-5 h-5 sm:w-6 sm:h-6" />
+                          <span className="text-[8px] font-black uppercase tracking-widest">Change</span>
+                        </div>
+                      </div>
+                      
+                      {/* Upload Badge */}
+                      <button 
+                        onClick={handleAvatarClick}
+                        className="absolute -bottom-1.5 -right-1.5 p-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl shadow-lg shadow-primary-500/20 border border-white dark:border-slate-900 transition-all active:scale-90"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-4 mt-1">
+                      <button 
+                        onClick={handleAvatarClick}
+                        className="text-primary-600 dark:text-primary-400 text-xs font-bold hover:underline"
+                      >
+                        Upload Photo
+                      </button>
+                      {user.avatarUrl && (
                         <button 
-                          onClick={() => {
-                            setIsEditing(false);
-                            cleanupPreview();
-                          }}
-                          className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all"
+                          onClick={() => setShowDeletePhotoConfirm(true)}
+                          className="text-rose-500 text-xs font-bold hover:underline"
                         >
-                          <X className="w-6 h-6 sm:w-8 sm:h-8" />
+                          Delete Photo
                         </button>
+                      )}
+                    </div>
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+                  </div>
+
+                  {/* Form Fields */}
+                  <div className="space-y-6">
+                    
+                    {/* General Information Header */}
+                    <div className="flex items-center gap-3 border-b border-slate-50 dark:border-slate-800/40 pb-2">
+                      <div className="w-1.5 h-4 bg-primary-600 dark:bg-primary-500 rounded-full" />
+                      <h4 className="text-xs font-black uppercase tracking-[0.15em] text-slate-450 dark:text-slate-500 font-sans">General Information</h4>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* Resident City */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-450 uppercase tracking-wider ml-1">Resident City</label>
+                        <div className="relative">
+                          <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-450" />
+                          <select
+                            value={profileData.city}
+                            onChange={(e) => setProfileData((prev) => ({ ...prev, city: e.target.value }))}
+                            className="w-full bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 focus:border-primary-500/30 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary-500/10 py-3.5 sm:py-4 pl-11 sm:pl-12 pr-10 rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none transition-all appearance-none cursor-pointer"
+                          >
+                            <option value="" className="dark:bg-slate-900">Select City</option>
+                            {["Lagos", "Abuja", "Ibadan", "Port Harcourt", "Kano", "Ogbomoso", "Enugu", "Ilorin", "Abeokuta", "Kaduna", "Owerri", "Benin City"].map((city, cityIdx) => (
+                              <option key={`profile-city-select-${city}-${cityIdx}`} value={city} className="dark:bg-slate-900">{city}</option>
+                            ))}
+                          </select>
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-400 dark:border-t-slate-550 w-0 h-0" />
+                        </div>
                       </div>
 
-                    <div className="space-y-6 sm:space-y-10 py-2 sm:py-4 max-h-[70vh] overflow-y-auto px-1 scrollbar-hide">
-                      {/* Avatar Management in Edit Form */}
-                      <div className="flex flex-col items-center gap-2 sm:gap-4">
-                         <div 
-                          onClick={handleAvatarClick}
-                          className="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl bg-slate-50 dark:bg-slate-800 border-4 border-white dark:border-slate-700 shadow-xl flex flex-col items-center justify-center cursor-pointer overflow-hidden relative group transition-transform active:scale-95"
-                         >
-                            {previewUrl || user.avatarUrl ? (
-                              <img 
-                                src={previewUrl || user.avatarUrl || undefined} 
-                                alt="Preview" 
-                                className="w-full h-full object-cover" 
-                              />
-                            ) : (
-                              <CircleUserRound className="w-10 h-10 sm:w-12 sm:h-12 text-slate-300 dark:text-slate-700" />
-                            )}
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all text-white gap-1 backdrop-blur-[2px]">
-                               <Camera className="w-5 h-5 sm:w-6 sm:h-6" />
-                               <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Change</span>
-                            </div>
-                         </div>
-                         <div className="flex items-center gap-4">
-                           <button 
-                            onClick={handleAvatarClick}
-                            className="text-primary-600 dark:text-primary-400 text-[10px] sm:text-xs font-bold hover:underline"
-                           >
-                             Change Photo
-                           </button>
-                           {user.avatarUrl && (
-                             <button 
-                              onClick={() => setShowDeletePhotoConfirm(true)}
-                              className="text-rose-500 text-[10px] sm:text-xs font-bold hover:underline"
-                             >
-                               Delete Photo
-                             </button>
-                           )}
-                         </div>
-                         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-                      </div>
-
-                      <div className="space-y-6 sm:space-y-8">
-                        <div className="space-y-4 sm:space-y-6">
-                          <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 border-l-2 border-primary-500 pl-3">General Information</h4>
-                          <div className="grid grid-cols-1 gap-4 sm:gap-6">
-                            <div className="space-y-1.5 sm:space-y-2">
-                              <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Resident City</label>
-                              <div className="relative group">
-                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
-                                <select
-                                  value={profileData.city}
-                                  onChange={(e) => setProfileData((prev) => ({ ...prev, city: e.target.value }))}
-                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all appearance-none"
-                                >
-                                  <option value="">Select City</option>
-                                  {["Lagos", "Abuja", "Ibadan", "Port Harcourt", "Kano", "Ogbomoso", "Enugu", "Ilorin", "Abeokuta", "Kaduna", "Owerri", "Benin City"].map((city, cityIdx) => (
-                                    <option key={`profile-city-select-${city}-${cityIdx}`} value={city}>{city}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div className="space-y-1.5 sm:space-y-2">
-                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">First Name</label>
-                                <div className="relative group">
-                                  <CircleUserRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
-                                  <input
-                                    name="firstName"
-                                    type="text"
-                                    value={profileData.firstName}
-                                    onChange={handleNameChange}
-                                    placeholder="First Name"
-                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
-                                  />
-                                </div>
-                              </div>
-                              <div className="space-y-1.5 sm:space-y-2">
-                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Last Name</label>
-                                <div className="relative group">
-                                  <CircleUserRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
-                                  <input
-                                    name="lastName"
-                                    type="text"
-                                    value={profileData.lastName}
-                                    onChange={handleNameChange}
-                                    placeholder="Last Name"
-                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                            
-                             <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                              <div className="space-y-1.5 sm:space-y-2">
-                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Date of Birth</label>
-                                <input
-                                  type="date"
-                                  value={profileData.dob}
-                                  onChange={(e) => setProfileData((prev) => ({ ...prev, dob: e.target.value }))}
-                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all"
-                                />
-                              </div>
-                              <div className="space-y-1.5 sm:space-y-2">
-                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Gender</label>
-                                <select
-                                  value={profileData.gender}
-                                  onChange={(e) => setProfileData((prev) => ({ ...prev, gender: e.target.value }))}
-                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all appearance-none"
-                                >
-                                  <option value="">Select Gender</option>
-                                  <option value="Male">Male</option>
-                                  <option value="Female">Female</option>
-                                </select>
-                              </div>
-                            </div>
-
-                            {user.role === 'agent' && (
-                              <div className="space-y-1.5 sm:space-y-2">
-                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">About Me / Professional Bio</label>
-                                <textarea
-                                  value={profileData.about}
-                                  onChange={(e) => setProfileData((prev) => ({ ...prev, about: e.target.value }))}
-                                  placeholder="Tell tenants about your experience, specialty areas, and commitment to service..."
-                                  rows={4}
-                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent py-3 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 focus:ring-4 focus:ring-primary-500/5 transition-all resize-none"
-                                />
-                              </div>
-                            )}
+                      {/* First & Last Name */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-450 uppercase tracking-wider ml-1">First Name</label>
+                          <div className="relative">
+                            <CircleUserRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-455" />
+                            <input
+                              name="firstName"
+                              type="text"
+                              value={profileData.firstName}
+                              onChange={handleNameChange}
+                              placeholder="First Name"
+                              className="w-full bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 focus:border-primary-500/30 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary-500/10 py-3.5 sm:py-4 pl-11 sm:pl-12 pr-5 rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-350 dark:placeholder:text-slate-600"
+                            />
                           </div>
                         </div>
-
-                        <div className="space-y-4 sm:space-y-6 pt-2 sm:pt-4">
-                           <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 border-l-2 border-primary-500 pl-3">Identity & Account</h4>
-                           <div className="grid grid-cols-1 gap-4 sm:gap-6">
-                            <div className="space-y-1.5 sm:space-y-2">
-                              <label className="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 tracking-tight ml-1">Account Email (Permanent)</label>
-                              <div className="relative group grayscale">
-                                <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-300 dark:text-slate-700" />
-                                <input
-                                  type="email"
-                                  value={user.email || ""}
-                                  disabled
-                                  className="w-full bg-slate-100/50 dark:bg-slate-800/40 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-600 cursor-not-allowed"
-                                />
-                                <KeyRound className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300 dark:text-slate-700" />
-                              </div>
-                            </div>
-
-                            <div className="space-y-1.5 sm:space-y-2">
-                              <label className="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 tracking-tight ml-1">Phone Number</label>
-                              <div className="relative group grayscale">
-                                <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-300 dark:text-slate-700" />
-                                <input
-                                  type="text"
-                                  value={user.phoneNumber || "Not set"}
-                                  disabled
-                                  className="w-full bg-slate-100/50 dark:bg-slate-800/40 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-600 cursor-not-allowed"
-                                />
-                                {user.phoneVerified ? (
-                                  <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 bg-emerald-500 text-white rounded-full shadow-lg shadow-emerald-500/20">
-                                    <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                  </div>
-                                ) : (
-                                  <KeyRound className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300 dark:text-slate-700" />
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="space-y-1.5 sm:space-y-2">
-                              <label className="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 tracking-tight ml-1">NIN (Verified ID - Permanent)</label>
-                              <div className="relative group grayscale">
-                                <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-300 dark:text-slate-700" />
-                                <input
-                                  type="text"
-                                  value={profileData.nin ? `****-****-${profileData.nin.slice(-4)}` : "Verified Identity"}
-                                  disabled
-                                  placeholder="NIN Verified"
-                                  className="w-full bg-slate-100/50 dark:bg-slate-800/40 border-2 border-transparent py-3 sm:py-4 pl-10 sm:pl-12 pr-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-600 cursor-not-allowed"
-                                />
-                                <KeyRound className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300 dark:text-slate-700" />
-                              </div>
-                              <p className="text-[8px] sm:text-[9px] text-slate-400 dark:text-slate-600 font-bold ml-1 italic opacity-60">Verified identity documents cannot be changed.</p>
-                            </div>
-                           </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-450 uppercase tracking-wider ml-1">Last Name</label>
+                          <div className="relative">
+                            <CircleUserRound className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-455" />
+                            <input
+                              name="lastName"
+                              type="text"
+                              value={profileData.lastName}
+                              onChange={handleNameChange}
+                              placeholder="Last Name"
+                              className="w-full bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 focus:border-primary-500/30 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary-500/10 py-3.5 sm:py-4 pl-11 sm:pl-12 pr-5 rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-350 dark:placeholder:text-slate-600"
+                            />
+                          </div>
                         </div>
+                      </div>
+
+                      {/* Date of Birth & Gender */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-450 uppercase tracking-wider ml-1">Date of Birth</label>
+                          <input
+                            type="date"
+                            value={profileData.dob}
+                            onChange={(e) => setProfileData((prev) => ({ ...prev, dob: e.target.value }))}
+                            className="w-full bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 focus:border-primary-500/30 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary-500/10 py-3.5 sm:py-4 px-4 sm:px-5 rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-450 uppercase tracking-wider ml-1">Gender</label>
+                          <div className="relative">
+                            <select
+                              value={profileData.gender}
+                              onChange={(e) => setProfileData((prev) => ({ ...prev, gender: e.target.value }))}
+                              className="w-full bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 focus:border-primary-500/30 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary-500/10 py-3.5 sm:py-4 px-4 sm:px-5 rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none transition-all appearance-none cursor-pointer"
+                            >
+                              <option value="" className="dark:bg-slate-900">Select Gender</option>
+                              <option value="Male" className="dark:bg-slate-900">Male</option>
+                              <option value="Female" className="dark:bg-slate-900">Female</option>
+                            </select>
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-400 dark:border-t-slate-550 w-0 h-0" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bio Field */}
+                      {user.role === 'agent' && (
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-450 uppercase tracking-wider ml-1">Professional Bio / About Me</label>
+                          <textarea
+                            value={profileData.about}
+                            onChange={(e) => setProfileData((prev) => ({ ...prev, about: e.target.value }))}
+                            placeholder="Tell tenants about your experience, specialty areas, and commitment to service..."
+                            rows={4}
+                            className="w-full bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 focus:border-primary-500/30 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary-500/10 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none transition-all resize-none placeholder:text-slate-350 dark:placeholder:text-slate-600 leading-relaxed font-sans"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Account Security Header (Locked/Verified Credentials Panel) */}
+                  <div className="space-y-5">
+                    <div className="flex items-center gap-3 border-b border-slate-50 dark:border-slate-800/40 pb-2">
+                      <div className="w-1.5 h-4 bg-amber-500 dark:bg-amber-450 rounded-full" />
+                      <h4 className="text-xs font-black uppercase tracking-[0.15em] text-slate-450 dark:text-slate-500 font-sans">Identity & Verified Credentials</h4>
+                    </div>
+
+                    <div className="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 p-5 rounded-3xl space-y-4">
+                      {/* Subnotice */}
+                      <div className="flex gap-2.5 items-start">
+                        <Lock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold leading-relaxed italic">
+                          To protect the security of our rental ecosystem, verified government credentials and system identity fields are locked and cannot be edited.
+                        </p>
+                      </div>
+
+                      {/* Locked fields */}
+                      <div className="space-y-3.5">
+                        
+                        {/* Permanent Email */}
+                        <div className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-100/50 dark:border-slate-800/60 shadow-sm transition-all duration-300">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center text-slate-450">
+                              <Shield className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 font-sans">Registered Email</p>
+                              <p className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">{user.email || 'Not set'}</p>
+                            </div>
+                          </div>
+                          <span className="shrink-0 px-2.5 py-1 bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-750 text-[8px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 rounded-lg">Permanent</span>
+                        </div>
+
+                        {/* Permanent Phone */}
+                        <div className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-100/50 dark:border-slate-800/60 shadow-sm transition-all duration-300">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center text-slate-450">
+                              <Smartphone className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 font-sans">Verified Phone</p>
+                              <p className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">{user.phoneNumber || 'Not verified'}</p>
+                            </div>
+                          </div>
+                          {user.phoneVerified ? (
+                            <span className="shrink-0 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100/40 dark:border-emerald-900/25 text-[8px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Verified
+                            </span>
+                          ) : (
+                            <span className="shrink-0 px-2.5 py-1 bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-750 text-[8px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 rounded-lg">Unverified</span>
+                          )}
+                        </div>
+
+                        {/* Permanent NIN */}
+                        <div className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-100/50 dark:border-slate-800/60 shadow-sm transition-all duration-300">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center text-slate-450">
+                              <Fingerprint className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 font-sans">National Identity (NIN)</p>
+                              <p className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">{user.nin ? `•••• •••• ${user.nin.slice(-4)}` : "Verified Security Profile"}</p>
+                            </div>
+                          </div>
+                          <span className="shrink-0 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100/40 dark:border-emerald-900/25 text-[8px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Verified ID
+                          </span>
+                        </div>
+
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-4 sm:p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 sm:gap-4">
-                    <button
-                      onClick={() => {
-                        setIsEditing(false);
-                        cleanupPreview();
-                      }}
-                      className="flex-1 py-3 sm:py-4 text-rose-500 text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl sm:rounded-2xl transition-all"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={isLoading || isUploading}
-                      className="flex-[2] bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-xl shadow-primary-500/30 hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                          <span>{isUploading ? "Uploading..." : "Saving..."}</span>
-                        </>
-                      ) : (
-                        "Save"
-                      )}
-                    </button>
-                  </div>
+                </div>
+
+                {/* Footer Buttons Sticky */}
+                <div className="px-6 py-5 sm:px-8 border-t border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md flex items-center gap-3 sm:gap-4 justify-between sticky bottom-0 z-10 select-none pb-6 sm:pb-8">
+                  <button
+                    onClick={() => {
+                      setIsEditing(false);
+                      cleanupPreview();
+                    }}
+                    className="flex-1 py-3.5 sm:py-4 text-slate-500 hover:text-rose-500 hover:bg-rose-50/50 dark:text-slate-400 dark:hover:text-rose-400 dark:hover:bg-rose-950/15 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 bg-slate-50 dark:bg-slate-850/40"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={isLoading || isUploading}
+                    className="flex-[2] bg-primary-600 hover:bg-primary-700 text-white py-3.5 sm:py-4 rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider shadow-lg shadow-primary-500/25 hover:shadow-primary-500/35 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                        <span>{isUploading ? "Uploading..." : "Saving..."}</span>
+                      </>
+                    ) : (
+                      "Save Changes"
+                    )}
+                  </button>
                 </div>
               </motion.div>
             </div>

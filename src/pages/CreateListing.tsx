@@ -474,7 +474,7 @@ export default function CreateListing() {
           </section>
 
           {/* Basic Info */}
-          <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
+          <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-205 dark:border-slate-800 shadow-sm space-y-6">
             <div className="space-y-5">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Listing Title</label>
@@ -506,7 +506,7 @@ export default function CreateListing() {
                       value={formData.priceValue}
                       onChange={handlePriceChange}
                       disabled={isEditMode}
-                      className={`w-full border border-slate-100 dark:border-white/5 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium outline-none transition-all dark:text-white ${isEditMode ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-800/50 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500'}`}
+                      className={`w-full border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium outline-none transition-all dark:text-white ${isEditMode ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-800/50 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500'}`}
                     />
                   </div>
                 </div>
@@ -520,7 +520,7 @@ export default function CreateListing() {
                       value={formData.type}
                       onChange={(e) => handleInputChange('type', e.target.value)}
                       onBlur={() => handleBlur('type')}
-                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl py-4 px-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 px-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
                     />
                     <datalist id="property-types">
                       {SUGGESTED_PROPERTY_TYPES.map(t => <option key={`prop-type-${t}`} value={t} />)}
@@ -532,7 +532,7 @@ export default function CreateListing() {
           </section>
 
           {/* Location & Details */}
-          <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
+          <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-205 dark:border-slate-800 shadow-sm space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Search Property Address</label>
@@ -553,7 +553,7 @@ export default function CreateListing() {
                     value={formData.landmark}
                     onChange={(e) => handleInputChange('landmark', e.target.value)}
                     onBlur={() => handleBlur('landmark')}
-                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
                   />
                 </div>
               </div>
@@ -561,7 +561,7 @@ export default function CreateListing() {
           </section>
 
           {/* Amenities selection */}
-          <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
+          <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-205 dark:border-slate-800 shadow-sm space-y-6">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Key Amenities</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {AMENITIES_LIST.map(amenity => (
@@ -569,7 +569,7 @@ export default function CreateListing() {
                   key={`amenity-toggle-${amenity}`}
                   type="button"
                   onClick={() => toggleAmenity(amenity)}
-                  className={`flex items-center gap-2 px-3 py-3 rounded-2xl text-[10px] font-bold transition-all border ${formData.amenities.includes(amenity) ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-white/5 hover:border-slate-300'}`}
+                  className={`flex items-center gap-2 px-3 py-3 rounded-2xl text-[10px] font-bold transition-all border ${formData.amenities.includes(amenity) ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/10 hover:border-slate-300'}`}
                 >
                   <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${formData.amenities.includes(amenity) ? 'border-white bg-white text-primary-600' : 'border-slate-200 dark:border-slate-700'}`}>
                     {formData.amenities.includes(amenity) && <Check className="w-2.5 h-2.5" />}
@@ -581,7 +581,7 @@ export default function CreateListing() {
           </section>
 
           {/* Additional details */}
-          <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+          <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-205 dark:border-slate-800 shadow-sm space-y-4">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Property Description</label>
             <textarea 
               required
@@ -589,7 +589,7 @@ export default function CreateListing() {
               placeholder="Provide a detailed description of the apartment. Mention specific features, condition, electricity, water situation etc..."
               value={formData.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-white/5 rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white resize-none"
+              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white resize-none"
             />
           </section>
 

@@ -156,7 +156,7 @@ const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing
             <div className="relative overflow-hidden rounded-xl mb-3">
               <SafeImage src={listing.image} fallbackType="house" className="w-full h-28 object-cover group-hover/card:scale-110 transition-transform duration-500" />
               <div className="absolute top-2 left-2">
-                <span className="bg-white/90 backdrop-blur-md dark:bg-slate-900/90 px-2 py-0.5 rounded-lg text-[9px] font-black text-primary-600 uppercase tracking-tighter border border-slate-100 dark:border-slate-800">
+                <span className="bg-white/90 backdrop-blur-md dark:bg-slate-900/90 px-2 py-0.5 rounded-lg text-[9px] font-black text-primary-600 uppercase tracking-tighter border border-slate-200 dark:border-slate-800">
                   {listing.type}
                 </span>
               </div>
@@ -167,7 +167,7 @@ const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing
                 <MapPin className="w-3 h-3 flex-shrink-0" />
                 <p className="text-[10px] font-medium line-clamp-1">{listing.location}</p>
               </div>
-              <div className="flex items-center justify-between pt-1 border-t border-slate-50 dark:border-slate-800">
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-800">
                 <p className="text-primary-600 font-black text-sm">{listing.price}</p>
                 <div className="flex items-center gap-1 bg-primary-50 dark:bg-primary-900/20 px-1.5 py-0.5 rounded-md">
                    <div className="w-1 h-1 rounded-full bg-primary-600 animate-pulse" />
@@ -247,7 +247,7 @@ const MapControlsOverlay: React.FC = () => {
   return (
     <div className="absolute bottom-28 lg:bottom-6 right-4 lg:right-6 flex flex-col gap-3 z-30 pointer-events-auto items-end">
       {/* Dynamic Map Mode Tabs Selector */}
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 flex gap-1">
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex gap-1 transition-all duration-300">
         {[
           { id: 'roadmap', label: 'Minimal', icon: <Map className="w-3.5 h-3.5" /> },
           { id: 'satellite', label: 'Satellite', icon: <Globe className="w-3.5 h-3.5" /> },
@@ -267,7 +267,7 @@ const MapControlsOverlay: React.FC = () => {
 
       <div className="flex gap-3 items-start">
         {/* 2D/3D Control Card */}
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-2 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 flex flex-col gap-1 items-center">
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-2 rounded-2xl shadow-xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex flex-col gap-1 items-center transition-all duration-300">
           {/* Tilt Toggle */}
           <button 
             onClick={toggleTilt}
@@ -278,7 +278,7 @@ const MapControlsOverlay: React.FC = () => {
             <span className="text-[7px] opacity-70 mt-0.5">{currentTilt > 10 ? 'ACTIVE' : 'OFF'}</span>
           </button>
 
-          <div className="w-6 h-px bg-slate-100 dark:bg-slate-800 my-1" />
+          <div className="w-6 h-px bg-slate-200 dark:bg-slate-800 my-1" />
 
           {/* Rotate Left Button */}
           <button 
@@ -308,7 +308,7 @@ const MapControlsOverlay: React.FC = () => {
         </div>
 
         {/* Custom zoom controls card */}
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 flex flex-col gap-1 items-center">
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex flex-col gap-1 items-center transition-all duration-300">
           <button 
             onClick={() => handleZoom(1)}
             className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -316,7 +316,7 @@ const MapControlsOverlay: React.FC = () => {
           >
             ＋
           </button>
-          <div className="w-5 h-px bg-slate-100 dark:bg-slate-800" />
+          <div className="w-5 h-px bg-slate-200 dark:bg-slate-800" />
           <button 
             onClick={() => handleZoom(-1)}
             className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -489,7 +489,7 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
         <div className="w-full max-w-full px-2 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -518,7 +518,7 @@ const Home = () => {
         </div>
       </header>
 
-      <main className="px-[14px] mb-0" style={{ paddingTop: '15px', paddingBottom: '0px' }}>
+      <main className="px-[14px] pb-0 mb-0" style={{ paddingTop: '15px' }}>
         <motion.div 
           initial={{ opacity: 0, y: 10 }} 
           animate={{ opacity: 1, y: 0 }} 
@@ -556,7 +556,7 @@ const Home = () => {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-xl sm:rounded-2xl border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-black/20 space-y-4 sm:space-y-6 overflow-hidden"
+              className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-xl sm:rounded-2xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-black/20 space-y-4 sm:space-y-6 overflow-hidden transition-all duration-350"
             >
               <div className="flex flex-col gap-3 sm:gap-4">
                 <div className="flex items-center justify-between">
@@ -572,7 +572,7 @@ const Home = () => {
                     <button 
                       key={`filter-${filter}`}
                       onClick={() => setActiveFilter(filter)}
-                      className={`px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-2xl text-[10px] sm:text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${activeFilter === filter ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                      className={`px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-2xl text-[10px] sm:text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${activeFilter === filter ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-555'}`}
                     >
                       {filter}
                     </button>
@@ -641,7 +641,7 @@ const Home = () => {
             className="w-full h-[calc(100vh-200px)] flex flex-col lg:flex-row gap-4"
           >
             {/* Map Section */}
-            <div className="flex-1 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl relative min-h-[300px]">
+            <div className="flex-1 rounded-3xl overflow-hidden border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-xl relative min-h-[300px] transition-all duration-300">
               <GoogleMapsGuard>
                 <GoogleMap 
                   defaultCenter={{ lat: 6.4311, lng: 3.4158 }} // Lekki Phase 1 center
@@ -666,7 +666,7 @@ const Home = () => {
                   <MapCenteringController listings={filteredListings} />
                 </GoogleMap>
               </GoogleMapsGuard>
-              <div className="absolute top-4 left-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-3 rounded-xl border border-slate-100 dark:border-slate-800 shadow-lg flex items-center gap-2">
+              <div className="absolute top-4 left-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-3 rounded-xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-lg flex items-center gap-2 transition-all duration-300">
                 <div className="w-8 h-8 bg-primary-50 dark:bg-primary-900/20 rounded-lg flex items-center justify-center text-primary-600">
                   <Navigation className="w-4 h-4" />
                 </div>
@@ -680,7 +680,7 @@ const Home = () => {
             <div className="hidden lg:block w-full lg:w-[400px] xl:w-[450px] overflow-y-auto pr-2 space-y-4">
                 {visibleListings.length > 0 ? (
                   visibleListings.map((listing) => (
-                    <div key={`sidebar-listing-${listing.id}`} className="border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <div key={`sidebar-listing-${listing.id}`} className="border-b border-slate-200 dark:border-slate-800 pb-4">
                       <ListingCard 
                         listing={listing} 
                         onViewDetails={() => setCurrentListing(listing)}
@@ -700,7 +700,7 @@ const Home = () => {
             </div>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-4 sm:gap-6 lg:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-4 sm:gap-6 lg:gap-8">
             {visibleListings.length > 0 ? (
               visibleListings.map((listing) => (
                 <ListingCard 
@@ -716,7 +716,7 @@ const Home = () => {
                 />
               ))
             ) : (
-              <div className="col-span-full py-20 bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800 text-center space-y-4">
+              <div className="col-span-full py-20 bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-center space-y-4">
                 <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto">
                   {isAgent ? <HomeIcon className="w-10 h-10 text-slate-200 dark:text-slate-700" /> : <Search className="w-10 h-10 text-slate-200 dark:text-slate-700" />}
                 </div>

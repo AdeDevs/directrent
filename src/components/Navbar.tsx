@@ -30,7 +30,7 @@ const Navbar = () => {
   return (
     <nav className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-300 ${
       isScrolled 
-        ? 'bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800' 
+        ? 'bg-white/80 backdrop-blur-xl border-b border-slate-200/80 shadow-sm' 
         : 'bg-transparent border-b border-transparent'
     }`}>
       <div className="w-full px-4 md:px-6">
@@ -43,24 +43,24 @@ const Navbar = () => {
               <div className="w-8 h-8 bg-primary-600 rounded-md flex items-center justify-center">
                 <Home className="text-white w-5 h-5" />
               </div>
-              <span className={`text-xl font-semibold tracking-tight leading-none transition-colors duration-300 ${isScrolled ? 'text-slate-900 dark:text-white' : 'text-white'}`}>
-                Direct<span className={isScrolled ? 'text-primary-600 dark:text-primary-400' : 'text-white underline decoration-white/30'}>Rent</span>
+              <span className="text-xl font-display font-black tracking-tight leading-none text-slate-900">
+                Direct<span className="text-primary-600">Rent</span>
               </span>
             </div>
           </div>
           
           <div className="hidden md:flex items-center space-x-6">
-            <a href="#listings" className={`text-sm font-medium transition-colors duration-300 hover:text-primary-600 dark:hover:text-primary-400 ${isScrolled ? 'text-slate-600 dark:text-slate-400' : 'text-white/80'}`}>Browse</a>
+            <a href="#listings" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition-colors duration-300">Browse</a>
             <button 
               onClick={handleListProperty}
-              className={`text-sm font-medium transition-colors duration-300 ${isScrolled ? 'text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300' : 'text-white hover:text-white/80'}`}
+              className="text-sm font-semibold text-primary-600 hover:text-primary-700 transition-colors duration-300"
             >
               List Property
             </button>
             <div className="flex items-center gap-3">
               <button 
                 onClick={handleSignIn}
-                className={`text-sm font-medium transition-colors duration-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 ${isScrolled ? 'text-slate-600 dark:text-slate-400' : 'text-white/80'}`}
+                className="text-sm font-medium text-slate-600 hover:text-primary-600 transition-colors duration-300 px-3 py-2"
               >
                 Sign In
               </button>
@@ -74,7 +74,7 @@ const Navbar = () => {
           </div>
 
           <div className="md:hidden flex items-center">
-            <button onClick={() => setIsOpen(!isOpen)} className={`p-2 active:scale-90 transition-all duration-300 ${isScrolled ? 'text-slate-600 dark:text-slate-400' : 'text-white'}`}>
+            <button onClick={() => setIsOpen(!isOpen)} className="p-2 active:scale-90 transition-all duration-300 text-slate-600">
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
@@ -89,32 +89,32 @@ const Navbar = () => {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border-b border-slate-200 dark:border-slate-800 overflow-hidden"
+            className="md:hidden bg-white/95 backdrop-blur-2xl border-b border-slate-200 overflow-hidden"
           >
             <div className="px-4 pt-2 pb-6 flex flex-col space-y-4">
               <a 
                 href="#listings" 
                 onClick={() => setIsOpen(false)}
-                className="block text-base font-semibold text-slate-800 dark:text-slate-200 tracking-tight p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                className="block text-base font-semibold text-slate-800 tracking-tight p-3 rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Browse
               </a>
               <button 
                 onClick={() => { setIsOpen(false); handleListProperty(); }}
-                className="block w-full text-left font-semibold text-slate-800 dark:text-slate-200 tracking-tight p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                className="block w-full text-left font-semibold text-slate-800 tracking-tight p-3 rounded-lg hover:bg-slate-50 transition-colors"
               >
                 List Property
               </button>
               <div className="pt-2 flex flex-col gap-3">
                 <button 
                   onClick={() => { setIsOpen(false); handleSignIn(); }} 
-                  className="w-full text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 rounded-xl font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                  className="w-full text-slate-800 border border-slate-200 bg-white px-4 py-3 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-colors shadow-sm"
                 >
                   Sign In
                 </button>
                 <button 
                   onClick={() => { setIsOpen(false); setAuthMode('signup'); setView('auth'); }} 
-                  className="w-full bg-primary-600 text-white px-4 py-3 rounded-xl font-semibold text-sm shadow-md shadow-primary-500/20 dark:shadow-none hover:bg-primary-700 transition-colors"
+                  className="w-full bg-primary-600 text-white px-4 py-3 rounded-xl font-semibold text-sm shadow-md shadow-primary-500/25 hover:bg-primary-700 transition-colors"
                 >
                   Sign Up
                 </button>

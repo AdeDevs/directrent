@@ -75,7 +75,7 @@ const ReportModal = ({ isOpen, onClose, listingId, userId }: { isOpen: boolean, 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-100 dark:border-slate-800"
+        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl relative z-10 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300"
       >
         {isSuccess ? (
           <div className="text-center py-8">
@@ -191,7 +191,7 @@ const ScheduleTourModal = ({ isOpen, onClose, listing, userId }: { isOpen: boole
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-100 dark:border-slate-800"
+        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl relative z-10 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300"
       >
         {isSuccess ? (
           <div className="text-center py-8">
@@ -335,9 +335,9 @@ const DirectionsModal = ({ isOpen, onClose, destination }: { isOpen: boolean, on
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-full max-w-2xl h-[80vh] bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl relative z-10 border border-slate-100 dark:border-slate-800 flex flex-col"
+        className="w-full max-w-2xl h-[80vh] bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl relative z-10 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex flex-col transition-all duration-300"
       >
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary-50 dark:bg-primary-900/20 text-primary-600 rounded-xl flex items-center justify-center">
               <Navigation className="w-5 h-5" />
@@ -836,7 +836,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl relative z-10 border border-slate-100 dark:border-slate-800"
+              className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl relative z-10 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300"
             >
               <div className="w-12 h-12 bg-rose-50 dark:bg-rose-500/10 rounded-2xl flex items-center justify-center text-rose-600 mb-4">
                 <Trash2 className="w-6 h-6" />
@@ -955,7 +955,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
             
             <button 
               onClick={() => handleMediaClick(0)}
-              className="absolute bottom-6 right-6 px-4 py-2 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-all active:scale-95 z-10"
+              className="absolute bottom-6 right-6 px-4 py-2 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-205 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-all active:scale-95 z-10"
             >
               <LayoutGrid className="w-4 h-4" />
               Show All Photos
@@ -997,7 +997,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           </div>
         </div>
       </div>
-      <div className="w-full px-[15px] py-4 sm:py-10 flex flex-col md:flex-row gap-6 md:gap-12">
+      <div className="w-full px-[15px] flex flex-col md:flex-row gap-6 md:gap-12 pt-20 pb-[115px]">
         
         {/* Left Column: Details */}
         <div className="flex-1 space-y-6 sm:space-y-10">
@@ -1255,7 +1255,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
             {canManageListing ? (
               <div className="space-y-6">
                 {/* Status & Quick Actions */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl shadow-sm transition-colors duration-300">
+                <div className="bg-white dark:bg-slate-900 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 p-6 rounded-xl shadow-sm transition-all duration-300">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                        {isAdmin && !isOwnListing ? 'Admin Management' : 'Management'}
@@ -1278,7 +1278,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                         <button 
                           disabled={isDeleting}
                           onClick={() => setShowDeleteConfirm(true)}
-                          className="w-full flex items-center justify-center gap-2 bg-slate-50 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-50 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 h-11 rounded-lg font-bold text-sm transition-all border border-slate-100 dark:border-white/5 cursor-pointer"
+                          className="w-full flex items-center justify-center gap-2 bg-slate-50 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-50 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 h-11 rounded-lg font-bold text-sm transition-all border border-slate-205 dark:border-white/5 cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" /> {isDeleting ? 'Deleting...' : 'Delete Listing'}
                         </button>
@@ -1286,7 +1286,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                 </div>
 
                 {/* Visibility Insights */}
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-xl text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden transition-colors duration-300">
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-xl text-slate-900 dark:text-white border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-sm relative overflow-hidden transition-all duration-300">
                   <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
                   <h2 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2">
                     <TrendingUp className="w-3 h-3" /> Quick Stats
@@ -1331,7 +1331,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                 {listing.agent && (
                   <div 
                     onClick={() => setSelectedAgentId(listing.agent!.id!)}
-                    className="bg-white dark:bg-slate-900 p-6 lg:p-8 rounded-3xl text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 shadow-xl relative overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary-500/50 transition-all active:scale-[0.98]"
+                    className="bg-white dark:bg-slate-900 p-6 lg:p-8 rounded-3xl text-slate-900 dark:text-white border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-xl relative overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary-500/50 transition-all active:scale-[0.98] duration-300"
                   >
                     <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary-500/10 rounded-full blur-2xl pointer-events-none" />
                     <h2 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">Listed By</h2>
@@ -1387,7 +1387,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                 )}
 
                 {/* Safety Banner */}
-                <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900 p-5 rounded-3xl flex flex-col lg:flex-row gap-4 items-start text-blue-900 dark:text-blue-300 transition-colors">
+                <div className="bg-blue-50 dark:bg-blue-950/20 border-[0.5px] border-blue-100/30 dark:border-blue-900/55 hover:border-blue-200 dark:hover:border-blue-800 p-5 rounded-3xl flex flex-col lg:flex-row gap-4 items-start text-blue-900 dark:text-blue-300 transition-all duration-300">
                    <ShieldCheck className="w-6 h-6 text-blue-500 flex-shrink-0 mt-0.5" />
                    <p className="text-sm font-medium leading-relaxed opacity-90">
                      DirectRent protects your payments. Never wire money or pay an agent directly before inspecting the property holding a verified slip.
@@ -1423,7 +1423,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
               </div>
 
               {/* Performance Metrics Table/Grid */}
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden transition-colors duration-300">
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors duration-300">
                 <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-100 dark:divide-slate-800">
                     {[
                       { id: 'views', label: "Total Views", value: realStats.views.toLocaleString(), change: realStats.trends.views, color: "text-indigo-600 dark:text-indigo-400" },
@@ -1447,7 +1447,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
               </div>
 
               {/* Chart Placeholder Interface */}
-              <div className="bg-white dark:bg-slate-900 p-8 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm h-72 sm:h-96 flex flex-col items-center justify-center text-center space-y-4 transition-colors duration-300 relative overflow-hidden">
+              <div className="bg-white dark:bg-slate-900 p-8 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm h-72 sm:h-96 flex flex-col items-center justify-center text-center space-y-4 transition-colors duration-300 relative overflow-hidden">
                 <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none">
                    <div className="w-full h-full" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
                 </div>
@@ -1467,7 +1467,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
               <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight mb-8">
                 Similar properties you might like
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 md:gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-6 md:gap-8">
                 {recommended.map(recListing => (
                   <ListingCard 
                     key={recListing.id}
