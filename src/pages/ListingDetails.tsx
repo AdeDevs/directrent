@@ -722,7 +722,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col w-full transition-colors duration-300"
+      className="bg-slate-50 dark:bg-slate-950 flex flex-col w-full transition-colors duration-300"
     >
       <Helmet>
         <title>{`${listing.title} | ${listing.location} | DirectRent Nigeria`}</title>
@@ -997,7 +997,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           </div>
         </div>
       </div>
-      <div className="w-full px-[15px] flex flex-col md:flex-row gap-6 md:gap-12 pt-20 pb-[115px]">
+      <div className="w-full px-[15px] flex flex-col md:flex-row gap-6 md:gap-12 pt-20 pb-32">
         
         {/* Left Column: Details */}
         <div className="flex-1 space-y-6 sm:space-y-10">
@@ -1402,7 +1402,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
 
       {/* Recommended Section / Insights Dashboard */}
       <div className="w-full border-t border-slate-200 dark:border-slate-800 mt-4 md:mt-8 flex-1 flex flex-col transition-colors duration-300">
-        <div className="px-[15px] pt-10 pb-[110px] w-full flex-1" style={{paddingBottom:0}}>
+        <div className="px-[15px] pt-10 pb-32 w-full flex-1">
           {canManageListing ? (
             <div className="space-y-12">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
