@@ -271,7 +271,7 @@ const Auth = () => {
 
   const handleGoogleSignIn = async () => {
     try {
-      const success = await signInWithGoogle();
+      const success = await signInWithGoogle(role);
       if (success) {
         setView('app');
       } else {

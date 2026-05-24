@@ -15,8 +15,7 @@ export const safeDeleteStorageFile = async (url: string | null | undefined) => {
     const fileRef = ref(storage, url);
     await deleteObject(fileRef);
   } catch (e: any) {
-    if (e.code !== 'storage/object-not-found') {
-      console.warn(`Could not delete storage object: ${url}`, e.message);
-    }
+    // Silently ignore all errors, as the file might already be gone
+    console.log(`Could not delete storage object (ignoring error): ${url}`, e.message);
   }
 };

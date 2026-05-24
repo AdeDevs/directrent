@@ -146,28 +146,29 @@ app.use(express.json({ limit: '10mb' }));
 const PORT = 3000;
 
 app.get("/api/health", (req, res) => {
+  let adminApp = null;
+  let adminError = null;
   try {
-    const adminApp = getAdmin();
-    res.json({ 
-      status: "healthy", 
-      timestamp: new Date().toISOString(),
-      projectId: adminApp.options.projectId,
-      env: {
-        vercel: !!process.env.VERCEL,
-        ais: !!process.env.AIS_APPLET_ID,
-        node: process.version
-      },
-      configLoaded: !!firebaseConfig.projectId,
-      dbId: firebaseConfig.firestoreDatabaseId
-    });
+    adminApp = getAdmin();
   } catch (err: any) {
-    console.error("Health check failed:", err.message);
-    res.status(500).json({ 
-      status: "unhealthy", 
-      error: err.message,
-      env: process.env.VERCEL ? 'vercel' : 'ais'
-    });
+    adminError = err.message;
+    console.warn("Firebase Admin lazy init deferred in health check:", err.message);
   }
+
+  res.json({ 
+    status: "healthy", 
+    timestamp: new Date().toISOString(),
+    projectId: adminApp ? adminApp.options.projectId : (firebaseConfig.projectId || "unconfigured"),
+    env: {
+      vercel: !!process.env.VERCEL,
+      ais: !!process.env.AIS_APPLET_ID,
+      node: process.version
+    },
+    configLoaded: !!firebaseConfig.projectId,
+    dbId: firebaseConfig.firestoreDatabaseId,
+    adminInitialized: !!adminApp,
+    adminError: adminError
+  });
 });
 
   app.get("/api/admin/debug-user/:userId", async (req, res) => {

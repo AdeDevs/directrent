@@ -997,7 +997,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
           </div>
         </div>
       </div>
-      <div className="w-full px-[15px] flex flex-col md:flex-row gap-6 md:gap-12 pt-20 pb-32">
+      <div className="w-full px-[15px] flex flex-col md:flex-row gap-6 md:gap-12 pt-20 pb-0">
         
         {/* Left Column: Details */}
         <div className="flex-1 space-y-6 sm:space-y-10">
@@ -1402,7 +1402,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
 
       {/* Recommended Section / Insights Dashboard */}
       <div className="w-full border-t border-slate-200 dark:border-slate-800 mt-4 md:mt-8 flex-1 flex flex-col transition-colors duration-300">
-        <div className="px-[15px] pt-10 pb-32 w-full flex-1">
+        <div className="px-[15px] pt-10 pb-0 w-full flex-1">
           {canManageListing ? (
             <div className="space-y-12">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

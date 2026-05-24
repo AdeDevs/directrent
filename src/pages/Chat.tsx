@@ -369,7 +369,7 @@ const Inbox = () => {
           </div>
 
           {/* Chat List */}
-          <div className="space-y-3.5 pb-20">
+          <div className="space-y-3.5 pb-0">
             <AnimatePresence mode="popLayout">
               {filteredConversations.length === 0 ? (
                 <motion.div

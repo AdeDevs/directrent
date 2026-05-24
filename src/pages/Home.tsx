@@ -696,7 +696,9 @@ const Home = () => {
                 ) : (
                   <p className="text-center text-slate-500 py-10">No listings found in this area.</p>
                 )}
-                <div ref={sentinelRef} />
+                {filteredListings.length > itemsLoaded && (
+                  <div ref={sentinelRef} className="h-0 w-0 pointer-events-none" style={{ margin: '0px' }} />
+                )}
             </div>
           </motion.div>
         ) : (
@@ -734,7 +736,9 @@ const Home = () => {
                 </button>
               </div>
             )}
-            <div ref={sentinelRef} />
+            {filteredListings.length > itemsLoaded && (
+              <div ref={sentinelRef} className="col-span-full h-0 w-0 pointer-events-none" />
+            )}
           </div>
         )}
       </AnimatePresence>

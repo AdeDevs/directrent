@@ -40,6 +40,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'react-hot-toast';
 import { collection, query, getDocs, limit, orderBy, doc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
 import SafeImage from '../../components/SafeImage';
@@ -342,15 +343,17 @@ const AdminDashboard = () => {
     if (!listingToDelete) return;
     
     setIsDeleting(true);
+    const toastId = toast.loading("Permanently deleting listing...");
     try {
       await purgeListingData(listingToDelete);
       setListings(prev => prev.filter(l => l.id !== listingToDelete));
       if (selectedListing?.id === listingToDelete) {
         setIsReviewOpen(false);
       }
+      toast.success("Property listing deleted successfully.", { id: toastId });
     } catch (error) {
       console.error("Error deleting listing:", error);
-      alert("Failed to delete listing. Please try again.");
+      toast.error("Failed to delete listing. Please try again.", { id: toastId });
     } finally {
       setIsDeleting(false);
       setListingToDelete(null);
@@ -358,6 +361,7 @@ const AdminDashboard = () => {
   };
 
   const handleApproveListing = async (listingId: string) => {
+    const toastId = toast.loading("Approving listing...");
     try {
       const { updateDoc, doc, serverTimestamp: fsServerTimestamp } = await import('firebase/firestore');
       await updateDoc(doc(db, 'listings', listingId), {
@@ -365,21 +369,41 @@ const AdminDashboard = () => {
         status: 'active',
         updatedAt: fsServerTimestamp()
       });
+      
+      // Update local state isApproved and status
+      setListings(prev => prev.map(l => l.id === listingId ? { ...l, isApproved: true, status: 'active' } : l));
+      if (selectedListing?.id === listingId) {
+        setSelectedListing((prev: any) => prev ? { ...prev, isApproved: true, status: 'active' } : null);
+      }
+      
       setIsReviewOpen(false);
+      toast.success("Listing successfully approved.", { id: toastId });
     } catch (error) {
       console.error("Error approving listing:", error);
+      toast.error("Failed to approve listing. Please try again.", { id: toastId });
     }
   };
 
   const handleVerifyListing = async (listingId: string, verify: boolean) => {
+    const actionWord = verify ? "verifying" : "unverifying";
+    const toastId = toast.loading(`${verify ? "Verifying" : "Removing verification from"} property...`);
     try {
       const { updateDoc, doc, serverTimestamp: fsServerTimestamp } = await import('firebase/firestore');
       await updateDoc(doc(db, 'listings', listingId), {
         verified: verify,
         updatedAt: fsServerTimestamp()
       });
+      
+      // Update local state verified key
+      setListings(prev => prev.map(l => l.id === listingId ? { ...l, verified: verify } : l));
+      if (selectedListing?.id === listingId) {
+        setSelectedListing((prev: any) => prev ? { ...prev, verified: verify } : null);
+      }
+      
+      toast.success(`Property successfully ${verify ? 'verified and badged' : 'unverified'}.`, { id: toastId });
     } catch (error) {
       console.error("Error verifying listing:", error);
+      toast.error(`Failed to modify verification. Please try again.`, { id: toastId });
     }
   };
 
@@ -425,29 +449,85 @@ const AdminDashboard = () => {
         )}
       </AnimatePresence>
 
+      {/* Global Top Header Container */}
+      <header className="fixed top-0 left-0 right-0 h-[64px] z-[70] bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between transition-colors duration-300">
+        {/* Left Side: Brand Logo Compartement (matches sidebar panel expansion beautifully) */}
+        <div className={`hidden md:flex items-center h-full border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ${isSidebarCollapsed ? 'w-20 px-4 justify-center' : 'w-64 px-6'} flex-shrink-0`}>
+          {!isSidebarCollapsed ? (
+            <div className="flex flex-col">
+              <span className="font-bold text-lg tracking-tight text-[#1A1A1A] dark:text-white">DirectRent</span>
+              <span className="text-[10px] text-[#999999] dark:text-[#666666] font-bold uppercase tracking-wider -mt-0.5">ADMIN PORTAL</span>
+            </div>
+          ) : (
+            <div className="bg-black dark:bg-white text-white dark:text-black w-8 h-8 rounded-none flex items-center justify-center mx-auto shadow-sm">
+              <span className="font-bold text-xs">D</span>
+            </div>
+          )}
+        </div>
+
+        {/* Dynamic header content row (contains collapse trigger and user utility options) */}
+        <div className="flex-1 h-full px-4 md:px-8 flex items-center justify-between">
+          <div className="flex items-center gap-2 md:gap-4">
+            <button 
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-none transition-colors text-slate-500 dark:text-slate-400 hidden md:block"
+              title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              <PanelLeft className="w-5 h-5" />
+            </button>
+            
+            {/* Mobile Header Brand & Drawer Burger */}
+            <div className="flex items-center gap-3 md:hidden">
+              <button 
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-none transition-colors text-slate-500 dark:text-slate-400"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <div className="flex flex-col">
+                <span className="font-bold text-sm tracking-tight text-[#1A1A1A] dark:text-white">DirectRent</span>
+                <span className="text-[8px] text-[#999999] dark:text-[#666666] font-bold uppercase tracking-wider -mt-1">ADMIN PORTAL</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
+            <button 
+              id="theme-toggle-admin"
+              onClick={toggleTheme}
+              className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-none text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95"
+              title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4 md:w-5 md:h-5 text-amber-500" /> : <Moon className="w-4 h-4 md:w-5 md:h-5" />}
+            </button>
+            <button className="p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <Bell className="w-4 h-4 md:w-5 md:h-5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
       {/* Sidebar - Fixed */}
       <aside className={`
         ${isSidebarCollapsed ? 'md:w-20 w-64' : 'w-64'}
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-        transition-all duration-300 fixed left-0 top-0 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-[60]
+        transition-all duration-300 fixed left-0 top-0 md:top-[64px] h-screen md:h-[calc(100vh-64px)] bg-white dark:bg-slate-900 md:border-r border-slate-200 dark:border-slate-800 flex flex-col z-[60]
       `}>
-        <div className="px-6 h-[64px] flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
-          <div className={`flex flex-col ${isSidebarCollapsed ? 'md:hidden' : ''}`}>
+        {/* Mobile-only Sidebar Header with Close Button */}
+        <div className="md:hidden px-6 h-[64px] flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
+          <div className="flex flex-col">
             <span className="font-bold text-lg tracking-tight text-[#1A1A1A] dark:text-white">DirectRent</span>
             <span className="text-[10px] text-[#999999] dark:text-[#666666] font-bold uppercase tracking-wider -mt-0.5">Admin Portal</span>
           </div>
-          <div className={`bg-black dark:bg-white text-white dark:text-black w-7 h-7 rounded-none flex items-center justify-center mx-auto shadow-sm ${isSidebarCollapsed ? 'md:flex hidden' : 'hidden'}`}>
-            <span className="font-bold text-xs">D</span>
-          </div>
           <button 
-            className="md:hidden text-slate-400 p-1"
+            className="text-slate-400 p-1"
             onClick={() => setIsMobileMenuOpen(false)}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-    <nav className="flex-1 pt-[15px] px-[10px] space-y-1">
+        <nav className="flex-1 pt-[15px] px-[10px] space-y-1 overflow-y-auto min-h-0 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700">
           {sidebarItems.map((item) => (
             <button
                id={`sidebar-nav-${item.id}`}
@@ -501,40 +581,7 @@ const AdminDashboard = () => {
       </aside>
 
       {/* Main Content Area */}
-      <div className={`flex-1 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'} ml-0 transition-all duration-300 flex flex-col min-w-0`}>
-        {/* Header - Refined */}
-        <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-950/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 px-3 md:px-8 h-[64px] flex items-center justify-between transition-colors duration-300">
-          <div className="flex items-center gap-2 md:gap-4 flex-1">
-            <button 
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-none transition-colors text-slate-500 dark:text-slate-400 hidden md:block"
-              title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-            >
-              <PanelLeft className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="p-1 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-none transition-colors text-slate-500 dark:text-slate-400 md:hidden flex-shrink-0"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
-            <button 
-              id="theme-toggle-admin"
-              onClick={toggleTheme}
-              className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-none text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all active:scale-95"
-              title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4 md:w-5 md:h-5 text-amber-500" /> : <Moon className="w-4 h-4 md:w-5 md:h-5" />}
-            </button>
-            <button className="p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-              <Bell className="w-4 h-4 md:w-5 md:h-5" />
-            </button>
-          </div>
-        </header>
-
+      <div className={`flex-1 ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'} ml-0 transition-all duration-300 flex flex-col min-w-0 pt-[64px]`}>
         {/* Main Dashboard Content */}
         <main id="admin-main-content" ref={mainContentRef} className="flex-1 overflow-y-auto pt-8 px-3 md:pt-6 md:px-8 pb-[21px] transition-colors duration-300">
           <div className="p-0 m-0">
@@ -1322,7 +1369,7 @@ const AdminDashboard = () => {
       <AnimatePresence>
         {showLogoutConfirm && (
           <div 
-            className="fixed inset-0 z-[100] h-screen w-screen bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[10000] h-screen w-screen bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setShowLogoutConfirm(false)}
           >
             <motion.div 
@@ -1364,7 +1411,7 @@ const AdminDashboard = () => {
       <AnimatePresence>
         {listingToDelete && (
           <div 
-            className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[10000] h-screen w-screen bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setListingToDelete(null)}
           >
             <motion.div 

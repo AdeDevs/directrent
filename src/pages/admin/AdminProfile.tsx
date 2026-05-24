@@ -69,7 +69,9 @@ const AdminProfile = () => {
       // Handle Storage Upload if new file selected
       if (selectedFile) {
         // Cleanup old image if it was a storage URL
-        await safeDeleteStorageFile(user.avatarUrl);
+        if (user.avatarUrl && user.avatarUrl.includes("firebasestorage")) {
+          await safeDeleteStorageFile(user.avatarUrl);
+        }
 
         const fileName = `avatars/admin_${user.id}_${Date.now()}.jpg`;
         const storageRef = ref(storage, fileName);
@@ -77,7 +79,9 @@ const AdminProfile = () => {
         finalAvatarUrl = await getDownloadURL(snapshot.ref);
       } else if (!formData.avatarUrl && user.avatarUrl) {
         // Reset to default/Delete case
-        await safeDeleteStorageFile(user.avatarUrl);
+        if (user.avatarUrl && user.avatarUrl.includes("firebasestorage")) {
+          await safeDeleteStorageFile(user.avatarUrl);
+        }
       }
 
       const userRef = doc(db, 'users', user.id);

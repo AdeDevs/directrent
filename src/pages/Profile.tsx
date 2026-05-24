@@ -253,7 +253,9 @@ const Profile = () => {
     setIsLoading(true);
     try {
       // Try to delete from Storage if it's a firebase storage URL
-      await safeDeleteStorageFile(user.avatarUrl);
+      if (user.avatarUrl.includes("firebasestorage")) {
+        await safeDeleteStorageFile(user.avatarUrl);
+      }
       
       await updateProfile({ avatarUrl: deleteField() });
       setPreviewUrl(null);
@@ -551,6 +553,16 @@ const Profile = () => {
   };
 
   const handleSave = async () => {
+    // Validate National Identity Number (NIN)
+    if (profileData.nin && profileData.nin.length > 0 && profileData.nin.length !== 11) {
+      alert("National Identity Number (NIN) must be exactly 11 digits.");
+      return;
+    }
+    if (user?.nin && profileData.nin !== user.nin) {
+      alert("For security, your linked National Identity Number cannot be changed.");
+      return;
+    }
+
     setIsLoading(true);
     console.log("Starting profile update...");
 
@@ -563,9 +575,12 @@ const Profile = () => {
         console.log("Image selected, starting upload process...");
         
         // CLEANUP PREVIOUS IMAGE FROM STORAGE IF IT EXISTS
-        await safeDeleteStorageFile(user.avatarUrl);
+        if (user.avatarUrl && user.avatarUrl.includes("firebasestorage")) {
+          await safeDeleteStorageFile(user.avatarUrl);
+        }
         
         try {
+
           // Compress the image (using a slightly smaller size for even better reliability)
           console.log("Compressing image...");
           const compressedBlob = await compressImage(selectedFile);
@@ -827,7 +842,10 @@ const Profile = () => {
             </button>
 
             {user.role === 'agent' && (
-              <KYCVerification />
+              <>
+                <KYCVerification />
+                <TrustVerification onVerifyPhone={() => setShowPhoneInput(true)} />
+              </>
             )}
 
             {user.role === 'tenant' && (
@@ -1427,21 +1445,60 @@ const Profile = () => {
                         </div>
 
                         {/* Permanent NIN */}
-                        <div className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-100/50 dark:border-slate-800/60 shadow-sm transition-all duration-300">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center text-slate-450">
-                              <Fingerprint className="w-4 h-4" />
+                        {user.nin ? (
+                          <div className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-100/50 dark:border-slate-800/60 shadow-sm transition-all duration-300">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center text-slate-450">
+                                <Fingerprint className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 font-sans">National Identity (NIN)</p>
+                                <p className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">•••• •••• {user.nin.slice(-4)}</p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 font-sans">National Identity (NIN)</p>
-                              <p className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">{user.nin ? `•••• •••• ${user.nin.slice(-4)}` : "Verified Security Profile"}</p>
-                            </div>
+                            <span className="shrink-0 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100/40 dark:border-emerald-900/25 text-[8px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Verified ID
+                            </span>
                           </div>
-                          <span className="shrink-0 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100/40 dark:border-emerald-900/25 text-[8px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Verified ID
-                          </span>
-                        </div>
+                        ) : (
+                          <div className="p-4 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-100/50 dark:border-slate-800/60 shadow-sm space-y-3 transition-all duration-300">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-955/20 flex items-center justify-center text-rose-500">
+                                  <Fingerprint className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 font-sans">National Identity (NIN)</p>
+                                  <p className="text-xs font-bold text-rose-500 leading-none">Unverified ID</p>
+                                </div>
+                              </div>
+                              <span className="shrink-0 px-2.5 py-1 bg-rose-50 dark:bg-rose-955/20 border border-rose-100/40 dark:border-rose-900/25 text-[8px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 rounded-lg">
+                                Unverified ID
+                              </span>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider pl-0.5">Link 11-digit National Identity Number</label>
+                              <input
+                                  type="text"
+                                  maxLength={11}
+                                  placeholder="Enter 11-digit NIN to Link"
+                                  value={profileData.nin || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                    setProfileData((prev) => ({ ...prev, nin: val }));
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 py-2.5 px-3 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500/50 dark:focus:border-emerald-500/50 transition-all font-mono"
+                              />
+                            </div>
+                            <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-normal font-medium font-sans">
+                              {user?.role === 'agent'
+                                ? "* Linking your 11-digit NIN verifies your identity as a professional rental agent. Once saved and submitted, it will become permanent and cannot be modified or removed."
+                                : "* Linking your 11-digit NIN verifies your identity in our rental ecosystem. Once saved and submitted, it will become permanent and cannot be modified or removed."}
+                            </p>
+                          </div>
+                        )}
 
                       </div>
                     </div>

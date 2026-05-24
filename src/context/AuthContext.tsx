@@ -13,7 +13,7 @@ interface AuthContextType {
   login: (role: UserRole, userData: Partial<User>) => void;
   logout: () => Promise<void>;
   updateProfile: (updates: any) => Promise<void>;
-  signInWithGoogle: () => Promise<boolean>;
+  signInWithGoogle: (preferredRole?: UserRole) => Promise<boolean>;
   view: ViewState;
   setView: (view: ViewState) => void;
   authMode: AuthMode;
@@ -255,6 +255,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       });
 
+      // Security measure: if user already has a NIN, ignore any updates trying to modify or delete it
+      if (user.nin && cleanUpdates.nin !== undefined && cleanUpdates.nin !== user.nin) {
+        delete cleanUpdates.nin;
+      }
+
       // Special handling for trust level recalculation if core fields change
       if (cleanUpdates.phoneNumber || cleanUpdates.nin || cleanUpdates.avatarUrl) {
          cleanUpdates.verificationLevel = calculateVerificationLevel({ ...user, ...cleanUpdates });
@@ -267,7 +272,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const signInWithGoogle = async (): Promise<boolean> => {
+  const signInWithGoogle = async (preferredRole?: UserRole): Promise<boolean> => {
     setIsLoading(true);
     try {
       const provider = new GoogleAuthProvider();
@@ -279,7 +284,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        // Create new tenant profile from Google data
+        // Create new profile from Google data
         const names = firebaseUser.displayName?.split(' ') || [];
         const firstName = names[0] || '';
         const lastName = names.slice(1).join(' ') || '';
@@ -291,7 +296,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           name: firebaseUser.displayName || '',
           email: firebaseUser.email || '',
           avatarUrl: firebaseUser.photoURL || '',
-          role: 'tenant',
+          role: preferredRole || preselectedRole || 'tenant',
           city: '',
           country: 'Nigeria',
           phoneNumber: firebaseUser.phoneNumber || '',

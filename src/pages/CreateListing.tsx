@@ -343,7 +343,7 @@ export default function CreateListing() {
         </div>
       </header>
 
-      <main className="w-full px-[15px] pt-4 pb-[14px] mb-0 space-y-8 lg:space-y-12">
+      <main className="w-full px-[15px] pt-4 pb-0 mb-0 space-y-8 lg:space-y-12">
         {atLimit && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}

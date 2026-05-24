@@ -778,6 +778,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
 
   const handleApproveAgent = async (id: string, userId: string, isFromUsers?: boolean) => {
     setProcessingId(id);
+    const toastId = toast.loading("Approving agent verification...");
     try {
       await logModeratorAction('approve', 'agent', userId);
       if (!isFromUsers) {
@@ -803,9 +804,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         'verification'
       );
       
+      toast.success("Agent verification approved successfully", { id: toastId });
       setShowSuccessModal({ show: true, type: 'approval' });
     } catch (err) {
       console.error("Error approving agent:", err);
+      toast.error("Error approving agent verification", { id: toastId });
     } finally {
       setProcessingId(null);
     }
@@ -813,6 +816,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
 
   const handleRejectAgent = async (id: string, userId: string, reason: string, isFromUsers?: boolean) => {
     setProcessingId(id);
+    const toastId = toast.loading("Declining agent verification...");
     try {
       await logModeratorAction('reject', 'agent', userId, { reason: reason });
       if (!isFromUsers) {
@@ -841,24 +845,29 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         'verification'
       );
 
+      toast.success("Agent verification declined successfully", { id: toastId });
       setShowSuccessModal({ show: true, type: 'rejection' });
     } catch (err) {
       console.error("Error rejecting agent:", err);
+      toast.error("Error declining agent verification", { id: toastId });
     } finally {
       setProcessingId(null);
     }
   };
 
   const handleResetVerification = async (userId: string) => {
+    const toastId = toast.loading("Resetting agent verification status...");
     try {
       await updateDoc(doc(db, 'users', userId), {
         verificationStatus: 'pending',
         'agent.verificationReason': null,
         updatedAt: serverTimestamp()
       });
+      toast.success("Agent verification status successfully reset", { id: toastId });
       setSelectedAgent(null);
     } catch (err) {
       console.error("Error resetting verification:", err);
+      toast.error("Error resetting verification status", { id: toastId });
     }
   };
 

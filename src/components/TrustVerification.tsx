@@ -15,7 +15,7 @@ const TrustVerification: React.FC<TrustVerificationProps> = ({ onVerifyPhone }) 
   const [isSaving, setIsSaving] = useState(false);
   const [ninError, setNinError] = useState('');
 
-  if (!user || user.role !== 'tenant') return null;
+  if (!user || (user.role !== 'tenant' && user.role !== 'agent')) return null;
 
   const currentLevel = calculateVerificationLevel(user);
   const hasPhone = !!user.phoneNumber && user.phoneVerified;
@@ -142,7 +142,9 @@ const TrustVerification: React.FC<TrustVerificationProps> = ({ onVerifyPhone }) 
                   <div className="space-y-1">
                     <p className="text-[10px] font-black text-blue-700 dark:text-blue-400 uppercase tracking-wider">Why add NIN?</p>
                     <p className="text-[9px] text-blue-600/80 dark:text-blue-400/60 leading-normal font-medium">
-                      Adding your NIN shows agents you're a serious tenant. It increases your trust score and makes your rental applications stand out.
+                      {user.role === 'agent' 
+                        ? 'Linking your NIN establishes professional credentials as a verified agent. It builds instant trust with prospective tenants and boosts your profile ranking.'
+                        : "Adding your NIN shows agents you're a serious tenant. It increases your trust score and makes your rental applications stand out."}
                     </p>
                   </div>
                 </div>

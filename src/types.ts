@@ -111,6 +111,7 @@ export interface Review {
   listingId: string;
   listingTitle: string;
   createdAt: any;
+  tenantAvatarUrl?: string;
 }
 
 export interface Verification {

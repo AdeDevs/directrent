@@ -358,12 +358,10 @@ export const purgeUserData = async (userId: string) => {
         if (!response.ok) {
           const errorData = await response.json();
           console.warn(`Auth deletion for user ${userId} returned ${response.status}: ${errorData.error}`);
-          if (errorData.error === "IDENTITY_TOOLKIT_API_DISABLED") {
-            authWarning = {
-              type: "IDENTITY_TOOLKIT_API_DISABLED",
-              activationUrl: errorData.activationUrl
-            };
-          }
+          authWarning = {
+            type: errorData.error === "IDENTITY_TOOLKIT_API_DISABLED" ? "IDENTITY_TOOLKIT_API_DISABLED" : "AUTH_DELETION_FAILED",
+            activationUrl: errorData.activationUrl || ""
+          };
         } else {
           console.log(`Successfully deleted auth record for user ${userId}`);
         }

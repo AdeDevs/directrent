@@ -249,6 +249,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
     if (!userToDelete) return;
     setIsDeleting(true);
     const targetUserEmail = userToDelete.email || userToDelete.name || "selected user";
+    const toastId = toast.loading("Purging user database documents and assets...");
     try {
       const result = await purgeUserData(userToDelete.id);
       setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
@@ -262,13 +263,14 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
       setUserToDelete(null);
 
       // Check if there was an Auth warning
-      if (result && result.warning && result.warning.type === "IDENTITY_TOOLKIT_API_DISABLED") {
+      if (result && result.warning) {
+        toast.success("Database records successfully purged.", { id: toastId });
         setApiWarning({
           activationUrl: result.warning.activationUrl || "https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=321230967880",
           userEmail: targetUserEmail
         });
       } else {
-        toast.success("User data and authentication account purged successfully.");
+        toast.success("User data and authentication account purged successfully.", { id: toastId });
       }
     } catch (error: any) {
       console.error("Error purging user record:", error);
@@ -287,7 +289,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
         }
       }
       
-      alert(errorMessage);
+      toast.error(errorMessage, { id: toastId });
     } finally {
       setIsDeleting(false);
     }
@@ -997,7 +999,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
       <AnimatePresence>
         {userToDelete && (
           <div 
-            className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 h-screen w-screen"
+            className="fixed inset-0 z-[10000] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 h-screen w-screen"
             onClick={() => setUserToDelete(null)}
           >
             <motion.div 
@@ -1042,7 +1044,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
       <AnimatePresence>
         {suspensionUser && (
           <div 
-            className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 h-screen w-screen"
+            className="fixed inset-0 z-[10000] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 h-screen w-screen"
             onClick={() => setSuspensionUser(null)}
           >
             <motion.div 
@@ -1111,7 +1113,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
       <AnimatePresence>
         {apiWarning && (
           <div 
-            className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 h-screen w-screen"
+            className="fixed inset-0 z-[10000] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 h-screen w-screen"
             onClick={() => setApiWarning(null)}
           >
             <motion.div 

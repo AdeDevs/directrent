@@ -117,7 +117,7 @@ export default function MyListings() {
         </div>
       </header>
 
-      <main className="w-full px-3 py-4 sm:p-6 space-y-6 sm:space-y-10 pb-[14px] mb-0">
+      <main className="w-full px-3 py-4 sm:p-6 space-y-6 sm:space-y-10 pb-0 mb-0">
         {/* Stats Grid */}
         <section className="grid grid-cols-3 gap-2.5 sm:gap-4">
           {stats.map((stat, i) => (

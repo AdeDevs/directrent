@@ -38,13 +38,7 @@ const AppLayout = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors duration-300">
-      <main
-        className={
-          !currentListing && !selectedAgentId
-            ? "w-full max-w-full px-0 pb-[70px] md:pb-40"
-            : "flex-1"
-        }
-      >
+      <main className="w-full max-w-full px-0 pb-24 md:pb-32 flex-1">
         <AnimatePresence mode="wait">
           {selectedAgentId ? (
             <motion.div

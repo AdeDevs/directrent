@@ -7,6 +7,7 @@ import { db } from './lib/firebase';
 import { Listing } from './types';
 import ScrollToTop from './components/ScrollToTop';
 import { ShieldAlert } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 
 // Lazy load components for code splitting
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
@@ -158,6 +159,35 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <ScrollToTop />
+          <Toaster 
+            position="top-right" 
+            containerStyle={{ zIndex: 99999, top: 40, right: 40 }}
+            toastOptions={{
+              duration: 4000,
+              className: 'rounded-none border border-slate-200 dark:border-slate-800 !bg-white dark:!bg-slate-950 !text-slate-900 dark:!text-slate-100 shadow-2xl p-4 text-[11px] font-bold uppercase tracking-widest font-sans',
+              style: {
+                borderRadius: '0px',
+                padding: '14px 18px',
+              },
+              success: {
+                iconTheme: {
+                  primary: '#059669', // Emerald 600
+                  secondary: '#ffffff',
+                },
+                className: 'rounded-none border-l-4 border-l-emerald-600 border border-slate-200 dark:border-slate-800 !bg-white dark:!bg-slate-950 !text-slate-900 dark:!text-slate-50 shadow-2xl font-bold text-[11px] uppercase tracking-widest',
+              },
+              error: {
+                iconTheme: {
+                  primary: '#dc2626', // Red 600
+                  secondary: '#ffffff',
+                },
+                className: 'rounded-none border-l-4 border-l-rose-600 border border-slate-200 dark:border-slate-800 !bg-white dark:!bg-slate-950 !text-slate-900 dark:!text-slate-50 shadow-2xl font-bold text-[11px] uppercase tracking-widest',
+              },
+              loading: {
+                className: 'rounded-none border-l-4 border-l-blue-600 border border-slate-200 dark:border-slate-800 !bg-white dark:!bg-slate-950 !text-slate-900 dark:!text-slate-50 shadow-2xl font-bold text-[11px] uppercase tracking-widest',
+              }
+            }} 
+          />
           <AppContent />
         </AuthProvider>
       </ThemeProvider>
