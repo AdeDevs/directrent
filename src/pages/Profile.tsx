@@ -771,7 +771,7 @@ const Profile = () => {
         )}
 
         {/* User Header Card */}
-        <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-150/80 dark:border-slate-800/80 shadow-sm flex flex-col sm:flex-row items-center gap-5 transition-colors">
+        <section className="bg-white dark:bg-slate-900 p-[15px] rounded-3xl border border-slate-150/80 dark:border-slate-800/80 shadow-sm flex flex-col sm:flex-row items-center gap-5 transition-colors">
           <div 
             onClick={() => setIsEditing(true)}
             className="w-20 h-20 rounded-full bg-slate-50 dark:bg-slate-800 border-2 border-white dark:border-slate-700 shadow-md overflow-hidden flex-shrink-0 cursor-pointer relative group"
