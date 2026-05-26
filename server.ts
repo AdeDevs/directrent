@@ -1,7 +1,6 @@
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createServer as createViteServer } from "vite";
 import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
@@ -69,16 +68,14 @@ try {
   } else {
     // Fallback values for basic operation if file is missing on Vercel
     firebaseConfig = {
-      projectId: "gen-lang-client-0583982573",
-      firestoreDatabaseId: "ai-studio-ffc8f15f-494e-4acb-9dab-489a4a819320"
+      projectId: "maindirectrent"
     };
   }
 } catch (err) {
   console.error("Warning: Failed to load firebase-applet-config.json:", err);
   // Last resort hardcoded fallbacks
   firebaseConfig = firebaseConfig.projectId ? firebaseConfig : {
-    projectId: "gen-lang-client-0583982573",
-    firestoreDatabaseId: "ai-studio-ffc8f15f-494e-4acb-9dab-489a4a819320"
+    projectId: "maindirectrent"
   };
 }
 
@@ -89,7 +86,23 @@ function getAdmin() {
     console.log(`Initializing Admin SDK...`);
     
     try {
-      // 1. Check for explicit service account JSON in environment
+      // 1. First priority: Check for service-account-key.json on disk
+      const localKeyPath = path.join(process.cwd(), "service-account-key.json");
+      if (fs.existsSync(localKeyPath)) {
+        try {
+          const serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, "utf8"));
+          adminApp = admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            projectId: firebaseConfig.projectId || serviceAccount.project_id
+          });
+          console.log("[FirebaseAdmin] Successfully initialized using service-account-key.json on disk.");
+          return adminApp;
+        } catch (localErr) {
+          console.error("[FirebaseAdmin] Failed to parse local service-account-key.json:", localErr);
+        }
+      }
+
+      // 2. Second priority: Check for explicit service account JSON in environment
       if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
         try {
           const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
@@ -97,14 +110,14 @@ function getAdmin() {
             credential: admin.credential.cert(serviceAccount),
             projectId: firebaseConfig.projectId || serviceAccount.project_id
           });
-          console.log("[FirebaseAdmin] Initialized successfuly using FIREBASE_SERVICE_ACCOUNT_JSON");
+          console.log("[FirebaseAdmin] Initialized successfully using FIREBASE_SERVICE_ACCOUNT_JSON");
           return adminApp;
         } catch (parseErr) {
           console.error("[FirebaseAdmin] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", parseErr);
         }
       }
 
-      // 2. Fallback to default credentials or project ID
+      // 3. Fallback to default credentials or project ID
       adminApp = admin.initializeApp({
         projectId: firebaseConfig.projectId
       });
@@ -169,6 +182,19 @@ app.get("/api/health", (req, res) => {
     adminInitialized: !!adminApp,
     adminError: adminError
   });
+});
+
+app.get("/api/fetch-image", async (req, res) => {
+  const url = req.query.url as string;
+  if (!url) return res.status(400).send("Missing url parameter");
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return res.status(500).send("Failed to fetch image");
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.json({ data: buffer.toString('base64') });
+  } catch (err: any) {
+    res.status(500).send(err.message);
+  }
 });
 
   app.get("/api/admin/debug-user/:userId", async (req, res) => {
@@ -249,12 +275,14 @@ app.get("/api/health", (req, res) => {
     
     try {
       const db = getDb();
-      let exists = false;
+      let ninExists = false;
+      let phoneNumberExists = false;
+      let emailExists = false;
       
       if (nin) {
         try {
           const snapshot = await db.collection("users").where("nin", "==", nin).get();
-          if (!snapshot.empty) exists = true;
+          if (!snapshot.empty) ninExists = true;
         } catch (e: any) {
           // If collection doesn't exist (5 NOT_FOUND), it just means no users exist yet
           if (e.code !== 5) {
@@ -263,10 +291,32 @@ app.get("/api/health", (req, res) => {
         }
       }
       
-      if (!exists && phoneNumber) {
+      if (phoneNumber) {
         try {
-          const snapshot = await db.collection("users").where("phoneNumber", "==", phoneNumber).get();
-          if (!snapshot.empty) exists = true;
+          const rawPhone = String(phoneNumber);
+          const digits = rawPhone.replace(/\D/g, '');
+          
+          let standardDigits = digits;
+          if (digits.startsWith('234') && digits.length > 10) {
+            standardDigits = digits.slice(3);
+          } else if (digits.startsWith('0')) {
+            standardDigits = digits.slice(1);
+          }
+          
+          const formatsToCheck = [
+            rawPhone,
+            `+234${standardDigits}`,
+            `+234 ${standardDigits}`
+          ];
+
+          if (standardDigits.length >= 10) {
+            formatsToCheck.push(`+234 ${standardDigits.slice(0, 3)} ${standardDigits.slice(3, 6)} ${standardDigits.slice(6)}`);
+          }
+          
+          const uniqueFormats = Array.from(new Set(formatsToCheck.filter(Boolean)));
+          
+          const snapshot = await db.collection("users").where("phoneNumber", "in", uniqueFormats).get();
+          if (!snapshot.empty) phoneNumberExists = true;
         } catch (e: any) {
           if (e.code !== 5) {
              console.warn("Phone check warning:", e.message);
@@ -274,10 +324,10 @@ app.get("/api/health", (req, res) => {
         }
       }
 
-      if (!exists && email) {
+      if (email) {
         try {
           const snapshot = await db.collection("users").where("email", "==", email).get();
-          if (!snapshot.empty) exists = true;
+          if (!snapshot.empty) emailExists = true;
         } catch (e: any) {
           if (e.code !== 5) {
             console.warn("Email check warning:", e.message);
@@ -285,9 +335,15 @@ app.get("/api/health", (req, res) => {
         }
       }
       
-      // If all checks failed due to errors (e.g. 5 NOT_FOUND), just return exists: false
-      // to avoid breaking the UI for the user.
-      res.json({ exists });
+      const exists = ninExists || phoneNumberExists || emailExists;
+      res.json({ 
+        exists,
+        reasons: {
+          nin: ninExists,
+          phoneNumber: phoneNumberExists,
+          email: emailExists
+        }
+      });
     } catch (err: any) {
       console.error("Error checking user existence:", err);
       res.status(500).json({ error: "Failed to check user existence" });
@@ -366,7 +422,8 @@ app.post("/api/gemini", async (req, res) => {
 // Vite/Static middleware setup
 async function configureApp() {
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
+    const { createServer } = await import("vite");
+    const vite = await createServer({
       server: { middlewareMode: true },
       appType: "spa",
     });

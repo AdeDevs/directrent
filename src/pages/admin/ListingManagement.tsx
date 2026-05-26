@@ -173,22 +173,30 @@ const ListingManagement: React.FC<ListingManagementProps> = React.memo(({
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setShowFilters(!showFilters)}
-            className={`px-4 py-2 border rounded-none text-sm font-semibold transition-all flex items-center gap-2 ${
-              showFilters 
-                ? 'bg-primary-50 border-primary-200 text-primary-600 dark:bg-primary-900/20 dark:border-primary-800' 
-                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Filter className={`w-4 h-4 ${showFilters ? 'text-primary-500' : 'text-slate-400'}`} />
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
-          </button>
-          <button 
-            onClick={onExport}
+            onClick={() => {
+              const headers = ['ID', 'Title', 'Location', 'Price', 'Status', 'Type'];
+              const csvContent = [
+                headers.join(','),
+                ...filteredListings.map(l => [
+                  l.id,
+                  `"${l.title?.replace(/"/g, '""')}"`,
+                  `"${l.location?.replace(/"/g, '""')}"`,
+                  l.priceValue,
+                  l.status || 'active',
+                  l.type
+                ].join(','))
+              ].join('\n');
+              const blob = new Blob([csvContent], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'listings.csv';
+              a.click();
+            }}
             className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-none text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2"
           >
             <Download className="w-4 h-4" />
-            Export
+            Export CSV
           </button>
         </div>
       </div>

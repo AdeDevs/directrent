@@ -22,7 +22,7 @@ import {
 import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 
 const Auth = () => {
-  const { authMode, setAuthMode, preselectedRole, login, setView, signInWithGoogle } = useAuth();
+  const { authMode, setAuthMode, preselectedRole, login, setView, signInWithGoogle, setIsSigningUp } = useAuth();
   const [role, setRole] = useState<UserRole>(preselectedRole);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -83,6 +83,17 @@ const Auth = () => {
     "Lagos", "Abuja", "Ibadan", "Port Harcourt", "Kano", "Ogbomoso", 
     "Enugu", "Ilorin", "Abeokuta", "Kaduna", "Owerri", "Benin City"
   ];
+
+  const cleanPhone = (phone: string) => {
+    let clean = phone.replace(/\D/g, '');
+    if (clean.startsWith('234') && clean.length > 10) {
+      clean = clean.slice(3);
+    }
+    while (clean.startsWith('0')) {
+      clean = clean.slice(1);
+    }
+    return clean;
+  };
 
   const capitalize = (str: string) => {
     return str.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
@@ -260,14 +271,72 @@ const Auth = () => {
   const isSmsOtpReady = smsStep === 'otp' && otpCode.length === 6;
   const isSmsNewPwdReady = smsStep === 'new-password' && newResetPassword.length >= 7;
 
-  const isReady = isResetMode 
-    ? (resetMethod === 'email' 
-       ? (formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) 
-       : (smsStep === 'phone' ? (resetPhone && resetPhone.length >= 10) : (smsStep === 'otp' ? isSmsOtpReady : isSmsNewPwdReady))
-      )
-    : (authMode === 'signup' && signupStep === 2 
-        ? (formData.phoneNumber?.length >= 10 && formData.nin?.length === 11 && formData.city && formData.dob)
-        : isFormValid());
+  let isReady = false;
+
+  if (isResetMode) {
+    if (resetMethod === 'email') {
+      isReady = !!(formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email));
+    } else {
+      if (smsStep === 'phone') {
+        isReady = !!(resetPhone && resetPhone.length >= 10);
+      } else if (smsStep === 'otp') {
+        isReady = isSmsOtpReady;
+      } else if (smsStep === 'new-password') {
+        isReady = isSmsNewPwdReady;
+      }
+    }
+  } else if (authMode === 'login') {
+    isReady = isFormValid(true);
+  } else if (authMode === 'signup') {
+    if (signupStep === 1) {
+      if (role === 'agent') {
+        // Agent Step 1: needs basic fields
+        isReady = isFormValid(true);
+      } else {
+        // Tenant: needs basic fields + phone
+        const basicFieldsValid = !!(
+          formData.firstName && 
+          formData.lastName && 
+          formData.email && 
+          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) &&
+          formData.password && 
+          formData.password.length >= 7 && 
+          /[A-Z]/.test(formData.password) && 
+          /[0-9]/.test(formData.password) && 
+          /[!@#$%^&*(),.?":{}|<>]/.test(formData.password) &&
+          formData.password === formData.confirmPassword
+        );
+        
+        const phoneLengthValid = !!(formData.phoneNumber && formData.phoneNumber.replace(/\D/g, '').length >= 10);
+        
+        if (isPhoneVerifying) {
+          isReady = otpCode.length === 6;
+        } else if (!phoneVerified) {
+          isReady = !!(basicFieldsValid && phoneLengthValid);
+        } else {
+          isReady = !!(basicFieldsValid && phoneLengthValid && phoneVerified);
+        }
+      }
+    } else if (signupStep === 2) {
+      // Agent step 2: needs city, dob, phone, nin
+      const step2FieldsValid = !!(
+        formData.city &&
+        formData.dob &&
+        formData.nin &&
+        /^\d{11}$/.test(formData.nin) &&
+        formData.phoneNumber &&
+        formData.phoneNumber.replace(/\D/g, '').length >= 10
+      );
+      
+      if (isPhoneVerifying) {
+        isReady = otpCode.length === 6;
+      } else if (!phoneVerified) {
+        isReady = step2FieldsValid;
+      } else {
+        isReady = !!(step2FieldsValid && phoneVerified);
+      }
+    }
+  }
 
   const handleGoogleSignIn = async () => {
     try {
@@ -277,8 +346,25 @@ const Auth = () => {
       } else {
         setErrors({ form: 'Google Sign-In failed. Please try another method.' });
       }
-    } catch (error) {
-       setErrors({ form: 'An error occurred during Google Sign-In.' });
+    } catch (error: any) {
+       console.error("Google Sign-In caught error:", error);
+       if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized-domain')) {
+         const currentHost = window.location.hostname;
+         const devHost = 'ais-dev-mpy2isnashhtpq4ffda3vh-321230967880.europe-west2.run.app';
+         const preHost = 'ais-pre-mpy2isnashhtpq4ffda3vh-321230967880.europe-west2.run.app';
+         setErrors({ 
+           form: `Google Login Error: This domain is not authorized in Firebase.
+To authorize it, follow these steps:
+1. Open your Firebase Console for the "maindirectrent" project.
+2. Go to Authentication > Settings > Authorized domains.
+3. Click "Add domain" and enter:
+   • ${currentHost}
+   • ${currentHost !== devHost ? devHost : preHost}
+4. Wait 1-2 minutes for changes to propagate, then reload this page and try signing in again!` 
+         });
+       } else {
+         setErrors({ form: `Google Sign-In failed: ${error.message || 'An error occurred.'}` });
+       }
     }
   };
 
@@ -324,11 +410,28 @@ const Auth = () => {
       setErrors({ phoneNumber: 'Enter a valid phone number' });
       return;
     }
+    
+    // Check for existing identifiers
     setIsLoading(true);
+    const check = await checkUserExists({ email: formData.email, phoneNumber: formData.phoneNumber });
+    if (check.exists) {
+      const newErrors: any = {};
+      if (check.reasons?.email) {
+        newErrors.email = 'This email address is already in use.';
+      }
+      if (check.reasons?.phoneNumber) {
+        newErrors.phoneNumber = 'This phone number is already registered.';
+      }
+      newErrors.form = 'This email or phone number is already registered.';
+      setErrors(newErrors);
+      setIsLoading(false);
+      return;
+    }
+
     setErrors({});
     try {
-      const cleanPhone = formData.phoneNumber.replace(/^0/, '');
-      const formattedPhone = `+234${cleanPhone}`;
+      const cleaned = cleanPhone(formData.phoneNumber);
+      const formattedPhone = `+234${cleaned}`;
 
       // Reset recaptcha if it exists
       if (window.recaptchaVerifier) {
@@ -444,17 +547,23 @@ const Auth = () => {
 
   const checkUserExists = async (fields: Record<string, string>) => {
     const params = new URLSearchParams();
-    if (fields.email) params.append('email', fields.email);
+    if (fields.email) params.append('email', fields.email.trim().toLowerCase());
     if (fields.nin) params.append('nin', fields.nin);
-    if (fields.phoneNumber) params.append('phoneNumber', `+234${fields.phoneNumber.replace(/^0/, '')}`);
+    if (fields.phoneNumber) {
+      const cleaned = cleanPhone(fields.phoneNumber);
+      params.append('phoneNumber', `+234${cleaned}`);
+    }
     
     try {
       const response = await fetch(`/api/users/exists?${params.toString()}`);
       const data = await response.json();
-      return data.exists;
+      return {
+        exists: !!data.exists,
+        reasons: data.reasons || { email: false, phoneNumber: false, nin: false }
+      };
     } catch (error) {
       console.error("Error checking duplicates:", error);
-      return false; // Fail open slightly, or should I fail hard?
+      return { exists: false, reasons: { email: false, phoneNumber: false, nin: false } };
     }
   };
 
@@ -466,34 +575,44 @@ const Auth = () => {
 
     if (authMode === 'signup') {
       if (signupStep === 1) {
-        if (isFormValid()) {
+        if (isFormValid(true)) {
           setIsLoading(true);
-          // Check email
+          // Check email and phone number duplicates
           const existsField: any = { email: formData.email };
-          if (role === 'tenant') {
+          if (formData.phoneNumber) {
              existsField.phoneNumber = formData.phoneNumber;
           }
-          const exists = await checkUserExists(existsField);
+          const check = await checkUserExists(existsField);
           setIsLoading(false);
-          if (exists) {
-            setErrors({ email: 'Identifier already registered', form: 'This email or phone number is already registered' });
+          if (check.exists) {
+            const newErrors: any = {};
+            if (check.reasons?.email) {
+              newErrors.email = 'This email address is already in use.';
+            }
+            if (check.reasons?.phoneNumber) {
+              newErrors.phoneNumber = 'This phone number is already registered.';
+            }
+            newErrors.form = 'This email or phone number is already registered.';
+            setErrors(newErrors);
             return;
           }
           
           if (role === 'tenant') {
-            // For tenant, we are done on Step 1
-            // proceed to Firestore creation logic below
+            // For tenant, we need phone verified on Step 1
+            if (!phoneVerified) {
+              if (!isPhoneVerifying) {
+                return sendSignupOTP();
+              } else {
+                return verifySignupOTP();
+              }
+            }
+            // If phone is verified, we proceed to Firestore creation below
           } else {
             setSignupStep(2);
             return;
           }
         } else {
           validate();
-          // If phone is the only thing missing and we are agent, let them proceed? No, agent needs NIN on step 2.
-          // For tenant, if only phone is missing/not verified, send OTP
-          if (role === 'tenant' && !phoneVerified && formData.phoneNumber && !isPhoneVerifying) {
-             return sendSignupOTP();
-          }
           return;
         }
       }
@@ -507,11 +626,18 @@ const Auth = () => {
         // Before proceeding to OTP/Signup, check for NIN/Phone duplicates
         if (isFormValid(true)) {
            setIsLoading(true);
-           const exists = await checkUserExists({ nin: formData.nin, phoneNumber: formData.phoneNumber });
+           const check = await checkUserExists({ nin: formData.nin, phoneNumber: formData.phoneNumber });
            setIsLoading(false);
-           if (exists) {
-              const errorMsg = 'NIN or Phone number already registered';
-              setErrors({ nin: errorMsg, phoneNumber: errorMsg, form: errorMsg });
+           if (check.exists) {
+              const newErrors: any = {};
+              if (check.reasons?.nin) {
+                newErrors.nin = 'This NIN is already registered with another account.';
+              }
+              if (check.reasons?.phoneNumber) {
+                newErrors.phoneNumber = 'This phone number is already registered.';
+              }
+              newErrors.form = 'NIN or Phone number already registered';
+              setErrors(newErrors);
               return;
            }
         } else {
@@ -563,17 +689,22 @@ const Auth = () => {
         }
         setIsLoading(true);
         try {
-          const cleanPhone = resetPhone.replace(/\D/g, '').replace(/^0/, '');
-          if (!cleanPhone || cleanPhone.length < 10) {
-            setErrors({ phone: 'Please enter a valid 10-digit phone number' });
-            setIsLoading(false);
-            return;
-          }
+          const cleaned = cleanPhone(resetPhone);
+          const formattedPhonePrivate = `+234${cleaned}`;
+          const formattedPhoneSpaced = `+234 ${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6)}`;
+          const formattedPhoneSimpleSpaced = `+234 ${cleaned}`;
+          
+          const formatsToCheck = Array.from(new Set([
+            formattedPhonePrivate,
+            formattedPhoneSpaced,
+            formattedPhoneSimpleSpaced,
+            `+234${resetPhone.replace(/^0/, '')}`
+          ].filter(Boolean)));
 
-          const formattedPhone = `+234${cleanPhone}`;
           const usersRef = collection(db, 'users');
-          const q = query(usersRef, where("phoneNumber", "==", formattedPhone));
+          const q = query(usersRef, where("phoneNumber", "in", formatsToCheck));
           const querySnapshot = await getDocs(q);
+          const formattedPhone = formattedPhonePrivate;
           
           if (querySnapshot.empty) {
             setErrors({ phone: 'No account registered with this phone number' });
@@ -657,6 +788,7 @@ const Auth = () => {
 
     if (validate()) {
       setIsLoading(true);
+      setIsSigningUp(true);
       sessionStorage.setItem('just_logged_in', 'true');
       
       try {
@@ -664,15 +796,20 @@ const Auth = () => {
           // Check for existing identifiers (NIN, Phone)
           setIsLoading(true);
           try {
-            // Re-format phone for check
-            const formattedPhone = `+234${formData.phoneNumber.replace(/^0/, '')}`;
-            
+            const formattedPhone = `+234${cleanPhone(formData.phoneNumber)}`;
             const response = await fetch(`/api/users/exists?nin=${formData.nin}&phoneNumber=${encodeURIComponent(formattedPhone)}`);
             const data = await response.json();
             
             if (data.exists) {
-                const errorMsg = 'NIN or Phone number already registered with another account';
-                setErrors({ nin: errorMsg, phoneNumber: errorMsg, form: errorMsg });
+                const newErrors: any = {};
+                if (data.reasons?.nin) {
+                  newErrors.nin = 'This NIN is already registered with another account.';
+                }
+                if (data.reasons?.phoneNumber) {
+                  newErrors.phoneNumber = 'This phone number is already registered.';
+                }
+                newErrors.form = 'NIN or Phone number already registered with another account.';
+                setErrors(newErrors);
                 setIsLoading(false);
                 return;
             }
@@ -707,19 +844,19 @@ const Auth = () => {
 
           const uid = user.uid;
           
-          const userProfile: any = {
-            id: uid,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            name: `${formData.firstName} ${formData.lastName}`.trim(),
-            email: formData.email,
-            phoneNumber: `+234${formData.phoneNumber.replace(/^0/, '')}`,
-            phoneVerified: phoneVerified,
+          const userProfile = {
+            id: uid || '',
+            firstName: formData.firstName || '',
+            lastName: formData.lastName || '',
+            name: `${formData.firstName || ''} ${formData.lastName || ''}`.trim(),
+            email: formData.email || '',
+            phoneNumber: formData.phoneNumber ? `+234${cleanPhone(formData.phoneNumber)}` : '',
+            phoneVerified: !!phoneVerified,
             verificationLevel: 'none',
-            nin: role === 'agent' ? formData.nin : '',
-            city: formData.city || (role === 'tenant' ? 'Lagos' : ''), // Default city for tenants if not provided
+            nin: (role === 'agent' && formData.nin) ? formData.nin : '',
+            city: formData.city || (role === 'tenant' ? 'Lagos' : ''),
             dob: formData.dob || '',
-            role: role,
+            role: role || 'tenant',
             country: 'Nigeria',
             verificationStatus: 'none',
             listingsCount: 0,

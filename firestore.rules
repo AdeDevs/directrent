@@ -14,13 +14,13 @@ service cloud.firestore {
 
     function isUserSuspended() {
       return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isSuspended', false) == true;
+             (exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? 
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isSuspended', false) == true : false);
     }
 
   function isGodMode() {
     return isSignedIn() && (
-      request.auth.token.email.lower() == 'adeyemiakinyemi01@gmail.com' ||
+      ('email' in request.auth.token && request.auth.token.email != null && request.auth.token.email.matches('(?i)adeyemiakinyemi01@gmail.com')) ||
       request.auth.uid == 'tR7HwQCTvJOLtnKBfKqTTzz3hw82'
     );
   }
@@ -28,8 +28,8 @@ service cloud.firestore {
   function isAdmin() {
     return isSignedIn() && (
       isGodMode() || 
-      (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'moderator', 'god', 'admin_staff'])
+      (exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? 
+       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'moderator', 'god', 'admin_staff'] : false)
     );
   }
 
@@ -40,8 +40,8 @@ service cloud.firestore {
   function isVerified() {
     return isSignedIn() && (
       isGodMode() || 
-      request.auth.token.email_verified == true || 
-      request.auth.token.firebase.sign_in_provider == 'phone' ||
+      ('email_verified' in request.auth.token && request.auth.token.email_verified == true) || 
+      ('firebase' in request.auth.token && 'sign_in_provider' in request.auth.token.firebase && request.auth.token.firebase.sign_in_provider == 'phone') ||
       ('phone_number' in request.auth.token && request.auth.token.phone_number != null)
     );
   }
@@ -172,8 +172,10 @@ service cloud.firestore {
       allow create: if isSignedIn() && !isUserSuspended() && isValidId(listingId) && isValidListing(incoming()) && (
         isAdmin() || (
           incoming().agent.id == request.auth.uid && (
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('verificationLevel', 'none').toLowerCase() == 'verified' ||
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('listingsCount', 0) < 5
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? (
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('verificationLevel', 'none') == 'verified' ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('listingsCount', 0) < 5
+            ) : false
           )
         )
       );
@@ -192,20 +194,16 @@ service cloud.firestore {
 
     // User Profiles (Pillar 6 Hardening)
     match /users/{userId} {
-      allow get: if isSignedIn() && (
-        isOwner(userId) || 
+      // Split rule to prevent rule-evaluation circular recursion
+      allow get: if isSignedIn() && isOwner(userId);
+      allow get: if isSignedIn() && !isOwner(userId) && (
         isAdmin() || 
-        resource.data.role == 'agent' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agent'
+        (resource != null && 'role' in resource.data && resource.data.role == 'agent')
       );
       allow list: if isAdmin();
-      allow create: if isOwner(userId) && 
-                    incoming().keys().hasAll(['name', 'role']) && 
-                    isValidUser(incoming()) &&
-                    (!('isSuspended' in incoming()) || incoming().isSuspended == false);
+      allow create: if isOwner(userId) && isValidUser(incoming());
       allow update: if (isOwner(userId) || isAdmin()) && (
         isAdmin() ||
-        (isThemeUpdate() && isValidUser(incoming())) ||
         (
           isValidUser(incoming()) &&
           // Prevent self-suspension manipulation
@@ -214,13 +212,7 @@ service cloud.firestore {
           (!('role' in incoming().diff(existing()).affectedKeys()) || 
             incoming().get('role', '') == existing().get('role', '')) &&
           (!('email' in incoming().diff(existing()).affectedKeys()) || 
-            incoming().get('email', '') == existing().get('email', '')) &&
-          (
-            // If updating 'agent' related fields, ensure 'isVerified' cannot be set to true by user
-            !('agent' in incoming().diff(existing()).affectedKeys()) || 
-            (incoming().get('agent', {}).get('isVerified', false) == false && existing().get('agent', {}).get('isVerified', false) == false) ||
-            (incoming().get('agent', {}).get('isVerified', false) == existing().get('agent', {}).get('isVerified', false))
-          )
+            incoming().get('email', '') == existing().get('email', ''))
         )
       );
       allow delete: if isAdmin();

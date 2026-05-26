@@ -199,63 +199,15 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   }, [selectedAgent?.id, (selectedAgent as any)?.userId]);
 
   const fetchImageAsBase64 = async (url: string): Promise<string> => {
-    // Try the Image object approach first (often handles CORS better with crossOrigin='anonymous')
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      
-      const timeout = setTimeout(() => {
-        reject(new Error('Image fetch timed out'));
-      }, 15000);
-
-      img.onload = () => {
-        clearTimeout(timeout);
-        try {
-          const canvas = document.createElement("canvas");
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            reject(new Error("Could not get canvas context"));
-            return;
-          }
-          ctx.drawImage(img, 0, 0);
-          const dataURL = canvas.toDataURL("image/jpeg", 0.8);
-          resolve(dataURL.split(",")[1]);
-        } catch (e) {
-          // If canvas tainted (CORS failure), fallback to standard fetch
-          fetchFallback(url).then(resolve).catch(reject);
-        }
-      };
-
-      img.onerror = () => {
-        clearTimeout(timeout);
-        fetchFallback(url).then(resolve).catch(reject);
-      };
-
-      const fetchFallback = async (fallbackUrl: string): Promise<string> => {
-        try {
-          const response = await fetch(fallbackUrl);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const blob = await response.blob();
-          return new Promise((res, rej) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const base64 = reader.result as string;
-              if (base64.includes(',')) res(base64.split(',')[1]);
-              else res(base64);
-            };
-            reader.onerror = rej;
-            reader.readAsDataURL(blob);
-          });
-        } catch (err) {
-          console.error('Final image fetch failure:', err);
-          throw new Error('CORS_ERROR');
-        }
-      };
-
-      img.src = url;
-    });
+    try {
+      const response = await fetch(`/api/fetch-image?url=${encodeURIComponent(url)}`);
+      if (!response.ok) throw new Error("Image proxy fetch failed");
+      const { data } = await response.json();
+      return data;
+    } catch (err) {
+      console.error('Final image fetch failure:', err);
+      throw new Error('CORS_ERROR');
+    }
   };
 
   const generateAIAnalysis = async (agent: Verification) => {

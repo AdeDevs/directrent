@@ -329,7 +329,28 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-none text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2">
+          <button 
+            onClick={() => {
+              const headers = ['ID', 'Name', 'Email', 'Role', 'Status'];
+              const csvContent = [
+                headers.join(','),
+                ...filteredUsers.map(u => [
+                  u.id,
+                  `"${`${u.firstName || ''} ${u.lastName || ''}`.trim().replace(/"/g, '""')}"`,
+                  `"${u.email?.replace(/"/g, '""')}"`,
+                  u.role,
+                  getStatus(u as UserWithVerification).text
+                ].join(','))
+              ].join('\n');
+              const blob = new Blob([csvContent], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'users.csv';
+              a.click();
+            }}
+            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-none text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2"
+          >
             <Download className="w-4 h-4" />
             Export CSV
           </button>

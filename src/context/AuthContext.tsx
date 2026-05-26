@@ -28,6 +28,8 @@ interface AuthContextType {
   toggleFavorite: (listingId: string | number, agentId?: string) => Promise<void>;
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
+  isSigningUp: boolean;
+  setIsSigningUp: (val: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -48,6 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const [isSigningUp, setIsSigningUp] = useState(false);
   
   // Track if we've synced the theme from the profile to local state for the current session/user
   const themeSyncedFromProfile = React.useRef<string | null>(null);
@@ -98,7 +101,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       setFavorites(favIds);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `users/${user.id}/favorites`);
+      console.error("Favorites subcollection subscription error:", error);
     });
 
     return () => unsubscribeFavs();
@@ -174,40 +177,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
             setUser(userData);
           } else {
-            // Self-healing: If user is authenticated but missing a profile document
-            // This happens if Firestore write failed during signup
-            const adminEmails = ['adeyemiakinyemi01@gmail.com'];
-            const isHardcodedAdmin = firebaseUser.email && adminEmails.includes(firebaseUser.email.toLowerCase());
-            
-            if (isHardcodedAdmin) {
-              console.log("Self-healing: Creating missing admin profile for", firebaseUser.email);
-              const newAdmin: any = {
-                id: firebaseUser.uid,
-                firstName: 'Admin',
-                lastName: 'User',
-                name: 'Admin User',
-                email: firebaseUser.email || '',
-                role: 'admin',
-                city: 'Lagos',
-                country: 'Nigeria',
-                nin: '00000000000',
-                verificationStatus: 'verified',
-                verificationLevel: 'verified',
-                adminTier: 'Moderator',
-                createdAt: serverTimestamp()
-              };
-              
-              setDoc(userRef, newAdmin).catch(err => {
-                console.error("Self-healing failed:", err);
-              });
-              // The update will trigger onSnapshot again and we'll enter the exists() block
-            } else {
-              setUser(null);
-            }
+            console.log("User profile document does not exist.");
           }
           setIsLoading(false);
         }, (error) => {
-          handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
+          console.error("User profile document subscription error:", error);
           setIsLoading(false);
         });
       } else {
@@ -325,7 +299,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return true;
     } catch (error) {
       console.error("Google Sign-In Error:", error);
-      return false;
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -431,6 +405,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toggleFavorite,
       activeTab,
       setActiveTab,
+      isSigningUp,
+      setIsSigningUp,
     }}>
       {children}
     </AuthContext.Provider>

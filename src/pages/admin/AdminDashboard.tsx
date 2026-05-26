@@ -631,7 +631,25 @@ const AdminDashboard = () => {
                     >
                       Maintenance
                     </button>
-                    <button className="hidden sm:flex items-center gap-2 px-5 py-2.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                    <button 
+                      onClick={() => {
+                        const headers = ['Label', 'Value'];
+                        const csvContent = [
+                          headers.join(','),
+                          ...statsCards.map(s => [
+                            `"${s.label.replace(/"/g, '""')}"`,
+                            `"${s.value.toString().replace(/"/g, '""')}"`
+                          ].join(','))
+                        ].join('\n');
+                        const blob = new Blob([csvContent], { type: 'text/csv' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'dashboard_stats.csv';
+                        a.click();
+                      }}
+                      className="hidden sm:flex items-center gap-2 px-5 py-2.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                    >
                       <FileText className="w-4 h-4" />
                       Export
                     </button>
