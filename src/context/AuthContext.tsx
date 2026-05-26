@@ -59,19 +59,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Track the last theme we successfully received from Firestore to avoid loop
   const lastFirestoreTheme = React.useRef<string | null>(null);
 
-  // Sync theme to firestore when it changes locally
-  useEffect(() => {
-    // Only sync if we have a user and we've already initialized the local theme from their profile
-    // This prevents overwriting the profile with the default 'light' theme on initial load
-    if (user && themeSyncedFromProfile.current === user.id) {
-      if (user.theme !== theme && theme !== lastFirestoreTheme.current) {
-        updateDoc(doc(db, 'users', user.id), { theme }).catch(err => {
-          handleFirestoreError(err, OperationType.UPDATE, `users/${user.id}`);
-        });
-      }
-    }
-  }, [theme, user?.id]);
-
   const [preselectedRole, setPreselectedRole] = useState<UserRole>('tenant');
   const [currentListing, setCurrentListing] = useState<Listing | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -127,8 +114,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
             
             // Sync theme from user profile (only once per user session to avoid feedback loops)
-            if (userData.theme && themeSyncedFromProfile.current !== firebaseUser.uid && userData.theme !== theme) {
-              setTheme(userData.theme);
+            if (themeSyncedFromProfile.current !== firebaseUser.uid) {
+              if (userData.theme) {
+                if (userData.theme !== theme) {
+                  setTheme(userData.theme);
+                }
+              } else {
+                // Initialize theme in database for users who don't have it set yet
+                updateDoc(doc(db, 'users', firebaseUser.uid), { theme }).catch(() => {});
+              }
             }
             themeSyncedFromProfile.current = firebaseUser.uid;
             lastFirestoreTheme.current = userData.theme || null;
@@ -324,6 +318,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setCurrentListing(null);
       setSelectedAgentId(null);
       
+      // Reset local theme to light on logout so it doesn't leak or bleed to other accounts
+      setTheme('light');
+
       // Scroll to the top of the page
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     } catch (error) {

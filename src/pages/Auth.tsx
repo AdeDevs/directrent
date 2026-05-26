@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Home, X, Users, Handshake, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { UserRole, User } from '../types';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
@@ -23,6 +24,7 @@ import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp
 
 const Auth = () => {
   const { authMode, setAuthMode, preselectedRole, login, setView, signInWithGoogle, setIsSigningUp } = useAuth();
+  const { theme } = useTheme();
   const [role, setRole] = useState<UserRole>(preselectedRole);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -860,7 +862,8 @@ To authorize it, follow these steps:
             country: 'Nigeria',
             verificationStatus: 'none',
             listingsCount: 0,
-            createdAt: serverTimestamp()
+            createdAt: serverTimestamp(),
+            theme: theme || 'light'
           };
           
           // Store profile in Firestore

@@ -971,9 +971,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                         whileTap={{ scale: 0.95 }}
                         type="button"
                         onClick={() => stopRecording(false)}
-                        className="w-11 h-11 flex items-center justify-center bg-blue-500 text-white shadow-lg shadow-blue-500/30 rounded-full"
+                        className="w-10 h-10 flex items-center justify-center bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-all shadow-sm"
                       >
-                        <Send className="w-5 h-5 fill-current" />
+                        <ChevronRight className="w-5 h-5 stroke-[3px]" />
                       </motion.button>
                     )}
                   </AnimatePresence>

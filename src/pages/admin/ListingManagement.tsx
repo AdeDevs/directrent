@@ -453,9 +453,9 @@ const ListingManagement: React.FC<ListingManagementProps> = React.memo(({
                       </button>
                       <button 
                         onClick={() => { onDelete(listing.id.toString()); setActiveDropdown(null); }}
-                        className="w-full px-4 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3"
+                        className="w-full px-4 py-2 text-left text-xs font-bold text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-3"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4 text-red-600" />
                         Delete
                       </button>
                     </div>
@@ -582,9 +582,9 @@ const ListingManagement: React.FC<ListingManagementProps> = React.memo(({
                         <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
                         <button 
                           onClick={() => { onDelete(listing.id.toString()); setActiveDropdown(null); }}
-                          className="w-full px-4 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3 transition-colors"
+                          className="w-full px-4 py-2 text-left text-xs font-bold text-red-650 hover:bg-red-50 dark:hover:bg-red-955/20 flex items-center gap-3 transition-colors"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4 text-red-600" />
                           Delete Listing
                         </button>
                       </div>

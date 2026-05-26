@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Home as HomeIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import BottomNav from "../components/BottomNav";
+import DesktopSidebar from "../components/DesktopSidebar";
 import HomePage from "../pages/Home";
 import ChatPage from "../pages/Chat";
 import ProfilePage from "../pages/Profile";
@@ -37,8 +38,12 @@ const AppLayout = () => {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors duration-300">
-      <main className="w-full max-w-full px-0 pb-24 md:pb-32 flex-1">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row transition-colors duration-300">
+      
+      {/* Persistent left sidebar on desktop view ports */}
+      <DesktopSidebar />
+
+      <main className="w-full max-w-full px-0 pb-24 md:pb-32 lg:pb-12 lg:pl-72 flex-1 relative">
         <AnimatePresence mode="wait">
           {selectedAgentId ? (
             <motion.div
@@ -88,7 +93,8 @@ const AppLayout = () => {
         </AnimatePresence>
       </main>
 
-      <div className="relative z-[100]">
+      {/* Floating BottomNav for mobile & tablet viewers only */}
+      <div className="relative z-[100] lg:hidden">
         <BottomNav
           activeTab={activeTab}
           user={user}

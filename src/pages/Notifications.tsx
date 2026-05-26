@@ -173,7 +173,7 @@ const Notifications = () => {
       
       {/* Visual Editorial Header with sticky blur */}
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-        <div className="w-full max-w-none px-4 h-18 flex items-center justify-between">
+        <div className="w-full max-w-none px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Activity Feed</span>

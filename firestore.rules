@@ -194,12 +194,7 @@ service cloud.firestore {
 
     // User Profiles (Pillar 6 Hardening)
     match /users/{userId} {
-      // Split rule to prevent rule-evaluation circular recursion
-      allow get: if isSignedIn() && isOwner(userId);
-      allow get: if isSignedIn() && !isOwner(userId) && (
-        isAdmin() || 
-        (resource != null && 'role' in resource.data && resource.data.role == 'agent')
-      );
+      allow get: if isSignedIn();
       allow list: if isAdmin();
       allow create: if isOwner(userId) && isValidUser(incoming());
       allow update: if (isOwner(userId) || isAdmin()) && (

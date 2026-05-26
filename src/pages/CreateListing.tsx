@@ -69,6 +69,11 @@ export default function CreateListing() {
   const [formData, setFormData] = useState({
     title: currentListing?.title || '',
     priceValue: currentListing?.priceValue ? currentListing.priceValue.toLocaleString() : '',
+    paymentPeriod: currentListing?.paymentPeriod || 'annually' as 'monthly' | 'quarterly' | 'bi-annually' | 'annually' | 'custom',
+    leaseDuration: currentListing?.leaseDuration || '1 Year',
+    hasSplitPayment: !!currentListing?.initialPaymentValue,
+    initialPaymentValue: currentListing?.initialPaymentValue ? currentListing.initialPaymentValue.toLocaleString() : '',
+    subsequentPaymentValue: currentListing?.subsequentPaymentValue ? currentListing.subsequentPaymentValue.toLocaleString() : '',
     location: currentListing?.location || '',
     latitude: currentListing?.latitude || null,
     longitude: currentListing?.longitude || null,
@@ -260,15 +265,27 @@ export default function CreateListing() {
 
       const rawPrice = formData.priceValue.replace(/\D/g, '');
       const priceNum = parseInt(rawPrice) || 0;
+
+      const rawInitialPrice = formData.initialPaymentValue.replace(/\D/g, '');
+      const initialPriceNum = parseInt(rawInitialPrice) || 0;
+
+      const rawSubsequentPrice = formData.subsequentPaymentValue.replace(/\D/g, '');
+      const subsequentPriceNum = parseInt(rawSubsequentPrice) || 0;
       
-      const listingData = {
+      const listingData: any = {
         title: formData.title,
         price: `₦${priceNum.toLocaleString()}`,
         priceValue: priceNum,
+        paymentPeriod: formData.paymentPeriod,
+        leaseDuration: formData.leaseDuration || '1 Year',
+        initialPayment: (formData.hasSplitPayment && initialPriceNum) ? `₦${initialPriceNum.toLocaleString()}` : null,
+        initialPaymentValue: (formData.hasSplitPayment && initialPriceNum) ? initialPriceNum : null,
+        subsequentPayment: (formData.hasSplitPayment && subsequentPriceNum) ? `₦${subsequentPriceNum.toLocaleString()}` : null,
+        subsequentPaymentValue: (formData.hasSplitPayment && subsequentPriceNum) ? subsequentPriceNum : null,
         location: formData.location,
         latitude: formData.latitude,
         longitude: formData.longitude,
-        placeId: formData.placeId,
+        placeId: formData.placeId || "",
         type: formData.type,
         image: uploadedImageUrls[0] || DEFAULT_IMAGE,
         images: uploadedImageUrls,
@@ -291,14 +308,19 @@ export default function CreateListing() {
         ...(isEditMode ? {} : { createdAt: serverTimestamp() })
       };
 
+      // Ensure absolutely zero undefined keys are in the final payload to guarantee Firestore safety
+      const finalPayload = Object.fromEntries(
+        Object.entries(listingData).filter(([_, val]) => val !== undefined)
+      );
+
       if (isEditMode) {
         const { updateDoc } = await import('firebase/firestore');
-        await updateDoc(doc(db, 'listings', listingId.toString()), listingData);
+        await updateDoc(doc(db, 'listings', listingId.toString()), finalPayload);
       } else {
         const { writeBatch, increment } = await import('firebase/firestore');
         const batch = writeBatch(db);
         
-        batch.set(doc(db, 'listings', listingId.toString()), listingData);
+        batch.set(doc(db, 'listings', listingId.toString()), finalPayload);
         batch.update(doc(db, 'users', user.id), {
           listingsCount: increment(1)
         });
@@ -495,7 +517,7 @@ export default function CreateListing() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Annual Rent (In Naira)</label>
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Rent Amount (In Naira)</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-bold">₦</span>
                     <input 
@@ -509,6 +531,32 @@ export default function CreateListing() {
                       className={`w-full border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium outline-none transition-all dark:text-white ${isEditMode ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-800/50 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500'}`}
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Payment Period</label>
+                  <select 
+                    value={formData.paymentPeriod}
+                    onChange={(e) => handleInputChange('paymentPeriod', e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 px-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                  >
+                    <option value="annually">Annually (Yearly)</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="bi-annually">Semi-Annually (6 Months)</option>
+                    <option value="custom">Custom Term / One-Time</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Lease / Minimum Stay Duration</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. 1 Year, 6 Months, Custom"
+                    value={formData.leaseDuration}
+                    onChange={(e) => handleInputChange('leaseDuration', e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 px-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -528,13 +576,70 @@ export default function CreateListing() {
                   </div>
                 </div>
               </div>
+
+              {/* Split payments / Initial deposit difference */}
+              <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-white/5">
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={formData.hasSplitPayment}
+                    onChange={(e) => setFormData(prev => ({ ...prev, hasSplitPayment: e.target.checked }))}
+                    className="mt-1 rounded border-slate-350 dark:border-slate-750 text-primary-600 focus:ring-primary-500/10 w-4 h-4"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide group-hover:text-primary-600 transition-colors">Setup Initial / Subsequent Payment structure?</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium max-w-xl">Enable this if the direct first-time rent is different from ongoing recurring renewals (e.g. including caution deposits, upfront payments, agent fees, etc.).</span>
+                  </div>
+                </label>
+
+                {formData.hasSplitPayment && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-800/20 border border-dashed border-slate-200 dark:border-slate-800">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Initial/1st Payment Total (₦)</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-bold">₦</span>
+                        <input 
+                          type="text" 
+                          inputMode="numeric"
+                          placeholder="e.g. 500,000"
+                          value={formData.initialPaymentValue}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/\D/g, '');
+                            const formattedValue = rawValue ? parseInt(rawValue).toLocaleString() : '';
+                            setFormData(prev => ({ ...prev, initialPaymentValue: formattedValue }));
+                          }}
+                          className="w-full bg-white dark:bg-slate-850 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Subsequent Rent Amount (₦)</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-bold">₦</span>
+                        <input 
+                          type="text" 
+                          inputMode="numeric"
+                          placeholder="e.g. 350,050"
+                          value={formData.subsequentPaymentValue}
+                          onChange={(e) => {
+                            const rawValue = e.target.value.replace(/\D/g, '');
+                            const formattedValue = rawValue ? parseInt(rawValue).toLocaleString() : '';
+                            setFormData(prev => ({ ...prev, subsequentPaymentValue: formattedValue }));
+                          }}
+                          className="w-full bg-white dark:bg-slate-850 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </section>
 
           {/* Location & Details */}
           <section className="bg-white dark:bg-slate-900 rounded-3xl p-[15px] border border-slate-205 dark:border-slate-800 shadow-sm space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div className="space-y-2">
+              <div className="space-y-2 col-span-1 sm:col-span-2">
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Search Property Address</label>
                 <LocationPicker 
                   initialValue={formData.location}
@@ -542,7 +647,7 @@ export default function CreateListing() {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 col-span-1 sm:col-span-2">
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Nearest Landmark</label>
                 <div className="relative">
                   <Navigation className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />

@@ -98,21 +98,25 @@ export default function MyListings() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-[0] transition-colors">
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 h-14 sm:h-16 flex items-center justify-between">
-        <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight ml-1">My Listings</h1>
-        <div className="flex items-center gap-1">
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center justify-between">
+        <div>
+          <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Agent Panel</span>
+          <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">My Listings</h1>
+        </div>
+        <div className="flex items-center gap-1.5">
           <button 
             onClick={() => setActiveTab('notifications')}
-            className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group"
+            className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group lg:hidden"
           >
             <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 transition-colors" />
             <NotificationBadge />
           </button>
           <button 
             onClick={() => setActiveTab('create')}
-            className="p-1.5 bg-indigo-600 text-white rounded-lg shadow-lg shadow-indigo-500/20 active:scale-95 transition-transform"
+            className="flex items-center gap-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-500/15 active:scale-95 transition-all text-xs font-black uppercase tracking-widest"
           >
-            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Add New</span>
           </button>
         </div>
       </header>

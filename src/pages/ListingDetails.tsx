@@ -1022,6 +1022,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                       setShowDirectionsModal(true);
                       return;
                     }
+                    toast.success("Redirecting to Google Maps! Since this is a custom-typed location, navigation accuracy depends on map recognition.");
                     const destination = encodeURIComponent(`${listing.location}, ${listing.landmark || ''}, Nigeria`);
                     window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
                   }}
@@ -1033,8 +1034,15 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                </div>
              </div>
              <div className="text-left md:text-right mt-1 md:mt-0">
-               <div className="text-xl sm:text-3xl font-black text-primary-600 dark:text-primary-400 tracking-tight">{listing.price}</div>
-               <div className="text-[10px] sm:text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0 md:mt-1 opacity-70">per year</div>
+               <div className="text-xl sm:text-3xl font-black text-primary-600 dark:text-primary-400 tracking-tight">{listing.initialPayment || listing.price}</div>
+               <div className="text-[10px] sm:text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0 md:mt-1 opacity-70">
+                 {listing.initialPayment ? '1st Payment / Deposit' : (
+                   listing.paymentPeriod === 'monthly' ? 'per month' :
+                   listing.paymentPeriod === 'quarterly' ? 'per quarter' :
+                   listing.paymentPeriod === 'bi-annually' ? 'per 6-months' :
+                   listing.paymentPeriod === 'custom' ? 'per lease term' : 'per year'
+                 )}
+               </div>
              </div>
           </div>
 
@@ -1221,6 +1229,61 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Lease & Payment Terms Breakdown */}
+          {(listing.paymentPeriod || listing.initialPayment || listing.leaseDuration) && (
+            <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
+              <h2 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">Lease & Payment Terms</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+                <div className="p-4 bg-white dark:bg-slate-950 border border-slate-150 dark:border-white/5 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">Base Period</span>
+                  <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 mt-2 uppercase">
+                    {listing.paymentPeriod === 'monthly' ? 'Monthly' :
+                     listing.paymentPeriod === 'quarterly' ? 'Quarterly' :
+                     listing.paymentPeriod === 'bi-annually' ? 'Every 6 Months' :
+                     listing.paymentPeriod === 'custom' ? 'Custom Lease' : 'Annually'}
+                  </span>
+                </div>
+                <div className="p-4 bg-white dark:bg-slate-950 border border-slate-150 dark:border-white/5 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">Min Stay Lease</span>
+                  <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 mt-2">
+                    {listing.leaseDuration || '1 Year'}
+                  </span>
+                </div>
+                <div className="p-4 bg-white dark:bg-slate-950 border border-slate-150 dark:border-white/5 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">Structure</span>
+                  <span className="text-xs sm:text-sm font-black text-emerald-650 dark:text-emerald-450 mt-2 uppercase">
+                    {listing.initialPayment ? 'Upfront Deposit' : 'Standard Rate'}
+                  </span>
+                </div>
+              </div>
+
+              {listing.initialPayment && (
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-primary-50/20 dark:bg-primary-950/10 border border-primary-100/30 rounded-2xl p-4 flex justify-between items-center">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Initial 1st Payment</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Rent + Deposit/Fees</span>
+                    </div>
+                    <span className="text-sm sm:text-base font-black text-primary-650 dark:text-primary-400">{listing.initialPayment}</span>
+                  </div>
+                  <div className="bg-slate-100/50 dark:bg-slate-900 border border-slate-200/50 dark:border-white/5 rounded-2xl p-4 flex justify-between items-center">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Subsequent Rent</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Ongoing renewal rate</span>
+                    </div>
+                    <span className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-200">
+                      {listing.subsequentPayment}/
+                      {listing.paymentPeriod === 'monthly' ? 'mo' :
+                       listing.paymentPeriod === 'quarterly' ? 'qt' :
+                       listing.paymentPeriod === 'bi-annually' ? '6mo' :
+                       listing.paymentPeriod === 'custom' ? 'term' : 'yr'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1467,7 +1530,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing, onBack }) => {
               <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight mb-8">
                 Similar properties you might like
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-6 md:gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-4 sm:gap-6 lg:gap-8">
                 {recommended.map(recListing => (
                   <ListingCard 
                     key={recListing.id}

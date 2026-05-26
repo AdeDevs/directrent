@@ -3,6 +3,12 @@ export interface Listing {
   title: string;
   price: string;
   priceValue: number;
+  paymentPeriod?: 'monthly' | 'quarterly' | 'bi-annually' | 'annually' | 'custom';
+  leaseDuration?: string;
+  initialPayment?: string;
+  initialPaymentValue?: number;
+  subsequentPayment?: string;
+  subsequentPaymentValue?: number;
   location: string;
   type: string;
   image: string;

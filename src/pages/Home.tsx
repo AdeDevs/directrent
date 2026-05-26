@@ -490,12 +490,18 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-        <div className="w-full max-w-full px-2 h-14 sm:h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="w-full max-w-full px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2 lg:hidden">
             <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary-600 rounded-lg flex items-center justify-center">
               <HomeIcon className="text-white w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
             <span className="text-sm sm:text-base font-display font-bold text-slate-900 dark:text-white tracking-tight">Direct<span className="text-primary-600">Rent</span></span>
+          </div>
+          <div className="hidden lg:block">
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Find Your Space</span>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+              Explore Houses
+            </h1>
           </div>
           <div className="flex items-center gap-2">
             {!isAgent && (
@@ -509,7 +515,7 @@ const Home = () => {
             )}
             <button 
               onClick={() => setActiveTab('notifications')}
-              className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group"
+              className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group lg:hidden"
             >
               <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 transition-colors" />
               <NotificationBadge />

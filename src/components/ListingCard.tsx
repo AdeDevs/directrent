@@ -62,8 +62,8 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
     
     if (!listing.verified) {
       badges.push(
-        <span key="badge-unverified" className="bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1">
-          <ShieldAlert className="w-3 h-3" />
+        <span key="badge-unverified" className="bg-amber-500 text-slate-950 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-md flex items-center gap-1 border border-amber-650/20">
+          <ShieldAlert className="w-3.5 h-3.5" />
           <span>Unverified</span>
         </span>
       );
@@ -210,36 +210,55 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
           </div>
         )}
 
-        {/* Beautiful bottom details and pricing bar - Stacks beautifully on narrow viewports/cards, expands on wider views */}
-        <div className="mt-auto pt-4 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-transparent">
-          <div className="flex items-center justify-between sm:flex-col sm:items-start w-full sm:w-auto">
-            <div className="flex flex-col">
-              <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Annual Rent</span>
-              <span className="text-slate-900 dark:text-white font-sans font-black text-base sm:text-lg leading-none tracking-tight">
-                {listing.price}
+        {/* Beautiful bottom details and pricing bar - Stacks beautifully on long prices, side-by-side by default */}
+        <div className="mt-auto pt-4 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/60 flex flex-wrap items-center justify-between gap-4 bg-transparent">
+          <div className="flex flex-col min-w-[120px] max-w-full flex-grow basis-[125px] min-w-0">
+            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">
+              {listing.initialPayment ? '1st Pay / Deposit' : (
+                listing.paymentPeriod === 'monthly' ? 'Monthly Rent' :
+                listing.paymentPeriod === 'quarterly' ? 'Quarterly Rent' :
+                listing.paymentPeriod === 'bi-annually' ? 'Semi-Annual Rent' :
+                listing.paymentPeriod === 'custom' ? 'Custom Lease' : 'Annual Rent'
+              )}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-slate-900 dark:text-white font-sans font-black text-base sm:text-lg leading-none tracking-tight break-all">
+                {listing.initialPayment || listing.price}
+                {!listing.initialPayment && (
+                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500 ml-0.5 uppercase">
+                    /{listing.paymentPeriod === 'monthly' ? 'mo' :
+                      listing.paymentPeriod === 'quarterly' ? 'qt' :
+                      listing.paymentPeriod === 'bi-annually' ? '6mo' :
+                      listing.paymentPeriod === 'custom' ? 'term' : 'yr'}
+                  </span>
+                )}
               </span>
+              
+              {(!isAgentView && listing.verified) && (
+                <div className="flex items-center justify-center bg-emerald-50 dark:bg-emerald-950/30 text-emerald-750 dark:text-emerald-400 px-1.5 py-0.5 rounded-md border border-emerald-100/50 dark:border-emerald-900/30 shadow-none gap-0.5 leading-none shrink-0" title="Verified Property">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span className="text-[8px] font-black uppercase tracking-wider">Verified</span>
+                </div>
+              )}
             </div>
-            
-            {(!isAgentView && listing.verified) && (
-              <div className="sm:hidden flex items-center justify-center bg-emerald-50 dark:bg-emerald-950/30 text-emerald-750 dark:text-emerald-400 px-2 py-1 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30 shadow-none gap-1 leading-none" title="Verified Property">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span className="text-[8.5px] font-black uppercase tracking-wider">Verified</span>
-              </div>
+            {listing.initialPayment && (
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-tight mt-1 leading-none">
+                Subseq: <span className="text-slate-700 dark:text-slate-300 font-extrabold">{listing.subsequentPayment}</span>/
+                {listing.paymentPeriod === 'monthly' ? 'mo' :
+                 listing.paymentPeriod === 'quarterly' ? 'qt' :
+                 listing.paymentPeriod === 'bi-annually' ? '6mo' :
+                 listing.paymentPeriod === 'custom' ? 'term' : 'yr'}
+                {listing.leaseDuration && ` | ${listing.leaseDuration}`}
+              </span>
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 w-full sm:w-auto mt-1 sm:mt-0">
-            {(!isAgentView && listing.verified) && (
-              <div className="hidden sm:flex items-center justify-center bg-emerald-50 dark:bg-emerald-955/20 text-emerald-750 dark:text-emerald-400 w-9.5 h-9.5 rounded-xl border border-emerald-100 dark:border-emerald-900/40 shadow-sm" title="Verified Property">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-            )}
-            
+          <div className="flex items-center gap-1.5 min-w-[140px] flex-grow basis-[140px] w-full sm:w-auto">
             {isAgentView ? (
-              <div className="flex gap-1.5 w-full sm:w-auto">
+              <div className="flex gap-1.5 w-full">
                 <button 
                   onClick={(e) => { e.stopPropagation(); onEdit?.(); }}
-                  className="flex-1 sm:flex-none h-9.5 px-4 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-150/85 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 uppercase tracking-widest transition-all shadow-sm active:scale-95"
+                  className="flex-1 h-9.5 px-4 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-150/85 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 uppercase tracking-widest transition-all shadow-sm active:scale-95"
                 >
                   Edit
                 </button>
@@ -248,7 +267,7 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
                     e.stopPropagation(); 
                     setShowDeleteModal(true);
                   }}
-                  className="flex-1 sm:flex-none h-9.5 px-3 rounded-xl text-xs font-bold text-rose-650 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 border border-rose-150 dark:border-rose-900 uppercase tracking-widest transition-all shadow-sm active:scale-95"
+                  className="flex-1 h-9.5 px-3 rounded-xl text-xs font-bold text-rose-650 dark:text-rose-400 bg-rose-50 dark:bg-rose-955/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 border border-rose-150 dark:border-rose-900 uppercase tracking-widest transition-all shadow-sm active:scale-95"
                 >
                   Delete
                 </button>
@@ -256,7 +275,7 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
             ) : (
               <button 
                 onClick={onViewDetails}
-                className="flex-1 sm:flex-none h-10 px-5 rounded-xl text-xs font-black uppercase tracking-widest text-white bg-primary-600 hover:bg-primary-700 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-primary-500/10 active:scale-95 cursor-pointer"
+                className="w-full h-10 px-5 rounded-xl text-xs font-black uppercase tracking-widest text-white bg-primary-600 hover:bg-primary-700 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-primary-500/10 active:scale-95 cursor-pointer"
               >
                 <span>View Details</span>
                 <ArrowUpRight className="w-4 h-4" />

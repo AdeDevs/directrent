@@ -669,9 +669,9 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                           </button>
                           <button 
                             onClick={() => handleDeleteUser(user)}
-                            className="w-full px-4 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3 transition-colors"
+                            className="w-full px-4 py-2 text-left text-xs font-bold text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-3 transition-colors"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 text-red-600" />
                             Purge Records
                           </button>
                         </div>
@@ -996,7 +996,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                       ) : (
                         <button 
                           onClick={() => handleToggleSuspension(selectedUser)}
-                          className="flex-1 px-4 py-4 border border-rose-200 text-rose-600 bg-rose-50 text-[10px] font-bold uppercase tracking-widest hover:bg-rose-100 transition-colors"
+                          className="flex-1 px-4 py-4 border border-red-250 text-red-650 bg-red-50 text-[10px] font-bold uppercase tracking-widest hover:bg-red-100 transition-colors"
                         >
                           Suspend Account
                         </button>
@@ -1004,7 +1004,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                     </div>
                     <button 
                       onClick={() => selectedUser && handleDeleteUser(selectedUser)}
-                      className="w-full px-4 py-4 bg-rose-600 text-white text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-rose-700 transition-colors flex items-center justify-center gap-2"
+                      className="w-full px-4 py-4 bg-red-600 text-white text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
                       Purge Account Record
@@ -1031,7 +1031,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6">
-                <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 rounded-none flex items-center justify-center text-rose-500 mb-4 mx-auto border border-rose-100 dark:border-rose-900">
+                <div className="w-12 h-12 bg-red-50 dark:bg-red-950/20 rounded-none flex items-center justify-center text-red-600 mb-4 mx-auto border border-red-200 dark:border-red-900">
                   <Trash2 className="w-6 h-6" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center uppercase tracking-tight">Purge User Data</h3>
@@ -1051,7 +1051,7 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
                 <button 
                   onClick={confirmDeleteUser}
                   disabled={isDeleting}
-                  className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-none text-xs tracking-wider uppercase transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
+                  className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-none text-xs tracking-wider uppercase transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
                 >
                   {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Purge'}
                 </button>

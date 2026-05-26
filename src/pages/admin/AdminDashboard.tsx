@@ -66,8 +66,17 @@ import DropdownPortal from '../../components/admin/DropdownPortal';
 type AdminTab = 'dashboard' | 'listings' | 'users' | 'approvals' | 'maintenance' | 'profile';
 
 const AdminDashboard = () => {
-  const { logout, user } = useAuth();
+  const { logout, user, updateProfile } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  const handleToggleTheme = () => {
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    toggleTheme();
+    if (user) {
+      updateProfile({ theme: nextTheme }).catch(err => console.error("Admin theme save failed:", err));
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [loading, setLoading] = useState(true);
   
@@ -494,7 +503,7 @@ const AdminDashboard = () => {
           <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
             <button 
               id="theme-toggle-admin"
-              onClick={toggleTheme}
+              onClick={handleToggleTheme}
               className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-none text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95"
               title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
@@ -1440,7 +1449,7 @@ const AdminDashboard = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6">
-                <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 rounded-none flex items-center justify-center text-rose-500 mb-4 mx-auto border border-rose-100 dark:border-rose-900">
+                <div className="w-12 h-12 bg-red-50 dark:bg-red-950/20 rounded-none flex items-center justify-center text-red-600 mb-4 mx-auto border border-red-200 dark:border-red-900">
                   <Trash2 className="w-6 h-6" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center uppercase tracking-tight">Delete Listing</h3>
@@ -1457,7 +1466,7 @@ const AdminDashboard = () => {
                 <button 
                   onClick={confirmDeleteListing}
                   disabled={isDeleting}
-                  className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-none text-xs tracking-wider uppercase transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
+                  className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-none text-xs tracking-wider uppercase transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
                 >
                   {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
                 </button>

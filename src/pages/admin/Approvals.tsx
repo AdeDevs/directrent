@@ -400,6 +400,15 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         }
       } else {
         console.log("DEBUG: No nearby listings to analyze for duplicates.");
+        if (selectedListingIdRef.current === currentId) {
+          setDuplicateReport({
+            score: 0,
+            reasoning: `No other approved listings were found in this neighborhood (**${listing.location || 'N/A'}**) for cross-referencing. This is the first submission within this vicinity, suggesting it is a unique neighbourhood entry.`,
+            matchedListingId: null,
+            matchedListingTitle: null,
+            isFlagged: false
+          });
+        }
       }
     } catch (err) {
       console.error("Listing AI Analysis Error:", err);
@@ -1630,7 +1639,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 <button 
                   onClick={() => handleRejectListing(selectedListingForReview.id as string)}
                   disabled={processingId === selectedListingForReview.id}
-                  className="flex-1 py-4 bg-rose-600 text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-4 bg-red-600 text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-red-700 transition-all flex items-center justify-center gap-2"
                 >
                   {processingId === selectedListingForReview.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                     <>
@@ -2050,7 +2059,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                           setShowRejectionReason(false);
                           setRejectionReason('');
                         }}
-                        className="flex-[2] h-12 bg-rose-600 text-white text-xs font-black uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
+                        className="flex-[2] h-12 bg-red-600 text-white text-xs font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-500/20"
                       >
                         Process Final Rejection
                       </button>
@@ -2060,7 +2069,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                   <div className="flex gap-4">
                     <button 
                       onClick={() => setShowRejectionReason(true)}
-                      className="flex-1 h-12 bg-white dark:bg-slate-800 border-2 border-rose-100 dark:border-rose-900/30 text-rose-600 text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-all flex items-center justify-center gap-2 px-4"
+                      className="flex-1 h-12 bg-white dark:bg-slate-800 border-2 border-red-200 dark:border-red-900/30 text-red-650 text-xs font-black uppercase tracking-widest hover:bg-red-55 dark:hover:bg-red-900/10 transition-all flex items-center justify-center gap-2 px-4"
                     >
                       <X className="w-5 h-5 sm:w-4 sm:h-4" />
                       <span className="hidden sm:inline text-center">Reject Identity</span>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ShieldAlert, Eye, EyeOff, Loader2, AlertCircle, Home, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { auth, db } from '../../lib/firebase';
 import { 
   createUserWithEmailAndPassword, 
@@ -11,6 +12,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const AdminAuth = () => {
   const { authMode, setAuthMode, setView } = useAuth();
+  const { theme } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -149,7 +151,8 @@ const AdminAuth = () => {
           role: 'admin',
           adminTier,
           createdAt: serverTimestamp(),
-          verificationStatus: 'verified' // Admins are auto-verified for prototype
+          verificationStatus: 'verified', // Admins are auto-verified for prototype
+          theme: theme || 'light'
         });
       } else {
         await signInWithEmailAndPassword(auth, email, password);
