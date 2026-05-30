@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, HelpCircle, ChevronDown, Search, ShieldCheck, Heart, UserSearch, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import HeaderPortal from '../components/HeaderPortal';
 
 const FAQ = () => {
   const { setActiveTab } = useAuth();
@@ -57,7 +58,7 @@ const FAQ = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center gap-4">
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center gap-4 lg:hidden">
         <button 
           onClick={() => setActiveTab('profile')}
           className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
@@ -66,6 +67,20 @@ const FAQ = () => {
         </button>
         <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">Help Center</h1>
       </header>
+
+      <HeaderPortal>
+        <div className="hidden lg:flex flex-1 items-center justify-between px-6 h-full">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setActiveTab('profile')}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors border border-slate-200 dark:border-slate-800"
+            >
+              <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+            </button>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight">Help Center</h1>
+          </div>
+        </div>
+      </HeaderPortal>
 
       <main className="w-full px-4 py-8">
         <div className="relative mb-8">

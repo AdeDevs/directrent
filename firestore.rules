@@ -20,7 +20,7 @@ service cloud.firestore {
 
   function isGodMode() {
     return isSignedIn() && (
-      ('email' in request.auth.token && request.auth.token.email != null && request.auth.token.email.matches('(?i)adeyemiakinyemi01@gmail.com')) ||
+      ('email' in request.auth.token && request.auth.token.email != null && request.auth.token.email == 'adeyemiakinyemi01@gmail.com') ||
       request.auth.uid == 'tR7HwQCTvJOLtnKBfKqTTzz3hw82'
     );
   }
@@ -293,7 +293,9 @@ service cloud.firestore {
 
     // Reports
     match /reports/{reportId} {
-      allow create: if isSignedIn() && !isUserSuspended() && incoming().reporterId == request.auth.uid;
+      allow create: if (!isUserSuspended() && (
+        (isSignedIn() && incoming().reporterId == request.auth.uid) || (!isSignedIn() && incoming().reporterId == 'anonymous')
+      ));
       allow get, list, update, delete: if isAdmin();
     }
 

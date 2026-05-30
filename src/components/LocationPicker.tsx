@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
-import { MapPin, AlertCircle } from 'lucide-react';
+import { MapPin, AlertCircle, Sparkles, Check } from 'lucide-react';
 
 interface LocationPickerProps {
   onLocationSelect: (location: {
@@ -15,100 +15,205 @@ interface LocationPickerProps {
 export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect, initialValue }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const placesLib = useMapsLibrary('places');
-  const [loading, setLoading] = useState(!placesLib);
+  const [loading, setLoading] = useState(false);
+  const [inputValue, setInputValue] = useState(initialValue || '');
+  const [predictions, setPredictions] = useState<any[]>([]);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
+  const [selectedPrediction, setSelectedPrediction] = useState<any | null>(null);
 
-  // Keep callback reference updated without triggering effects to avoid focus reset
+  const [manualMode, setManualMode] = useState(() => {
+    const saved = localStorage.getItem('directrent_location_manual_mode');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  // Keep callback reference updated to prevent stale enclosure closures
   const onLocationSelectRef = useRef(onLocationSelect);
   useEffect(() => {
     onLocationSelectRef.current = onLocationSelect;
   }, [onLocationSelect]);
 
   useEffect(() => {
-    if (placesLib) {
-      setLoading(false);
+    if (initialValue !== undefined) {
+      setInputValue(initialValue);
     }
-  }, [placesLib]);
+  }, [initialValue]);
 
+  // Query Places API (traditional) using AutocompleteService with a debounced handle 
   useEffect(() => {
-    if (!placesLib || !containerRef.current) return;
+    if (!placesLib || !inputValue || inputValue.length < 3 || manualMode) {
+      setPredictions([]);
+      return;
+    }
 
-    const currentContainer = containerRef.current;
-    let autocompleteEl = currentContainer.firstElementChild as any;
+    setLoading(true);
+
+    const debounceTimer = setTimeout(() => {
+      try {
+        const mapsNamespace = (window as any).google?.maps;
+        if (!mapsNamespace?.places) {
+          setLoading(false);
+          return;
+        }
+
+        const autocompleteService = new mapsNamespace.places.AutocompleteService();
+        autocompleteService.getPlacePredictions(
+          {
+            input: inputValue,
+            componentRestrictions: { country: 'ng' } // Matches primary deployment context
+          },
+          (results: any[], status: any) => {
+            setLoading(false);
+            const ServiceStatus = mapsNamespace.places.PlacesServiceStatus;
+
+            if (status === ServiceStatus.OK && results) {
+              setPredictions(results);
+              setApiError(null);
+            } else if (status === ServiceStatus.REQUEST_DENIED) {
+              console.warn("GCP Permission Error: Google Maps Autocomplete service request was denied.");
+              setApiError("caller_permissions");
+              setPredictions([]);
+            } else {
+              setPredictions([]);
+            }
+          }
+        );
+      } catch (err) {
+        console.error("Failed to fetch autocomplete predictions:", err);
+        setLoading(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(debounceTimer);
+  }, [inputValue, placesLib, manualMode]);
+
+  const cleanAddressString = (rawAddress: string, fallback: string): string => {
+    if (!rawAddress) return fallback;
     
-    const handleSelect = (event: any) => {
-      const place = event.target.place;
-      if (place) {
-        // Safe access of fields on modernized Places API (New) Place object
-        const address = place.formattedAddress || place.displayName || '';
-        const lat = place.location ? place.location.lat() : 0;
-        const lng = place.location ? place.location.lng() : 0;
-        const placeId = place.id || '';
+    // If the string is purely numeric or only represents a code, fallback to description text
+    const cleanNumOnly = rawAddress.trim().replace(/[\s,\-]+/g, '');
+    if (/^\d+$/.test(cleanNumOnly)) {
+      return fallback;
+    }
 
+    // Strip 5 to 7 digit Nigerian postal/zip codes (e.g. 200262, 2021100)
+    let cleaned = rawAddress;
+    cleaned = cleaned.replace(/\b\d{5,7}\b/g, '');
+    
+    // Scrub empty duplicates/commas/spaces
+    cleaned = cleaned
+      .replace(/,\s*,/g, ',')
+      .replace(/\s*,\s*/g, ', ')
+      .replace(/\s+/g, ' ')
+      .trim();
+      
+    // Strip leading or trailing commas
+    cleaned = cleaned.replace(/^,|,$/g, '').trim();
+
+    return cleaned || fallback;
+  };
+
+  const handlePredictionSelect = (prediction: any) => {
+    const address = prediction.description;
+    setInputValue(address);
+    setSelectedPrediction(prediction);
+    setPredictions([]);
+    setIsFocused(false);
+
+    // Resolve detailed coordinates and full formatted address via PlacesService
+    try {
+      const mapsNamespace = (window as any).google?.maps;
+      if (mapsNamespace?.places) {
+        const dummyNode = document.createElement('div');
+        const placesService = new mapsNamespace.places.PlacesService(dummyNode);
+        
+        setLoading(true);
+        placesService.getDetails(
+          {
+            placeId: prediction.place_id,
+            fields: ['formatted_address', 'geometry', 'name']
+          },
+          (place: any, status: any) => {
+            setLoading(false);
+            const ServiceStatus = mapsNamespace.places.PlacesServiceStatus;
+            
+            if (status === ServiceStatus.OK && place) {
+              const rawAddress = place.formatted_address || place.name || address;
+              const fullAddress = cleanAddressString(rawAddress, address);
+              const lat = place.geometry?.location?.lat() || 0;
+              const lng = place.geometry?.location?.lng() || 0;
+              
+              setInputValue(fullAddress);
+              onLocationSelectRef.current({
+                address: fullAddress,
+                lat,
+                lng,
+                placeId: prediction.place_id
+              });
+            } else {
+              // Fallback to basic prediction details if full resolution fails
+              const cleanedAddress = cleanAddressString(address, address);
+              onLocationSelectRef.current({
+                address: cleanedAddress,
+                lat: 0,
+                lng: 0,
+                placeId: prediction.place_id
+              });
+            }
+          }
+        );
+      } else {
+        const cleanedAddress = cleanAddressString(address, address);
         onLocationSelectRef.current({
-          address,
-          lat,
-          lng,
-          placeId
+          address: cleanedAddress,
+          lat: 0,
+          lng: 0,
+          placeId: prediction.place_id
         });
       }
-    };
-
-    const handleInput = (event: any) => {
-      const value = event.target.value || '';
+    } catch (err) {
+      console.error("Places service details query failed, falling back to basic address:", err);
+      setLoading(false);
+      const cleanedAddress = cleanAddressString(address, address);
       onLocationSelectRef.current({
-        address: value,
+        address: cleanedAddress,
+        lat: 0,
+        lng: 0,
+        placeId: prediction.place_id
+      });
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputValue(val);
+    
+    // In manual or fallback mode, keep propagating selections upwards instantly
+    if (manualMode || !placesLib) {
+      onLocationSelectRef.current({
+        address: val,
         lat: 0,
         lng: 0,
         placeId: ''
       });
-    };
-
-    if (!autocompleteEl) {
-      // Modern PlaceAutocompleteElement instantiated programmatically to avoid JSX component typing issues
-      autocompleteEl = new (placesLib as any).PlaceAutocompleteElement({
-        includedRegionCodes: ['ng'],
-        requestedLanguage: 'en'
-      });
-      
-      autocompleteEl.placeholder = 'Search property address...';
-      
-      if (initialValue) {
-        autocompleteEl.value = initialValue;
-      }
-      
-      currentContainer.appendChild(autocompleteEl);
-      
-      autocompleteEl.addEventListener('gmp-select', handleSelect);
-      autocompleteEl.addEventListener('input', handleInput);
     }
-
-    return () => {
-      if (autocompleteEl) {
-        autocompleteEl.removeEventListener('gmp-select', handleSelect);
-        autocompleteEl.removeEventListener('input', handleInput);
-        currentContainer.innerHTML = '';
-      }
-    };
-  }, [placesLib]);
-
-  useEffect(() => {
-    if (containerRef.current && initialValue !== undefined) {
-      const autocompleteEl = containerRef.current.firstElementChild as any;
-      if (autocompleteEl && autocompleteEl.value !== initialValue) {
-        autocompleteEl.value = initialValue;
-      }
-    }
-  }, [initialValue]);
+  };
 
   return (
-    <div className="relative group space-y-2">
+    <div className="relative group space-y-2 select-none" ref={containerRef}>
       <div className="relative">
-        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-focus-within:text-primary-500 transition-colors z-10" />
+        <MapPin className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors z-10 ${isFocused ? 'text-primary-600' : 'text-slate-400'}`} />
         
-        <div className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-2 pl-12 pr-4 text-sm font-medium focus-within:ring-4 focus-within:ring-primary-500/10 focus-within:border-primary-500 outline-none transition-all dark:text-white flex items-center min-h-[56px]">
-          <div ref={containerRef} className="w-full flex-1" />
-        </div>
-        
+        <input
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setTimeout(() => setIsFocused(false), 200)} // Allow click to execute before closing
+          placeholder={manualMode ? "Type property address manually..." : "Search property address..."}
+          className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-3.5 pl-12 pr-12 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all text-slate-900 dark:text-white placeholder-slate-400"
+        />
+
         {loading && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10">
             <div className="w-4 h-4 border-2 border-primary-500/20 border-t-primary-500 rounded-full animate-spin" />
@@ -116,42 +221,91 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect
         )}
       </div>
 
-      <p className="text-[10px] text-amber-600 dark:text-amber-500 flex items-start gap-1.5 font-semibold bg-amber-500/5 p-3 rounded-2xl border border-slate-200 dark:border-white/10 leading-normal">
-        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-        <span>
-          <strong>Note:</strong> You can type a custom address. Selecting a map suggestion ensures prospective tenants can use high-precision instant navigation.
-        </span>
-      </p>
+      {/* Modern custom suggestions dropdown */}
+      {isFocused && !manualMode && predictions.length > 0 && (
+        <div className="absolute z-50 w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/90 rounded-2xl shadow-xl shadow-slate-200/20 dark:shadow-none overflow-hidden mt-1 max-h-60 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 font-sans">
+          {predictions.map((p) => (
+            <div
+              key={p.place_id}
+              onMouseDown={() => handlePredictionSelect(p)}
+              className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+            >
+              <MapPin className="w-4 h-4 text-slate-400 mt-1 shrink-0" />
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                  {p.structured_formatting?.main_text || p.description}
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  {p.structured_formatting?.secondary_text || ''}
+                </p>
+              </div>
+              {selectedPrediction?.place_id === p.place_id && (
+                <Check className="w-3.5 h-3.5 text-primary-600 shrink-0 mt-1" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Modern web component styles conforming to the beautiful application themes */}
-      <style>{`
-        gmp-place-autocomplete, gmp-basic-place-autocomplete {
-          width: 100%;
-          --gmp-places-autocomplete-background: transparent;
-          --gmp-places-autocomplete-text: inherit;
-          --gmp-places-autocomplete-font-family: inherit;
-          --gmp-places-autocomplete-dropdown-background: white;
-          --gmp-places-autocomplete-item-hover-background: #f8fafc;
-        }
-        .dark gmp-place-autocomplete, .dark gmp-basic-place-autocomplete {
-          --gmp-places-autocomplete-dropdown-background: #0f172a;
-          --gmp-places-autocomplete-item-hover-background: #1e293b;
-        }
-        gmp-place-autocomplete::part(input), gmp-basic-place-autocomplete::part(input) {
-          background-color: transparent !important;
-          border: none !important;
-          outline: none !important;
-          box-shadow: none !important;
-          width: 100% !important;
-          padding: 8px 0 !important;
-          font-family: inherit !important;
-          font-size: 0.875rem !important;
-          color: inherit !important;
-        }
-        .dark gmp-place-autocomplete::part(input), .dark gmp-basic-place-autocomplete::part(input) {
-          color: white !important;
-        }
-      `}</style>
+      {/* Control Switch Mode Button */}
+      <div className="flex items-center justify-between text-xs px-1 pt-0.5">
+        {manualMode ? (
+          <button
+            type="button"
+            onClick={() => {
+              setManualMode(false);
+              localStorage.setItem('directrent_location_manual_mode', 'false');
+            }}
+            className="text-primary-600 dark:text-primary-400 font-black hover:underline cursor-pointer flex items-center gap-1.5 uppercase tracking-wider text-[10px]"
+          >
+            🔍 Enable Map Auto-Suggestions
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setManualMode(true);
+              localStorage.setItem('directrent_location_manual_mode', 'true');
+            }}
+            className="text-amber-600 dark:text-amber-500 font-black hover:underline cursor-pointer flex items-center gap-1.5 uppercase tracking-wider text-[10px]"
+          >
+            ✏️ Switch to Manual Typing
+          </button>
+        )}
+      </div>
+
+      {/* Informative Guidance Info Cards */}
+      {manualMode ? (
+        <div className="text-[10px] text-amber-600 dark:text-amber-500 flex items-start gap-2.5 font-semibold bg-amber-500/5 p-3.5 rounded-2xl border border-amber-250/30 dark:border-amber-950/40 leading-normal">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-500" />
+          <div className="space-y-1">
+            <span className="font-bold">Manual Typing Mode is Active</span>
+            <p className="text-[9px] font-normal text-slate-600 dark:text-slate-400 leading-tight">
+              ⚠️ <strong>Cons:</strong> If you type the address manually, we might not be able to provide potential renters with appropriate "Get Directions" navigation or accurate map routes on your listing page.
+            </p>
+            <p className="text-[9px] font-normal text-slate-600 dark:text-slate-400 leading-tight">
+              💡 <strong>Pros of Auto-Suggestions:</strong> Searching and selecting from the map automatically activates interactive street pins, precise routing directions, and premium neighborhood landmark generation!
+            </p>
+          </div>
+        </div>
+      ) : apiError === "caller_permissions" ? (
+        <div className="text-[10px] text-amber-600 dark:text-amber-500 flex items-start gap-2 font-semibold bg-amber-500/5 p-3.5 rounded-2xl border border-amber-250/30 dark:border-amber-950/40 leading-normal">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-500" />
+          <div className="space-y-1">
+            <span className="font-bold">Auto-Suggestion Service Paused</span>
+            <p className="text-[9px] font-normal text-slate-600 dark:text-slate-400 leading-tight">
+              Our automated address verification system could not be reached. Feel free to use <strong>Manual Typing Mode</strong> instead to type your full property street address text directly. Note that manual addresses might skip some interactive direction features.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="text-[10px] text-indigo-600 dark:text-indigo-400 flex items-start gap-2 font-semibold bg-indigo-500/5 p-3 rounded-2xl border border-slate-205 dark:border-slate-800 leading-normal">
+          <Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-indigo-500" />
+          <span>
+            <strong>Agent Pro-Tip:</strong> Try searching for the property address first! Auto-suggested listings automatically activate interactive maps and precise "Get Directions" navigation templates for premium visibility.
+          </span>
+        </div>
+      )}
     </div>
   );
 };

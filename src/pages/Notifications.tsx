@@ -25,6 +25,7 @@ import {
 import { db } from "../lib/firebase";
 import { useAuth } from "../context/AuthContext";
 import { Notification } from "../types";
+import HeaderPortal from "../components/HeaderPortal";
 
 type FilterType = 'all' | 'unread' | 'alerts';
 
@@ -140,7 +141,10 @@ const Notifications = () => {
 
   const handleNotificationClick = (n: Notification) => {
     markAsRead(n.id);
-    if (n.type === 'message') {
+    if (n.title === 'Listing Suspended' || n.message?.toLowerCase().includes('suspended')) {
+      localStorage.setItem('mylistings_filter', 'suspended');
+      setActiveTab('mylistings');
+    } else if (n.type === 'message') {
       setActiveTab('chat');
     } else if (n.type === 'listing') {
       setActiveTab('home');
@@ -172,36 +176,59 @@ const Notifications = () => {
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 flex flex-col transition-colors duration-300">
       
       {/* Visual Editorial Header with sticky blur */}
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-        <div className="w-full max-w-none px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Activity Feed</span>
-              <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5 flex items-center gap-2">
-                Notifications
-                {unreadCount > 0 && (
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-600"></span>
-                  </span>
-                )}
-              </h1>
-            </div>
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 lg:hidden px-4 h-16 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Activity Feed</span>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5 flex items-center gap-2">
+              Notifications
+              {unreadCount > 0 && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-600"></span>
+                </span>
+              )}
+            </h1>
           </div>
-          
+        </div>
+        
+        {unreadCount > 0 && (
+          <button 
+            onClick={markAllAsRead}
+            className="text-[10px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-400 px-3.5 py-2 hover:bg-primary-50 dark:hover:bg-primary-950/40 rounded-xl transition-all font-mono border border-primary-100/40 dark:border-primary-950"
+          >
+            Clear dots ({unreadCount})
+          </button>
+        )}
+      </header>
+
+      <HeaderPortal>
+        <div className="hidden lg:flex flex-1 items-center justify-between px-6 h-full">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Activity Feed</span>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5 flex items-center gap-2">
+              Notifications
+              {unreadCount > 0 && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-600"></span>
+                </span>
+              )}
+            </h1>
+          </div>
           {unreadCount > 0 && (
             <button 
               onClick={markAllAsRead}
-              className="text-[10px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-400 px-3.5 py-2 hover:bg-primary-50 dark:hover:bg-primary-950/40 rounded-xl transition-all font-mono border border-primary-100/40 dark:border-primary-950"
+              className="text-[10px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-400 px-3.5 py-2 hover:bg-primary-105-0 dark:hover:bg-primary-950/40 border border-primary-200/25 dark:border-slate-800 rounded-xl transition-all font-mono"
             >
               Clear dots ({unreadCount})
             </button>
           )}
         </div>
-      </header>
+      </HeaderPortal>
 
       {/* Interactive Tabs for filter queries */}
-      <div className="w-full bg-white/45 dark:bg-slate-900/30 border-b border-slate-200 dark:border-slate-800/60 sticky top-18 z-30 backdrop-blur-sm">
+      <div className="w-full bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 sticky top-16 z-30 backdrop-blur-md">
         <div className="max-w-none px-4 py-2 flex items-center gap-1">
           {(['all', 'unread', 'alerts'] as FilterType[]).map((filter) => (
             <button
@@ -220,7 +247,7 @@ const Notifications = () => {
       </div>
 
       {/* Main notification lists feed */}
-      <main className="w-full max-w-none px-4 py-6 flex-1 flex flex-col">
+      <main className="w-full max-w-none px-4 pt-[15px] pb-0 flex-1 flex flex-col">
         <div className="space-y-3 flex-1">
           <AnimatePresence mode="popLayout">
             {filteredNotifications.length === 0 ? (
@@ -252,7 +279,7 @@ const Notifications = () => {
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.35, delay: Math.min(idx * 0.04, 0.4) }}
                     onClick={() => handleNotificationClick(n)}
-                    className={`relative group bg-white dark:bg-slate-900 rounded-2.5xl border ${
+                    className={`relative group bg-white dark:bg-slate-900 rounded-2xl border ${
                       n.read 
                         ? 'border-slate-200 dark:border-slate-800' 
                         : 'border-primary-300 dark:border-primary-900/40 bg-primary-50/[0.04] dark:bg-primary-950/5 shadow-premium shadow-primary-500/5'

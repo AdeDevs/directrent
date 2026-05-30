@@ -61,9 +61,10 @@ import UserManagement from './UserManagement';
 import Approvals from './Approvals';
 import AdminProfile from './AdminProfile';
 import Maintenance from './Maintenance';
+import Reports from './Reports';
 import DropdownPortal from '../../components/admin/DropdownPortal';
 
-type AdminTab = 'dashboard' | 'listings' | 'users' | 'approvals' | 'maintenance' | 'profile';
+type AdminTab = 'dashboard' | 'listings' | 'users' | 'approvals' | 'reports' | 'maintenance' | 'profile';
 
 const AdminDashboard = () => {
   const { logout, user, updateProfile } = useAuth();
@@ -92,7 +93,22 @@ const AdminDashboard = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [listingToDelete, setListingToDelete] = useState<string | null>(null);
-  
+  const [preSelectedListingId, setPreSelectedListingId] = useState<string | null>(null);
+  const [preSelectedUserId, setPreSelectedUserId] = useState<string | null>(null);
+  const [preSelectedReportId, setPreSelectedReportId] = useState<string | null>(null);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [clearedNotifications, setClearedNotifications] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('cleared_notifications');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [activities, setActivities] = useState<any[]>([]);
+  const [conversationCount, setConversationCount] = useState(0);
+
   const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState(() => {
     return localStorage.getItem('admin_sidebar_collapsed') === 'true';
   });
@@ -106,8 +122,62 @@ const AdminDashboard = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [verifications, setVerifications] = useState<any[]>([]);
   const [listings, setListings] = useState<any[]>([]);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [conversationCount, setConversationCount] = useState(0);
+  const [reports, setReports] = useState<any[]>([]);
+
+  const notificationsList = React.useMemo(() => {
+    const list: { id: string; type: 'report' | 'listing' | 'agent'; title: string; subtitle: string; time: string; raw: any }[] = [];
+    
+    // Add pending reports
+    reports.filter(r => r.status === 'pending').forEach(r => {
+      list.push({
+        id: `report-${r.id}`,
+        type: 'report',
+        title: `Safety Report: ${r.reason || 'General Allegation'}`,
+        subtitle: `Reported by User ${r.reporterId?.slice(0, 5) || 'Unknown'}`,
+        time: r.createdAt?.seconds ? new Date(r.createdAt.seconds * 1000).toLocaleDateString() : 'Pending review',
+        raw: r
+      });
+    });
+
+    // Add unapproved listings
+    listings.filter(l => l.isApproved === false).forEach(l => {
+      list.push({
+        id: `listing-${l.id}`,
+        type: 'listing',
+        title: `Unapproved Listing: ${l.title || 'Untitled'}`,
+        subtitle: `Owner: ${l.agent?.name || 'Broker'} - ₦${l.priceValue?.toLocaleString() || '0'}`,
+        time: 'Pending review',
+        raw: l
+      });
+    });
+
+    // Add pending agent verifications
+    const agentsFromColl = verifications.filter(v => v.status?.toLowerCase() === 'pending');
+    const agentsFromUsers = users.filter(u => u.role === 'agent' && u.verificationStatus === 'pending');
+    const uniqueApprovals = [...agentsFromColl];
+    agentsFromUsers.forEach(userAgent => {
+      if (!uniqueApprovals.some(a => a.userId === userAgent.id)) {
+        uniqueApprovals.push(userAgent);
+      }
+    });
+
+    uniqueApprovals.forEach(ag => {
+      list.push({
+        id: `agent-${ag.id || ag.userId}`,
+        type: 'agent',
+        title: `Agent License Pending`,
+        subtitle: `${ag.name || `${ag.firstName || ''} ${ag.lastName || ''}`.trim() || 'Awaiting documents'}`,
+        time: 'Awaiting review',
+        raw: ag
+      });
+    });
+
+    return list;
+  }, [reports, listings, verifications, users]);
+
+  const displayedNotifications = React.useMemo(() => {
+    return notificationsList.filter(n => !clearedNotifications.includes(n.id));
+  }, [notificationsList, clearedNotifications]);
 
   // Analytics Data - Generated based on actual listings creation frequency
   const chartData = React.useMemo(() => {
@@ -208,7 +278,8 @@ const AdminDashboard = () => {
     });
 
     const pendingListings = listings.filter(l => l.isApproved === false);
-    const pendingCount = uniqueAgentApprovals.length + pendingListings.length;
+    const pendingReports = reports.filter(r => r.status === 'pending');
+    const pendingCount = uniqueAgentApprovals.length + pendingListings.length + pendingReports.length;
     const highLoad = pendingCount > 10;
 
     return [
@@ -249,10 +320,11 @@ const AdminDashboard = () => {
         bg: highLoad ? 'bg-rose-50 dark:bg-rose-900/20' : 'bg-slate-50 dark:bg-slate-900/20'
       },
     ];
-  }, [listings, users, verifications]);
+  }, [listings, users, verifications, reports]);
 
   useEffect(() => {
     let unsubscribeListings: (() => void) | null = null;
+    let unsubscribeReports: (() => void) | null = null;
 
     const fetchData = async () => {
       // Only fetch data if we have an authenticated user in the Firebase SDK
@@ -260,6 +332,9 @@ const AdminDashboard = () => {
         setLoading(false);
         return;
       }
+
+      let reportsResolved = false;
+      let listingsResolved = false;
 
       setLoading(true);
       try {
@@ -287,9 +362,20 @@ const AdminDashboard = () => {
         const { onSnapshot } = await import('firebase/firestore');
         const listingsQuery = query(collection(db, 'listings'), orderBy('createdAt', 'desc'), limit(200));
         
+        unsubscribeReports = onSnapshot(collection(db, 'reports'), (snapshot) => {
+          setReports(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          reportsResolved = true;
+          if (listingsResolved) setLoading(false);
+        }, (error) => {
+          console.error("Reports snapshot error:", error);
+          reportsResolved = true;
+        });
+
         unsubscribeListings = onSnapshot(listingsQuery, (snapshot) => {
           const listingsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
           setListings(listingsData);
+          listingsResolved = true;
+          if (reportsResolved ) setLoading(false);
 
           // Update selected listing if it's currently open to reflect view/save changes
           setSelectedListing(prev => {
@@ -328,7 +414,10 @@ const AdminDashboard = () => {
           handleFirestoreError(error, OperationType.LIST, 'listings');
         });
 
-        return () => unsubscribeListings();
+        return () => {
+          if (unsubscribeListings) unsubscribeListings();
+          if (unsubscribeReports) unsubscribeReports();
+        };
 
       } catch (err) {
         console.error("Error fetching admin data:", err);
@@ -423,11 +512,38 @@ const AdminDashboard = () => {
     setActiveDropdown(null);
   };
 
+  useEffect(() => {
+    if (preSelectedListingId && listings.length > 0) {
+      const found = listings.find(l => String(l.id) === String(preSelectedListingId));
+      if (found) {
+        openReview(found);
+        setPreSelectedListingId(null);
+      }
+    }
+  }, [preSelectedListingId, listings]);
+
+  const pendingVerificationsCount = React.useMemo(() => {
+    const agentsFromColl = verifications.filter(v => v.status?.toLowerCase() === 'pending');
+    const agentsFromUsers = users.filter(u => u.role === 'agent' && u.verificationStatus === 'pending');
+    const unique = [...agentsFromColl];
+    agentsFromUsers.forEach(userAgent => {
+      if (!unique.some(a => a.userId === userAgent.id)) {
+        unique.push(userAgent);
+      }
+    });
+    return unique.length + listings.filter(l => l.isApproved === false).length;
+  }, [verifications, users, listings]);
+
+  const pendingReportsCount = React.useMemo(() => {
+    return reports.filter(r => r.status === 'pending').length;
+  }, [reports]);
+
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'listings', label: 'Listings', icon: FileText },
     { id: 'users', label: 'Users', icon: Users },
-    { id: 'approvals', label: 'Approvals', icon: ShieldCheck },
+    { id: 'approvals', label: 'Approvals', icon: ShieldCheck, badge: pendingVerificationsCount > 0 ? pendingVerificationsCount : undefined },
+    { id: 'reports', label: 'Safety Reports', icon: AlertCircle, badge: pendingReportsCount > 0 ? pendingReportsCount : undefined },
     { id: 'profile', label: 'Admin Profile', icon: User },
     { id: 'maintenance', label: 'Maintenance', icon: Settings },
   ];
@@ -509,9 +625,114 @@ const AdminDashboard = () => {
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 md:w-5 md:h-5 text-amber-500" /> : <Moon className="w-4 h-4 md:w-5 md:h-5" />}
             </button>
-            <button className="p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-              <Bell className="w-4 h-4 md:w-5 md:h-5" />
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                className="p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
+              >
+                <Bell className="w-4 h-4 md:w-5 md:h-5" />
+                {displayedNotifications.length > 0 && (
+                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-blue-600 rounded-full border border-white dark:border-slate-900 flex items-center justify-center text-[8px] font-black text-white" />
+                )}
+              </button>
+
+              <AnimatePresence>
+                {isNotificationOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40 bg-transparent"
+                      onClick={() => setIsNotificationOpen(false)}
+                    />
+
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 mt-2 w-80 md:w-96 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 text-left rounded-none overflow-hidden"
+                    >
+                      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Dossier Alerts</span>
+                        <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 uppercase tracking-wider font-mono">
+                          {displayedNotifications.length} unresolved
+                        </span>
+                        {displayedNotifications.length > 0 && (
+                          <button
+                            onClick={() => {
+                              const newCleared = displayedNotifications.map(n => n.id);
+                              const updated = [...clearedNotifications, ...newCleared];
+                              setClearedNotifications(updated);
+                              localStorage.setItem('cleared_notifications', JSON.stringify(updated));
+                            }}
+                            className="text-[9px] font-bold text-slate-400 hover:text-slate-900 dark:hover:text-white uppercase tracking-wider cursor-pointer"
+                          >
+                            Clear All
+                          </button>
+                        )}
+                        </div>
+                      </div>
+
+                      <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                        {displayedNotifications.length === 0 ? (
+                          <div className="p-6 text-center text-xs text-slate-400 dark:text-slate-500 py-10">
+                            All queues fully cleared. Outstanding alerts: 0.
+                          </div>
+                        ) : (
+                          displayedNotifications.map((notif) => (
+                            <button
+                              key={notif.id}
+                              onClick={() => {
+                                if (notif.type === 'report') {
+                                  setPreSelectedReportId(notif.raw.id);
+                                  setActiveTab('reports');
+                                } else if (notif.type === 'listing') {
+                                  openReview(notif.raw);
+                                  setActiveTab('listings');
+                                } else if (notif.type === 'agent') {
+                                  setPreSelectedUserId(notif.raw.userId || notif.raw.id);
+                                  setActiveTab('users');
+                                }
+                                setIsNotificationOpen(false);
+                              }}
+                              className="w-full p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex gap-3 group"
+                            >
+                              <div className="shrink-0 pt-0.5">
+                                {notif.type === 'report' ? (
+                                  <div className="w-7 h-7 bg-rose-50 dark:bg-rose-950/30 text-rose-605 flex items-center justify-center">
+                                    <AlertCircle className="w-4 h-4" />
+                                  </div>
+                                ) : notif.type === 'listing' ? (
+                                  <div className="w-7 h-7 bg-amber-50 dark:bg-amber-950/30 text-amber-600 flex items-center justify-center">
+                                    <FileText className="w-4 h-4" />
+                                  </div>
+                                ) : (
+                                  <div className="w-7 h-7 bg-blue-50 dark:bg-blue-950/30 text-blue-600 flex items-center justify-center">
+                                    <ShieldCheck className="w-4 h-4" />
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors truncate uppercase tracking-tight">
+                                  {notif.title}
+                                </p>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                                  {notif.subtitle}
+                                </p>
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block mt-1.5 font-mono">
+                                  {notif.time}
+                                </span>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </header>
@@ -536,7 +757,7 @@ const AdminDashboard = () => {
           </button>
         </div>
 
-        <nav className="flex-1 pt-[15px] px-[10px] space-y-1 overflow-y-auto min-h-0 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700">
+        <nav className="flex-1 pt-[15px] px-[10px] space-y-1 min-h-0 overflow-y-auto scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:display-none">
           {sidebarItems.map((item) => (
             <button
                id={`sidebar-nav-${item.id}`}
@@ -545,6 +766,7 @@ const AdminDashboard = () => {
                 setActiveTab(item.id as AdminTab);
                 setIsMobileMenuOpen(false);
               }}
+              title={item.label}
               className={`w-full flex items-center relative rounded-none text-sm font-semibold transition-all group ${
                 isSidebarCollapsed ? 'md:justify-center md:py-4 md:px-0 gap-3 px-3 py-3' : 'gap-3 px-3 py-3'
               } ${
@@ -557,7 +779,13 @@ const AdminDashboard = () => {
                 activeTab === item.id ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-600 group-hover:text-slate-900 dark:group-hover:text-white'
               }`} />
               
-              <span className={`flex-1 text-left truncate ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.label}</span>
+              <span className={`flex-1 text-left truncate ${isSidebarCollapsed ? 'md:hidden' : 'pr-6'}`}>{item.label}</span>
+              
+              {item.badge && (
+                <div className={`absolute ${isSidebarCollapsed ? 'hidden md:flex top-1.5 right-1.5' : 'right-4 top-1/2 -translate-y-1/2'} flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-blue-600 dark:bg-blue-500 text-white text-[10px] font-bold rounded-full select-none border border-white dark:border-slate-900 z-10 leading-none text-center`}>
+                  <span className="flex items-center justify-center text-center leading-none w-full h-full">{item.badge}</span>
+                </div>
+              )}
               
               {activeTab === item.id && (
                 <div className="absolute right-0 top-0 bottom-0 w-[3px] bg-[#1A1A1A] dark:bg-white" />
@@ -571,6 +799,7 @@ const AdminDashboard = () => {
             <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'md:justify-center' : ''}`}>
               <button 
                 onClick={() => setActiveTab('profile')}
+                title="Admin Profile"
                 className={`w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0 border-2 transition-all ${activeTab === 'profile' ? 'border-primary-500' : 'border-transparent'} ${isSidebarCollapsed ? 'md:hidden' : ''}`}
               >
                 <img src={user?.avatarUrl || (user as any)?.photoURL || `https://ui-avatars.com/api/?name=${user?.firstName || user?.email}&background=000&color=fff`} alt="" />
@@ -581,7 +810,7 @@ const AdminDashboard = () => {
                 </p>
                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{user?.adminTier || 'Moderator'}</p>
               </div>
-              <button onClick={() => setShowLogoutConfirm(true)} className={`text-rose-500 hover:text-rose-700 transition-colors ${isSidebarCollapsed ? 'md:w-full md:py-2 md:flex md:justify-center' : ''}`}>
+              <button onClick={() => setShowLogoutConfirm(true)} title="Logout" className={`text-rose-500 hover:text-rose-700 transition-colors ${isSidebarCollapsed ? 'md:w-full md:py-2 md:flex md:justify-center' : ''}`}>
                 <LogOut className="w-4 h-4 md:w-5 md:h-5" />
               </button>
             </div>
@@ -1093,11 +1322,28 @@ const AdminDashboard = () => {
             )}
 
             {activeTab === 'users' && (
-              <UserManagement />
+              <UserManagement 
+                preSelectedUserId={preSelectedUserId}
+                clearPreSelectedUserId={() => setPreSelectedUserId(null)}
+              />
             )}
 
             {activeTab === 'approvals' && (
               <Approvals />
+            )}
+            {activeTab === 'reports' && (
+              <Reports 
+                preSelectedReportId={preSelectedReportId}
+                clearPreSelectedReportId={() => setPreSelectedReportId(null)}
+                onNavigateToListing={(id) => {
+                  setPreSelectedListingId(id);
+                  setActiveTab('listings');
+                }}
+                onNavigateToAgent={(id) => {
+                  setPreSelectedUserId(id);
+                  setActiveTab('users');
+                }}
+              />
             )}
             {activeTab === 'profile' && (
               <AdminProfile />

@@ -11,6 +11,7 @@ import { purgeListingData } from '../utils/adminCleanup';
 import { Listing, Notification } from '../types';
 import NotificationBadge from '../components/NotificationBadge';
 import { GoogleMapsGuard } from '../components/GoogleMapsGuard';
+import { HeaderPortal } from '../components/HeaderPortal';
 
 // Ultra-minimal high-end light styling - hides schools, shops, transit clutter
 const LIGHT_MAP_STYLE = [
@@ -245,73 +246,34 @@ const MapControlsOverlay: React.FC = () => {
   };
 
   return (
-    <div className="absolute bottom-28 lg:bottom-6 right-4 lg:right-6 flex flex-col gap-3 z-30 pointer-events-auto items-end">
-      {/* Dynamic Map Mode Tabs Selector */}
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex gap-1 transition-all duration-300">
-        {[
-          { id: 'roadmap', label: 'Minimal', icon: <Map className="w-3.5 h-3.5" /> },
-          { id: 'satellite', label: 'Satellite', icon: <Globe className="w-3.5 h-3.5" /> },
-          { id: 'hybrid', label: '3D Hybrid', icon: <Layers className="w-3.5 h-3.5" /> },
-        ].map((type) => (
-          <button
-            key={type.id}
-            onClick={() => handleMapTypeChange(type.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${mapType === type.id ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20 scale-[1.03]' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-            title={`Switch to ${type.label}`}
-          >
-            {type.icon}
-            <span className="hidden sm:inline">{type.label}</span>
-          </button>
-        ))}
+    <>
+      {/* 1. minimal, satellite, 3d hybrid map toggle centered at the bottom */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex gap-1 transition-all duration-300">
+          {[
+            { id: 'roadmap', label: 'Minimal', icon: <Map className="w-3.5 h-3.5" /> },
+            { id: 'satellite', label: 'Satellite', icon: <Globe className="w-3.5 h-3.5" /> },
+            { id: 'hybrid', label: '3D Hybrid', icon: <Layers className="w-3.5 h-3.5" /> },
+          ].map((type) => (
+            <button
+              key={type.id}
+              onClick={() => handleMapTypeChange(type.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${mapType === type.id ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20 scale-[1.03]' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+              title={`Switch to ${type.label}`}
+            >
+              {type.icon}
+              <span className="hidden sm:inline">{type.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="flex gap-3 items-start">
-        {/* 2D/3D Control Card */}
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-2 rounded-2xl shadow-xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex flex-col gap-1 items-center transition-all duration-300">
-          {/* Tilt Toggle */}
-          <button 
-            onClick={toggleTilt}
-            className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all ${currentTilt > 10 ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-            title="Tilt map to 3D perspective pitch"
-          >
-            <span className="text-[10px] font-black leading-none">3D</span>
-            <span className="text-[7px] opacity-70 mt-0.5">{currentTilt > 10 ? 'ACTIVE' : 'OFF'}</span>
-          </button>
-
-          <div className="w-6 h-px bg-slate-200 dark:bg-slate-800 my-1" />
-
-          {/* Rotate Left Button */}
-          <button 
-            onClick={() => handleRotate(-45)}
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Rotate left 45°"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-
-          {/* Compass Rotate Button */}
-          <button 
-            onClick={resetNorth}
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 relative transition-colors"
-            title="Reset north alignment"
-          >
-            <Compass 
-              className="w-5 h-5 text-primary-600 transition-transform duration-300" 
-              style={{ transform: `rotate(${-currentHeading}deg)` }}
-            />
-            {currentHeading !== 0 && (
-              <span className="absolute bottom-1 right-1 text-[8px] scale-[0.8] font-black font-mono text-primary-500">
-                {Math.round(currentHeading)}°
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Custom zoom controls card */}
+      {/* 2. zoom buttons vertically centered on the left of the map */}
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 z-30 pointer-events-auto">
         <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex flex-col gap-1 items-center transition-all duration-300">
           <button 
             onClick={() => handleZoom(1)}
-            className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             title="Zoom In"
           >
             ＋
@@ -319,14 +281,14 @@ const MapControlsOverlay: React.FC = () => {
           <div className="w-5 h-px bg-slate-200 dark:bg-slate-800" />
           <button 
             onClick={() => handleZoom(-1)}
-            className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             title="Zoom Out"
           >
             －
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -358,6 +320,8 @@ const Home = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [maxBudget, setMaxBudget] = useState(1000000000); // Set to max initially
+  const [isPriceEditable, setIsPriceEditable] = useState(false);
+  const [priceInputVal, setPriceInputVal] = useState("1000000000");
   const [showFilters, setShowFilters] = useState(false);
   const [dbListings, setDbListings] = useState<Listing[]>([]);
   const [isMapView, setIsMapView] = useState(false);
@@ -419,7 +383,7 @@ const Home = () => {
 
   const filteredListings = useMemo(() => {
     // ONLY use DB listings
-    let baseListings = [...dbListings];
+    let baseListings = [...dbListings].filter(l => l.status !== 'suspended');
     
     // Filter based on user role and approval status
     if (isAgent && user) {
@@ -437,9 +401,14 @@ const Home = () => {
     }
 
     return baseListings.filter(listing => {
-      const matchesSearch = listing.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                             listing.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                             (listing.amenities || []).some(a => a.toLowerCase().includes(searchQuery.toLowerCase()));
+      const queryStr = searchQuery.toLowerCase().trim();
+      const matchesSearch = listing.title.toLowerCase().includes(queryStr) || 
+                            listing.location.toLowerCase().includes(queryStr) ||
+                            (listing.price && listing.price.toLowerCase().includes(queryStr)) ||
+                            (listing.area && listing.area.toLowerCase().includes(queryStr)) ||
+                            (listing.landmark && listing.landmark.toLowerCase().includes(queryStr)) ||
+                            (listing.agent?.name && listing.agent.name.toLowerCase().includes(queryStr)) ||
+                            (listing.amenities || []).some(a => a.toLowerCase().includes(queryStr));
       const matchesFilter = activeFilter === 'All' || listing.type === activeFilter;
       const matchesBudget = listing.priceValue <= maxBudget;
       return matchesSearch && matchesFilter && matchesBudget;
@@ -489,21 +458,44 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-        <div className="w-full max-w-full px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 lg:hidden">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <HomeIcon className="text-white w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </div>
-            <span className="text-sm sm:text-base font-display font-bold text-slate-900 dark:text-white tracking-tight">Direct<span className="text-primary-600">Rent</span></span>
+      {/* 1st part: mobile sticky header */}
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 lg:hidden px-4 h-16 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+            <HomeIcon className="text-white w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
-          <div className="hidden lg:block">
+          <span className="text-sm sm:text-base font-display font-bold text-slate-900 dark:text-white tracking-tight">Direct<span className="text-primary-600">Rent</span></span>
+        </div>
+        <div className="flex items-center gap-2">
+          {!isAgent && (
+            <button 
+              onClick={() => setIsMapView(!isMapView)}
+              className={`p-2 rounded-full transition-all flex items-center justify-center ${isMapView ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+              title={isMapView ? "Switch to Grid View" : "Switch to Map View"}
+            >
+              {isMapView ? <LayoutGrid className="w-5 h-5" /> : <Map className="w-5 h-5" />}
+            </button>
+          )}
+          <button 
+            onClick={() => setActiveTab('notifications')}
+            className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group"
+          >
+            <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 transition-colors" />
+            <NotificationBadge />
+          </button>
+        </div>
+      </header>
+
+      {/* 2nd part: desktop portaled header */}
+      <HeaderPortal>
+        <div className="hidden lg:flex flex-1 items-center justify-between px-6 h-full">
+          <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Find Your Space</span>
             <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
               Explore Houses
             </h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             {!isAgent && (
               <button 
                 onClick={() => setIsMapView(!isMapView)}
@@ -513,16 +505,9 @@ const Home = () => {
                 {isMapView ? <LayoutGrid className="w-5 h-5" /> : <Map className="w-5 h-5" />}
               </button>
             )}
-            <button 
-              onClick={() => setActiveTab('notifications')}
-              className="p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors group lg:hidden"
-            >
-              <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 transition-colors" />
-              <NotificationBadge />
-            </button>
           </div>
         </div>
-      </header>
+      </HeaderPortal>
 
       <main className="px-[14px] pb-0 mb-0" style={{ paddingTop: '15px' }}>
         <motion.div 
@@ -537,7 +522,7 @@ const Home = () => {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-4.5 sm:h-4.5 text-slate-400 group-focus-within:text-primary-500 transition-all" />
           <input 
             type="text" 
-            placeholder="Search area or landmark..." 
+            placeholder={isAgent ? "Search by area, landmark, or price..." : "Search by area, landmark, price, or agent name..."} 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 outline-none focus:border-primary-400 focus:ring-4 focus:ring-primary-500/10 transition-all text-xs sm:text-sm shadow-sm placeholder:text-slate-300 dark:placeholder:text-slate-600 dark:text-white"
@@ -588,9 +573,48 @@ const Home = () => {
 
               <div className="space-y-3 sm:space-y-4">
                 <div className="flex justify-between items-center px-1">
-                  <label className="text-[9px] sm:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Maximum Annual Budget</label>
+                  <label className="text-[9px] sm:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Price</label>
                   <div className="text-xs sm:text-sm font-bold text-primary-600 dark:text-primary-400 flex items-center gap-1">
-                    <span className="text-[9px] opacity-60">UP TO</span> ₦{maxBudget.toLocaleString()}
+                    <span className="text-[9px] opacity-60">UP TO</span>
+                    {isPriceEditable ? (
+                      <div className="flex items-center gap-1 border-b border-primary-500">
+                        <span className="text-xs">₦</span>
+                        <input
+                          type="number"
+                          className="w-24 bg-transparent outline-none text-xs text-primary-605 dark:text-primary-400 font-extrabold focus:ring-0 p-0 border-none"
+                          value={priceInputVal}
+                          onChange={(e) => setPriceInputVal(e.target.value)}
+                          onBlur={() => {
+                            setIsPriceEditable(false);
+                            const parsed = parseInt(priceInputVal);
+                            if (!isNaN(parsed) && parsed >= 0) {
+                              setMaxBudget(Math.min(parsed, 1000000000));
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              setIsPriceEditable(false);
+                              const parsed = parseInt(priceInputVal);
+                              if (!isNaN(parsed) && parsed >= 0) {
+                                setMaxBudget(Math.min(parsed, 1000000000));
+                              }
+                            }
+                          }}
+                          autoFocus
+                        />
+                      </div>
+                    ) : (
+                      <span 
+                        onClick={() => {
+                          setPriceInputVal(maxBudget.toString());
+                          setIsPriceEditable(true);
+                        }}
+                        className="cursor-pointer hover:underline underline-offset-2 flex items-center gap-0.5"
+                        title="Click to edit value manually"
+                      >
+                        ₦{maxBudget.toLocaleString()} <span className="text-[8px] font-normal opacity-50 text-slate-400 hover:text-primary-505">(edit)</span>
+                      </span>
+                    )}
                   </div>
                 </div>
                 <input 
@@ -599,7 +623,11 @@ const Home = () => {
                   max="1000000000" 
                   step="500000"
                   value={maxBudget}
-                  onChange={(e) => setMaxBudget(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setMaxBudget(val);
+                    setPriceInputVal(val.toString());
+                  }}
                   className="w-full h-1.5 sm:h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary-600"
                 />
                 <div className="flex justify-between text-[8px] sm:text-[9px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-wider px-1">
@@ -685,20 +713,26 @@ const Home = () => {
             {/* Listing List Section */}
             <div className="hidden lg:block w-full lg:w-[400px] xl:w-[450px] overflow-y-auto pr-2 space-y-4">
                 {visibleListings.length > 0 ? (
-                  visibleListings.map((listing) => (
-                    <div key={`sidebar-listing-${listing.id}`} className="border-b border-slate-200 dark:border-slate-800 pb-4">
-                      <ListingCard 
-                        listing={listing} 
-                        onViewDetails={() => setCurrentListing(listing)}
-                        isAgentView={isAgent}
-                        onEdit={() => {
-                          setCurrentListing(listing);
-                          setActiveTab('create');
-                        }}
-                        onDelete={() => handleDelete(listing.id)}
-                      />
-                    </div>
-                  ))
+                  visibleListings.map((listing, index) => {
+                    const isLast = index === visibleListings.length - 1;
+                    return (
+                      <div 
+                        key={`sidebar-listing-${listing.id}`} 
+                        className={isLast ? "" : "border-b border-slate-200 dark:border-slate-800 pb-4"}
+                      >
+                        <ListingCard 
+                          listing={listing} 
+                          onViewDetails={() => setCurrentListing(listing)}
+                          isAgentView={isAgent}
+                          onEdit={() => {
+                            setCurrentListing(listing);
+                            setActiveTab('create');
+                          }}
+                          onDelete={() => handleDelete(listing.id)}
+                        />
+                      </div>
+                    );
+                  })
                 ) : (
                   <p className="text-center text-slate-500 py-10">No listings found in this area.</p>
                 )}

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { User, UserRole, ViewState, AuthMode, Listing, AppTab } from '../types';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, linkWithCredential, EmailAuthProvider, updatePassword as fbUpdatePassword } from 'firebase/auth';
@@ -30,6 +30,12 @@ interface AuthContextType {
   setActiveTab: (tab: AppTab) => void;
   isSigningUp: boolean;
   setIsSigningUp: (val: boolean) => void;
+  publishingProgress: number | null;
+  setPublishingProgress: React.Dispatch<React.SetStateAction<number | null>>;
+  publishingStatus: string;
+  setPublishingStatus: (status: string) => void;
+  isSidebarCollapsed: boolean;
+  setIsSidebarCollapsed: (collapsed: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -72,6 +78,79 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setActiveTabState(tab);
     localStorage.setItem('last_active_tab', tab);
   };
+
+  // Global listing publish progress states (for top dashboard progress-bar rendering)
+  const [publishingProgress, setPublishingProgress] = useState<number | null>(null);
+  const [publishingStatus, setPublishingStatus] = useState<string>('');
+
+  const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState<boolean>(() => {
+    return localStorage.getItem("directrent_sidebar_collapsed") === "true";
+  });
+
+  const setIsSidebarCollapsed = (collapsed: boolean) => {
+    setIsSidebarCollapsedState(collapsed);
+    localStorage.setItem("directrent_sidebar_collapsed", String(collapsed));
+  };
+
+  // Synchronize browser back button history with SPA navigation state
+  const isPopStateRef = useRef(false);
+
+  // Initialize the first state on mount so we can replaceState
+  useEffect(() => {
+    const initialState = {
+      activeTab: activeTab,
+      currentListing: currentListing,
+      selectedAgentId: selectedAgentId
+    };
+    window.history.replaceState(initialState, "");
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state) {
+        isPopStateRef.current = true;
+        // Apply historical states back into React
+        if (event.state.activeTab !== undefined) {
+          setActiveTabState(event.state.activeTab);
+          localStorage.setItem('last_active_tab', event.state.activeTab);
+        }
+        setCurrentListing(event.state.currentListing || null);
+        setSelectedAgentId(event.state.selectedAgentId || null);
+        
+        // Reset popstate flag shortly after React render
+        setTimeout(() => {
+          isPopStateRef.current = false;
+        }, 50);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  // Whenever React states change from in-app navigation, push a new history entry
+  useEffect(() => {
+    // Skip pushing state if we got here via browser back/forward buttons
+    if (isPopStateRef.current) return;
+
+    // Build current state representation
+    const newState = {
+      activeTab,
+      currentListing,
+      selectedAgentId
+    };
+
+    // Only push if the state is actually different from the stored history state to prevent redundant entries
+    const historyState = window.history.state;
+    const isDifferent = !historyState ||
+      historyState.activeTab !== activeTab ||
+      JSON.stringify(historyState.currentListing) !== JSON.stringify(currentListing) ||
+      historyState.selectedAgentId !== selectedAgentId;
+
+    if (isDifferent) {
+      window.history.pushState(newState, "");
+    }
+  }, [activeTab, currentListing, selectedAgentId]);
 
   useEffect(() => {
     if (!user) {
@@ -404,6 +483,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setActiveTab,
       isSigningUp,
       setIsSigningUp,
+      publishingProgress,
+      setPublishingProgress,
+      publishingStatus,
+      setPublishingStatus,
+      isSidebarCollapsed,
+      setIsSidebarCollapsed,
     }}>
       {children}
     </AuthContext.Provider>

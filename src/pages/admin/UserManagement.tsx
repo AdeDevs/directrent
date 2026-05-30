@@ -44,11 +44,13 @@ import toast from 'react-hot-toast';
 
 interface UserManagementProps {
   onReview?: (user: User) => void;
+  preSelectedUserId?: string | null;
+  clearPreSelectedUserId?: () => void;
 }
 
 type UserWithVerification = User & { verification?: Verification };
 
-const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
+const UserManagement: React.FC<UserManagementProps> = React.memo(({ onReview, preSelectedUserId, clearPreSelectedUserId }) => {
   const [users, setUsers] = useState<UserWithVerification[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'tenant' | 'agent'>('all');
@@ -203,6 +205,18 @@ const UserManagement: React.FC<UserManagementProps> = React.memo(() => {
   }, [searchQuery, activeTab, statusFilter]);
 
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    if (preSelectedUserId && users.length > 0) {
+      const foundUser = users.find(u => String(u.id) === String(preSelectedUserId));
+      if (foundUser) {
+        setSelectedUser(foundUser);
+        if (clearPreSelectedUserId) {
+          clearPreSelectedUserId();
+        }
+      }
+    }
+  }, [preSelectedUserId, users, clearPreSelectedUserId]);
 
   const handleToggleSuspension = (user: User) => {
     setSuspensionUser(user);

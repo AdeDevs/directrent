@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Home, X, Users, Handshake, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Home, X, Users, Handshake, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, Shield, FileText, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -80,6 +80,9 @@ const Auth = () => {
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [isPhoneVerifying, setIsPhoneVerifying] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [modalContent, setModalContent] = useState<'terms' | 'privacy'>('terms');
 
   const nigerianCities = [
     "Lagos", "Abuja", "Ibadan", "Port Harcourt", "Kano", "Ogbomoso", 
@@ -293,7 +296,7 @@ const Auth = () => {
     if (signupStep === 1) {
       if (role === 'agent') {
         // Agent Step 1: needs basic fields
-        isReady = isFormValid(true);
+        isReady = isFormValid(true) && agreedToTerms;
       } else {
         // Tenant: needs basic fields + phone
         const basicFieldsValid = !!(
@@ -314,9 +317,9 @@ const Auth = () => {
         if (isPhoneVerifying) {
           isReady = otpCode.length === 6;
         } else if (!phoneVerified) {
-          isReady = !!(basicFieldsValid && phoneLengthValid);
+          isReady = !!(basicFieldsValid && phoneLengthValid && agreedToTerms);
         } else {
-          isReady = !!(basicFieldsValid && phoneLengthValid && phoneVerified);
+          isReady = !!(basicFieldsValid && phoneLengthValid && phoneVerified && agreedToTerms);
         }
       }
     } else if (signupStep === 2) {
@@ -333,9 +336,9 @@ const Auth = () => {
       if (isPhoneVerifying) {
         isReady = otpCode.length === 6;
       } else if (!phoneVerified) {
-        isReady = step2FieldsValid;
+        isReady = step2FieldsValid && agreedToTerms;
       } else {
-        isReady = !!(step2FieldsValid && phoneVerified);
+        isReady = !!(step2FieldsValid && phoneVerified && agreedToTerms);
       }
     }
   }
@@ -1323,6 +1326,36 @@ To authorize it, follow these steps:
                        <span className={`text-[9px] font-bold uppercase tracking-tight ${/[!@#$%^&*(),.?":{}|<>]/.test(formData.password) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
                     </div>
                   </div>
+
+                  {/* Terms and Privacy Agreements Selection */}
+                  <div className="mt-5 flex items-start gap-2.5 p-3.5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-850">
+                    <input 
+                      type="checkbox" 
+                      id="agreedToTermsCheckbox" 
+                      checked={agreedToTerms} 
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded text-primary-600 focus:ring-primary-500 border-slate-300 dark:border-slate-705 cursor-pointer"
+                    />
+                    <label htmlFor="agreedToTermsCheckbox" className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed select-none">
+                      I agree to the{' '}
+                      <button 
+                        type="button" 
+                        onClick={() => { setModalContent('terms'); setShowTermsModal(true); }}
+                        className="text-primary-600 dark:text-primary-400 font-extrabold hover:underline inline-block p-0 bg-transparent border-none cursor-pointer"
+                      >
+                        Terms of Use
+                      </button>{' '}
+                      and{' '}
+                      <button 
+                        type="button" 
+                        onClick={() => { setModalContent('privacy'); setShowTermsModal(true); }}
+                        className="text-primary-600 dark:text-primary-400 font-extrabold hover:underline inline-block p-0 bg-transparent border-none cursor-pointer"
+                      >
+                        Privacy Policy
+                      </button>{' '}
+                      of DirectRent. I acknowledge my details are protected and securely handled.
+                    </label>
+                  </div>
                 </>
           )}
 
@@ -1733,10 +1766,175 @@ To authorize it, follow these steps:
       {/* Dynamic desktop helper footer on form section */}
       <footer className="text-center pt-4 border-t border-slate-100 dark:border-slate-850">
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          By signing up, you agree to our <span className="underline cursor-pointer hover:text-primary-500">Terms of Use</span> and <span className="underline cursor-pointer hover:text-primary-500">Privacy Policy</span>.
+          By signing up, you agree to our{' '}
+          <button 
+            type="button" 
+            onClick={() => { setModalContent('terms'); setShowTermsModal(true); }}
+            className="underline cursor-pointer hover:text-primary-500 font-bold bg-transparent border-none p-0"
+          >
+            Terms of Use
+          </button>{' '}
+          and{' '}
+          <button 
+            type="button" 
+            onClick={() => { setModalContent('privacy'); setShowTermsModal(true); }}
+            className="underline cursor-pointer hover:text-primary-500 font-bold bg-transparent border-none p-0"
+          >
+            Privacy Policy
+          </button>.
         </p>
       </footer>
     </div>
+
+    {/* Terms and Privacy Modal Overlay */}
+    <AnimatePresence>
+      {showTermsModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowTermsModal(false)}
+            className="fixed inset-0 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm"
+          />
+
+          {/* Modal Container */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 15 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 15 }}
+            className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 max-w-xl w-full shadow-2xl overflow-hidden max-h-[85vh] flex flex-col font-sans"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-950/30 text-primary-600 dark:text-primary-400 flex items-center justify-center border border-primary-100/40 dark:border-primary-900/10">
+                  {modalContent === 'terms' ? <FileText className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight uppercase">
+                    {modalContent === 'terms' ? 'Terms of Use' : 'Privacy Agreements'}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold tracking-widest uppercase">
+                    DirectRent Compliance Guidelines
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto py-5 pr-1 space-y-5 text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+              {modalContent === 'terms' ? (
+                <>
+                  <p>
+                    Welcome to <strong>DirectRent</strong>. By requesting or publishing properties inside our workspace, you commit to these unified engagement rules.
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
+                        <Shield className="w-4 h-4 text-primary-500" />
+                        <span>1. User Veracity & Profile Conduct</span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        All tenants and agents must provide accurate and lawful information. Fraudulent listings, identity spoofing, duplicate profiles, or harassment will result in an immediate and permanent suspension from the network.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
+                        <Lock className="w-4 h-4 text-primary-500" />
+                        <span>2. Listing Verification Responsibility</span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Property postings must maintain genuine pricing, precise locations, and active status updates. Suspended listings lose direct interactive capabilities immediately.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
+                        <CheckCircle2 className="w-4 h-4 text-primary-500" />
+                        <span>3. Independent Transaction Warnings</span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        DirectRent is an interactive platform connecting tenants. We strongly encourage meeting in secure designated physical locations. Never send deposits or legal payments before satisfactory physical property tour inspections.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p>
+                    At <strong>DirectRent</strong>, we prioritize the secure encryption and integrity of user verification profiles.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
+                        <Lock className="w-4 h-4 text-emerald-500" />
+                        <span>Identity Lock & NIN Encryption</span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        National Identification Numbers (NIN) and private contact details are processed securely during registration to establish real identity. These details are stored with military-grade standard key hashes and never shared with third parties.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
+                        <Shield className="w-4 h-4 text-emerald-500" />
+                        <span>Data Rights & Privacy Access</span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Users maintain complete authority over their active listings and chats. Requesting account termination completely purges all sensitive personal keys, historic conversations, and active profiles permanently.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
+                        <FileText className="w-4 h-4 text-emerald-500" />
+                        <span>Secure Messaging Archives</span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Chat communications and support flags are archived under local, isolated sandboxes to protect negotiations and preserve rental contracts.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+              <button 
+                type="button"
+                onClick={() => {
+                  setAgreedToTerms(true);
+                  setShowTermsModal(false);
+                }}
+                className="flex-1 py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+              >
+                I understand & agree
+              </button>
+              <button 
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
     </div>
   );
 };

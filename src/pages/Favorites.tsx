@@ -9,6 +9,7 @@ import { FEATURED_LISTINGS } from "../data";
 import { Listing } from "../types";
 import SafeImage from "../components/SafeImage";
 import NotificationBadge from "../components/NotificationBadge";
+import HeaderPortal from "../components/HeaderPortal";
 
 interface SavedListingCardProps {
   listing: Listing;
@@ -143,7 +144,7 @@ const FavoritesPage = () => {
   }, [user]);
 
   const savedListings = useMemo(() => {
-    const allAvailable = [...dbListings, ...FEATURED_LISTINGS];
+    const allAvailable = [...dbListings, ...FEATURED_LISTINGS].filter(l => l.status !== 'suspended');
     // Deduplicate by ID
     const seenIds = new Set();
     const uniqueListings = allAvailable.filter(l => {
@@ -164,7 +165,7 @@ const FavoritesPage = () => {
       className="min-h-screen bg-slate-50/50 dark:bg-slate-950 flex flex-col transition-colors duration-300"
     >
       {/* Premium Editorial Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 lg:hidden">
         <div className="w-full max-w-none px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div>
@@ -181,7 +182,7 @@ const FavoritesPage = () => {
             </div>
             <button 
               onClick={() => setActiveTab('notifications')}
-              className="p-2.5 relative hover:bg-slate-100/80 dark:hover:bg-slate-800/80 rounded-full transition-all duration-300 group border-[0.5px] border-slate-100 dark:border-[#0f172b] hover:border-slate-350 dark:hover:border-slate-800 lg:hidden"
+              className="p-2.5 relative hover:bg-slate-100/80 dark:hover:bg-slate-800/80 rounded-full transition-all duration-300 group lg:hidden"
             >
               <Bell className="w-5 h-5 text-slate-700 dark:text-slate-300 group-hover:text-primary-600 transition-colors" />
               <NotificationBadge />
@@ -190,8 +191,24 @@ const FavoritesPage = () => {
         </div>
       </header>
 
+      <HeaderPortal>
+        <div className="hidden lg:flex flex-1 items-center justify-between px-6 h-full">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Your Bookmarks</span>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+              Saved Properties
+            </h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-full text-xs font-bold text-slate-650 dark:text-slate-350">
+              <span className="font-extrabold text-slate-900 dark:text-white">{savedListings.length}</span> {savedListings.length === 1 ? 'Property' : 'Properties'} saved
+            </div>
+          </div>
+        </div>
+      </HeaderPortal>
+
       {/* Grid Content */}
-      <main className="w-full max-w-none px-4 pt-8 pb-0 flex-1 flex flex-col">
+      <main className="w-full max-w-none px-4 pb-0 mb-0 flex-1 flex flex-col" style={{ paddingTop: '15px' }}>
         {savedListings.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-6 sm:gap-8">
             {savedListings.map((listing) => (

@@ -63,7 +63,7 @@ const ListingPreviewHandler = () => {
   );
 };
 
-const SuspendedScreen = ({ onLogout }: { onLogout: () => void }) => {
+const SuspendedScreen = ({ onLogout, userId }: { onLogout: () => void; userId: string }) => {
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-slate-100 font-sans selection:bg-rose-500/30 selection:text-white">
       <div className="max-w-md w-full border border-slate-800 bg-slate-950/40 backdrop-blur-md p-8 text-center relative overflow-hidden shadow-2xl">
@@ -95,12 +95,22 @@ const SuspendedScreen = ({ onLogout }: { onLogout: () => void }) => {
           </div>
         </div>
 
-        <button
-          onClick={onLogout}
-          className="w-full py-4 px-6 bg-rose-700 hover:bg-rose-600 text-white text-xs font-bold uppercase tracking-widest transition-all shadow-md focus:ring-2 focus:ring-rose-500 focus:outline-none"
-        >
-          Disconnect Account
-        </button>
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={() => {
+              window.location.href = `mailto:directrentsupport@gmail.com?subject=Account%20Suspension%20Appeal&body=Hello,%0A%0AI would like to appeal my account suspension.%0A%0AAccount ID: ${userId}%0A%0AMy reasoning:%0A[Insert reason here]%0A`;
+            }}
+            className="w-full py-4 px-6 bg-slate-100 hover:bg-white text-slate-900 text-xs font-bold uppercase tracking-widest transition-all shadow-md focus:ring-2 focus:ring-slate-500 focus:outline-none"
+          >
+            Appeal Suspension
+          </button>
+          <button
+            onClick={onLogout}
+            className="w-full py-4 px-6 bg-rose-700 hover:bg-rose-600 text-white text-xs font-bold uppercase tracking-widest transition-all shadow-md focus:ring-2 focus:ring-rose-500 focus:outline-none"
+          >
+            Disconnect Account
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -134,7 +144,7 @@ const AppContent = () => {
 
   // Intercept access for suspended users
   if (user && (user as any).isSuspended) {
-    return <SuspendedScreen onLogout={logout} />;
+    return <SuspendedScreen onLogout={logout} userId={(user as any).id || "Unknown"} />;
   }
 
   // Priority: If path is listing detail, show it regardless of view state

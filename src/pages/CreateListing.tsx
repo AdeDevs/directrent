@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
+import { toast } from 'react-hot-toast';
 import { 
   Building2, 
   MapPin, 
@@ -12,7 +13,10 @@ import {
   ArrowLeft,
   Video,
   Upload,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  Loader2,
+  ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
@@ -22,6 +26,7 @@ import { createNotification } from '../lib/notifications';
 import { compressImage } from '../lib/storage';
 import { GoogleMapsGuard } from '../components/GoogleMapsGuard';
 import { LocationPicker } from '../components/LocationPicker';
+import { HeaderPortal } from '../components/HeaderPortal';
 
 const SUGGESTED_PROPERTY_TYPES = [
   "Self-Contain", 
@@ -51,7 +56,16 @@ const AMENITIES_LIST = [
 const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80";
 
 export default function CreateListing() {
-  const { user, setActiveTab, currentListing, setCurrentListing } = useAuth();
+  const { 
+    user, 
+    setActiveTab, 
+    currentListing, 
+    setCurrentListing,
+    publishingProgress,
+    setPublishingProgress,
+    publishingStatus,
+    setPublishingStatus 
+  } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingImages, setPendingImages] = useState<(File | string)[]>(
@@ -87,6 +101,47 @@ export default function CreateListing() {
   });
 
   const [atLimit, setAtLimit] = useState(false);
+  
+  // AI Landmark Assistant States
+  const [isGeneratingLandmarks, setIsGeneratingLandmarks] = useState(false);
+  const [suggestedLandmarks, setSuggestedLandmarks] = useState<{ name: string; distance: string; description: string; }[]>([]);
+
+  const handleFetchLandmarkSuggestions = async () => {
+    if (!formData.location) {
+      toast.error("Please search/select a Property Address first!");
+      return;
+    }
+    setIsGeneratingLandmarks(true);
+    try {
+      const response = await fetch("/api/suggest-landmarks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ location: formData.location }),
+      });
+      if (!response.ok) {
+        let serverErrorMsg = "Failed to connect to assistant.";
+        try {
+          const errData = await response.json();
+          if (errData && errData.error) {
+            serverErrorMsg = errData.error;
+          }
+        } catch (_) {}
+        throw new Error(serverErrorMsg);
+      }
+      const data = await response.json();
+      if (data && Array.isArray(data.landmarks) && data.landmarks.length > 0) {
+        setSuggestedLandmarks(data.landmarks);
+        toast.success(`Generated ${data.landmarks.length} landmark options!`);
+      } else {
+        toast.error("No recognized landmarks found. Try filling in a more specific property address.");
+      }
+    } catch (err: any) {
+      console.error("AI Landmark error:", err);
+      toast.error(err.message || "Failed to generate landmarks. Please double check API keys or type one manually.");
+    } finally {
+      setIsGeneratingLandmarks(false);
+    }
+  };
 
   React.useEffect(() => {
     const checkLimit = async () => {
@@ -207,8 +262,26 @@ export default function CreateListing() {
     }
 
     setIsSubmitting(true);
+    setPublishingProgress(5);
+    setPublishingStatus("Validating details...");
+    
+    // Proactively redirect to dashboard / mylistings so they can witness the dynamic progress bar live!
+    setActiveTab(isEditMode ? 'mylistings' : 'home');
+
+    const progressTimer = setInterval(() => {
+      setPublishingProgress(prev => {
+        if (prev === null) return null;
+        if (prev >= 90) return prev;
+        const incr = Math.floor(Math.random() * 8) + 3;
+        return Math.min(90, prev + incr);
+      });
+    }, 400);
+
     try {
       // Check listing limit for unverified agents
+      setPublishingStatus("Checking limitations...");
+      setPublishingProgress(prev => prev !== null ? Math.max(12, prev) : 12);
+
       if (user.verificationLevel?.toLowerCase() !== 'verified') {
         const { getCountFromServer, query, collection, where } = await import('firebase/firestore');
         const q = query(collection(db, 'listings'), where('agent.id', '==', user.id));
@@ -216,9 +289,14 @@ export default function CreateListing() {
         const count = snapshot.data().count;
         
         if (count >= 5 && !isEditMode) {
+          clearInterval(progressTimer);
+          setPublishingProgress(null);
+          setPublishingStatus('');
           setError("Unverified agents are limited to 5 listings. Please verify your account to post more.");
           setIsSubmitting(false);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          // If we had errors, switch them back to Create Listing tab to make corrections!
+          setActiveTab('create');
+          toast.error("Unverified agents limit reached. Returning to form.");
           return;
         }
       }
@@ -226,9 +304,15 @@ export default function CreateListing() {
       const listingId = isEditMode && currentListing ? currentListing.id : `listing_${Date.now()}`;
       
       // 1. Upload Images
+      setPublishingStatus("Compressing and preparing property photos...");
+      setPublishingProgress(prev => prev !== null ? Math.max(25, prev) : 25);
+
       const uploadedImageUrls: string[] = [];
       for (let i = 0; i < pendingImages.length; i++) {
         const item = pendingImages[i];
+        setPublishingStatus(`Uploading photo ${i + 1} of ${pendingImages.length}...`);
+        setPublishingProgress(prev => prev !== null ? Math.min(60, prev + i * 3) : 30);
+        
         if (item instanceof File) {
           try {
             const compressed = await compressImage(item);
@@ -239,7 +323,6 @@ export default function CreateListing() {
             uploadedImageUrls.push(url);
           } catch (uploadErr) {
             console.error("Image upload failed:", uploadErr);
-            // Fallback to original preview URL if upload fails (though it won't be permanent)
             uploadedImageUrls.push(formData.images[i]);
           }
         } else {
@@ -248,6 +331,9 @@ export default function CreateListing() {
       }
 
       // 2. Upload Video
+      setPublishingStatus("Processing walk-through video tour (this may take a few seconds)...");
+      setPublishingProgress(70);
+
       let finalVideoUrl = "";
       if (pendingVideo instanceof File) {
         try {
@@ -262,6 +348,9 @@ export default function CreateListing() {
       } else if (typeof pendingVideo === 'string') {
         finalVideoUrl = pendingVideo;
       }
+
+      setPublishingStatus("Saving property details safely in workspace...");
+      setPublishingProgress(85);
 
       const rawPrice = formData.priceValue.replace(/\D/g, '');
       const priceNum = parseInt(rawPrice) || 0;
@@ -308,7 +397,6 @@ export default function CreateListing() {
         ...(isEditMode ? {} : { createdAt: serverTimestamp() })
       };
 
-      // Ensure absolutely zero undefined keys are in the final payload to guarantee Firestore safety
       const finalPayload = Object.fromEntries(
         Object.entries(listingData).filter(([_, val]) => val !== undefined)
       );
@@ -337,33 +425,122 @@ export default function CreateListing() {
         listingId.toString()
       );
 
+      clearInterval(progressTimer);
+      setPublishingProgress(100);
+      setPublishingStatus(isEditMode ? "Changes saved successfully!" : "Property published successfully!");
+
+      toast.success(isEditMode ? "Listing changes saved successfully!" : "Listing published successfully! Awaiting quick admin verification.", {
+        duration: 4000
+      });
+
+      // Visual cushion for completion state
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      setPublishingProgress(null);
+      setPublishingStatus('');
       setCurrentListing(null);
-      setActiveTab(isEditMode ? 'mylistings' : 'home');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'listings');
+    } catch (err: any) {
+      clearInterval(progressTimer);
+      setPublishingProgress(null);
+      setPublishingStatus('');
+      setActiveTab('create');
+      toast.error(err?.message || "Error posting property. Please check network and permissions.");
+      handleFirestoreError(err, OperationType.WRITE, 'listings');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (isEditMode && currentListing?.status === 'suspended') {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4 text-center font-sans">
+        <div className="max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-xl border border-rose-100 dark:border-rose-950/40 relative">
+          <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/40 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-display font-black text-slate-900 dark:text-white mb-3 tracking-tight">Listing Suspended</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed mb-6">
+            The listing "{currentListing.title}" is currently suspended due to safety or quality guidelines. Suspended listings cannot be edited or modified.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => {
+                setCurrentListing(null);
+                setActiveTab('mylistings');
+              }}
+              className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs uppercase tracking-widest py-3.5 rounded-2xl shadow-lg hover:scale-[1.02] transition-all cursor-pointer"
+            >
+              Go to My Listings
+            </button>
+            <button
+              onClick={() => {
+                setCurrentListing(null);
+                setActiveTab('home');
+              }}
+              className="text-slate-500 hover:text-slate-700 dark:hover:text-white font-bold text-xs uppercase tracking-widest py-3.5 rounded-2xl transition-all cursor-pointer"
+            >
+              Back to Browse
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-[0] transition-colors">
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-2 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={() => {
-              setCurrentListing(null);
-              setActiveTab(isEditMode ? 'mylistings' : 'home');
-            }}
-            className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-            {isEditMode ? 'Edit Listing' : 'Post Listing'}
-          </h1>
+      {/* 1st part: mobile sticky header */}
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center justify-between lg:hidden">
+        <div className="flex items-center gap-3">
+          <div>
+            <span className="text-[8px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-400 leading-none block">
+              {isEditMode ? 'Listing Editor' : 'Publishing Workspace'}
+            </span>
+            <h1 className="text-base font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+              {isEditMode ? 'Edit Property' : 'Post Property'}
+            </h1>
+          </div>
         </div>
       </header>
+
+      {/* 2nd part: desktop portaled header */}
+      <HeaderPortal>
+        <div className="hidden lg:flex flex-1 items-center justify-between px-6 h-full">
+          <div className="flex items-center gap-4">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-400 leading-none">
+                {isEditMode ? 'Listing Editor' : 'Publishing Workspace'}
+              </span>
+              <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                {isEditMode ? 'Edit Property Listing' : 'Post New Listing'}
+              </h1>
+            </div>
+          </div>
+        </div>
+      </HeaderPortal>
+
+      {publishingProgress !== null && (
+        <div className="sticky top-16 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-primary-500/20 p-4 transition-all duration-300">
+          <div className="max-w-3xl mx-auto space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+              <span className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
+                </span>
+                {publishingStatus}
+              </span>
+              <span className="font-extrabold text-primary-600 dark:text-primary-400 font-mono">{publishingProgress}%</span>
+            </div>
+            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div 
+                className="bg-primary-600 h-full rounded-full transition-all duration-300 ease-out shadow-lg shadow-primary-500/20"
+                style={{ width: `${publishingProgress}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="w-full px-[15px] pt-4 pb-0 mb-0 space-y-8 lg:space-y-12">
         {atLimit && (
@@ -506,7 +683,7 @@ export default function CreateListing() {
                     required
                     maxLength={100}
                     type="text" 
-                    placeholder="e.g. Luxury Studio Apartment"
+                    placeholder="E.g. Luxury Studio Apartment"
                     value={formData.title}
                     onChange={(e) => handleInputChange('title', e.target.value)}
                     onBlur={() => handleBlur('title')}
@@ -516,7 +693,7 @@ export default function CreateListing() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div className="space-y-2">
+                <div className="space-y-2 font-sans">
                   <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Rent Amount (In Naira)</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-bold">₦</span>
@@ -533,26 +710,32 @@ export default function CreateListing() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 font-sans">
                   <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Payment Period</label>
-                  <select 
-                    value={formData.paymentPeriod}
-                    onChange={(e) => handleInputChange('paymentPeriod', e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 px-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
-                  >
-                    <option value="annually">Annually (Yearly)</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="bi-annually">Semi-Annually (6 Months)</option>
-                    <option value="custom">Custom Term / One-Time</option>
-                  </select>
+                  <div className="relative">
+                    <select 
+                      value={formData.paymentPeriod}
+                      onChange={(e) => handleInputChange('paymentPeriod', e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-4 pr-10 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white appearance-none cursor-pointer"
+                    >
+                      <option value="annually">Annually (Yearly)</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="bi-annually">Semi-Annually (6 Months)</option>
+                      <option value="custom">Custom Term / One-Time</option>
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-500">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
+                  </div>
                 </div>
+              </div>
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Lease / Minimum Stay Duration</label>
                   <input 
                     type="text" 
-                    placeholder="e.g. 1 Year, 6 Months, Custom"
+                    placeholder="E.g. 1 Year, 6 Months, Custom"
                     value={formData.leaseDuration}
                     onChange={(e) => handleInputChange('leaseDuration', e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 px-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
@@ -564,7 +747,7 @@ export default function CreateListing() {
                   <div className="relative">
                     <input 
                       list="property-types"
-                      placeholder="e.g. 1 Bedroom Flat"
+                      placeholder="E.g. 1 Bedroom Flat"
                       value={formData.type}
                       onChange={(e) => handleInputChange('type', e.target.value)}
                       onBlur={() => handleBlur('type')}
@@ -577,8 +760,8 @@ export default function CreateListing() {
                 </div>
               </div>
 
-              {/* Split payments / Initial deposit difference */}
-              <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-white/5">
+            {/* Split payments / Initial deposit difference */}
+            <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-white/5 w-full">
                 <label className="flex items-start gap-3 cursor-pointer group">
                   <input 
                     type="checkbox" 
@@ -588,52 +771,51 @@ export default function CreateListing() {
                   />
                   <div className="flex flex-col">
                     <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide group-hover:text-primary-600 transition-colors">Setup Initial / Subsequent Payment structure?</span>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium max-w-xl">Enable this if the direct first-time rent is different from ongoing recurring renewals (e.g. including caution deposits, upfront payments, agent fees, etc.).</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium w-full max-w-none">Enable this if the direct first-time rent is different from ongoing recurring renewals (e.g. including caution deposits, upfront payments, agent fees, etc.).</span>
                   </div>
                 </label>
 
                 {formData.hasSplitPayment && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-800/20 border border-dashed border-slate-200 dark:border-slate-800">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-950/50 border border-dashed border-slate-200 dark:border-slate-800/80 w-full animate-fadeIn">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Initial/1st Payment Total (₦)</label>
-                      <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-bold">₦</span>
+                      <div className="relative font-sans">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-350 font-bold">₦</span>
                         <input 
                           type="text" 
                           inputMode="numeric"
-                          placeholder="e.g. 500,000"
+                          placeholder="E.g. 500,000"
                           value={formData.initialPaymentValue}
                           onChange={(e) => {
                             const rawValue = e.target.value.replace(/\D/g, '');
                             const formattedValue = rawValue ? parseInt(rawValue).toLocaleString() : '';
                             setFormData(prev => ({ ...prev, initialPaymentValue: formattedValue }));
                           }}
-                          className="w-full bg-white dark:bg-slate-850 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
                         />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Subsequent Rent Amount (₦)</label>
-                      <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-bold">₦</span>
+                      <div className="relative font-sans">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-350 font-bold">₦</span>
                         <input 
                           type="text" 
                           inputMode="numeric"
-                          placeholder="e.g. 350,050"
+                          placeholder="E.g. 350,050"
                           value={formData.subsequentPaymentValue}
                           onChange={(e) => {
                             const rawValue = e.target.value.replace(/\D/g, '');
                             const formattedValue = rawValue ? parseInt(rawValue).toLocaleString() : '';
                             setFormData(prev => ({ ...prev, subsequentPaymentValue: formattedValue }));
                           }}
-                          className="w-full bg-white dark:bg-slate-850 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
                         />
                       </div>
                     </div>
                   </div>
                 )}
               </div>
-            </div>
           </section>
 
           {/* Location & Details */}
@@ -648,19 +830,67 @@ export default function CreateListing() {
               </div>
 
               <div className="space-y-2 col-span-1 sm:col-span-2">
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Nearest Landmark</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Nearest Landmark</label>
+                  <button
+                    type="button"
+                    onClick={handleFetchLandmarkSuggestions}
+                    disabled={isGeneratingLandmarks || !formData.location}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-all select-none ${
+                      !formData.location 
+                        ? 'bg-slate-100 dark:bg-slate-800/40 text-slate-400 dark:text-slate-600 cursor-not-allowed'
+                        : 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 border border-primary-200/50 dark:border-primary-800/35'
+                    }`}
+                  >
+                    {isGeneratingLandmarks ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin text-primary-600" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-2.5 h-2.5 text-primary-600" />
+                        Get Landmark Aid
+                      </>
+                    )}
+                  </button>
+                </div>
                 <div className="relative">
-                  <Navigation className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                  <Navigation className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-350" />
                   <input 
                     required
                     type="text" 
-                    placeholder="e.g. Near UI Gate"
+                    placeholder="E.g. Near UI Gate"
                     value={formData.landmark}
                     onChange={(e) => handleInputChange('landmark', e.target.value)}
                     onBlur={() => handleBlur('landmark')}
                     className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
                   />
                 </div>
+
+                {suggestedLandmarks.length > 0 && (
+                  <div className="mt-2.5 p-3 rounded-2xl bg-primary-50/20 dark:bg-primary-950/10 border border-primary-100/30 dark:border-primary-900/20 space-y-1.5 animate-fadeIn">
+                    <div className="text-[8px] font-black tracking-widest text-primary-600 dark:text-primary-450 uppercase flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5" /> Neighborhood landmarks generator:
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-0.5">
+                      {suggestedLandmarks.map((lm, idx) => (
+                        <button
+                          key={`lm-choice-${idx}-${lm.name}`}
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, landmark: lm.name }));
+                            toast.success(`Selected "${lm.name}"`);
+                          }}
+                          className="px-2.5 py-1.5 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 rounded-xl hover:bg-primary-600 hover:text-white dark:hover:bg-primary-600 dark:hover:text-white border border-slate-150 dark:border-slate-800 shadow-sm flex items-center gap-1.5 transition-all"
+                        >
+                          <span className="font-bold">{lm.name}</span>
+                          <span className="opacity-60 text-[10px] font-normal">({lm.distance})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </section>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, FileText, CreditCard, ChevronRight, CheckCircle2, ArrowRight, MessageCircle, Play, Pause, Volume2, Trash2 } from 'lucide-react';
+import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, FileText, CreditCard, ChevronRight, CheckCircle2, ArrowRight, MessageCircle, Play, Pause, Volume2, Trash2, Check, AlertTriangle } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import SafeImage from './SafeImage';
 import { 
@@ -172,7 +172,11 @@ const AudioPlayer: React.FC<{ src: string; isOwn: boolean }> = ({ src, isOwn }) 
 };
 
 export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, currentUser, overrideConversationId }) => {
-  const { setSelectedAgentId } = useAuth();
+  const { setSelectedAgentId, setCurrentListing } = useAuth();
+  const [showPaymentCheckout, setShowPaymentCheckout] = useState(false);
+  const [paymentOption, setPaymentOption] = useState<'card' | 'bank_transfer' | 'secured_escrow'>('secured_escrow');
+  const [paymentStep, setPaymentStep] = useState<'checkout' | 'processing' | 'success'>('checkout');
+  const [paymentProgress, setPaymentProgress] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -191,8 +195,23 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
   const [error, setError] = useState<string | null>(null);
   const [showWhatsAppDisclaimer, setShowWhatsAppDisclaimer] = useState(false);
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(true);
-  const [otherUser, setOtherUser] = useState<{ name: string; avatarUrl?: string; verificationLevel?: VerificationLevel; role: UserRole; phoneNumber?: string } | null>(null);
+  const [otherUser, setOtherUser] = useState<{ name: string; avatarUrl?: string; verificationLevel?: VerificationLevel; role: UserRole; phoneNumber?: string; isSuspended?: boolean } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [realtimeListingStatus, setRealtimeListingStatus] = useState<string | null>(null);
+
+  const isChatSuspended = realtimeListingStatus === 'suspended' || (currentUser as any)?.isSuspended || otherUser?.isSuspended;
+
+  // Live status tracking for suspended listings
+  useEffect(() => {
+    if (!isOpen || !listing?.id) return;
+    const unsub = onSnapshot(doc(db, 'listings', listing.id.toString()), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setRealtimeListingStatus(data.status || null);
+      }
+    });
+    return () => unsub();
+  }, [isOpen, listing?.id]);
 
   // Stable Conversation ID processing
   // If we have an override (from Inbox), use it. 
@@ -251,7 +270,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                 avatarUrl: d.avatarUrl,
                 verificationLevel: d.verificationLevel === 'verified' ? 'verified' : calculateVerificationLevel(d as any),
                 role: d.role,
-                phoneNumber: d.phoneNumber
+                phoneNumber: d.phoneNumber,
+                isSuspended: d.isSuspended || false
               });
             }
           }, (err) => handleFirestoreError(err, OperationType.GET, `users/${otherId}`));
@@ -303,6 +323,47 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       if (unsubOther) unsubOther();
     };
   }, [isOpen, conversationId, currentUser.id, currentUser.role]);
+
+  const handleInitiateDummyPayment = () => {
+    setPaymentStep('processing');
+    setPaymentProgress(0);
+    const interval = setInterval(() => {
+      setPaymentProgress((p) => {
+        if (p >= 100) {
+          clearInterval(interval);
+          setTimeout(() => {
+            const txPayload = {
+              transactionId: `DR-TXN-${Math.floor(100000 + Math.random() * 900000)}`,
+              listingId: listing.id,
+              propertyTitle: listing.title,
+              price: listing.price,
+              platformEscrowFee: "₦15,000",
+              totalSettlementAmount: listing.price,
+              tenantId: currentUser.id,
+              tenantEmail: currentUser.email || '',
+              agentId: listing.agent?.id || convData?.agentId || 'unknown',
+              agentName: listing.agent?.name || '',
+              paymentGateway: "DirectRent Escrow Pipeline",
+              method: paymentOption,
+              initiatedAt: new Date().toISOString()
+            };
+            console.log("=== SECURE ESCROW TRANSACTION TRANSMITTED TO PAYMENT GATEWAY ===");
+            console.log(JSON.stringify(txPayload, null, 2));
+            console.log("=================================================================");
+            setPaymentStep('success');
+          }, 600);
+          return 100;
+        }
+        return p + 20;
+      });
+    }, 200);
+  };
+
+  const handleCompletePaymentFlow = async () => {
+    setShowPaymentCheckout(false);
+    setPaymentStep('checkout');
+    await handleAction('paid', `Security deposit transaction securely resolved on DirectRent Escrow Custody [Method: ${paymentOption === 'secured_escrow' ? 'Instant Escrow Bank Transfer' : 'Direct Credit Card Network'}]. Protocol signed off successfully.`, 'paid');
+  };
 
   const handleAction = async (actionType: string, content: string, nextStatus: ConversationStatus) => {
     if (isSending) return;
@@ -469,6 +530,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
   };
 
   const handleSendAudio = async (blob: Blob) => {
+    if (realtimeListingStatus === 'suspended' || (currentUser as any)?.isSuspended || otherUser?.isSuspended) {
+      setError("Conversation is currently suspended.");
+      return;
+    }
     setIsSending(true);
     setError(null);
     try {
@@ -522,6 +587,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || isSending) return;
+    if (realtimeListingStatus === 'suspended' || (currentUser as any)?.isSuspended || otherUser?.isSuspended) {
+      setError("Conversation is currently suspended.");
+      return;
+    }
 
     setIsSending(true);
     setError(null);
@@ -670,26 +739,187 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                 </div>
               )}
             </AnimatePresence>
+
+            {/* Secure Escrow Payment Checkout Modal */}
+            <AnimatePresence>
+              {showPaymentCheckout && (
+                <div className="absolute inset-0 z-[120] flex items-center justify-center p-4">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => { if (paymentStep !== 'processing') setShowPaymentCheckout(false); }}
+                    className="absolute inset-0 bg-slate-900/65 backdrop-blur-sm pointer-events-auto"
+                  />
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.92, y: 15 }}
+                    className="relative w-full max-w-[380px] bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-300 space-y-5 pointer-events-auto"
+                  >
+                    <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <div>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-primary-600">Secure Billing Network</span>
+                        <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight mt-0.5">Escrow Settlements</h3>
+                      </div>
+                      {paymentStep !== 'processing' && (
+                        <button 
+                          onClick={() => setShowPaymentCheckout(false)}
+                          className="w-7 h-7 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-500 hover:text-rose-500 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {paymentStep === 'checkout' && (
+                      <div className="space-y-4">
+                        {/* Transaction payload billing breakdown */}
+                        <div className="p-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-850 rounded-2xl space-y-2 text-xs font-sans">
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Referenced Rental:</span>
+                            <span className="font-extrabold text-slate-800 dark:text-slate-200 truncate max-w-[160px]">{listing.title}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Due Security Deposit:</span>
+                            <span className="font-extrabold text-slate-800 dark:text-slate-200">{listing.price}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Escrow Agent Service:</span>
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-450">₦15,000 (Incl. VAT)</span>
+                          </div>
+                          <div className="h-[1px] bg-slate-200 dark:bg-slate-850 my-1" />
+                          <div className="flex justify-between text-sm">
+                            <span className="font-black text-slate-900 dark:text-white uppercase text-[10px] tracking-wider">Total Settlement:</span>
+                            <span className="font-mono font-black text-primary-650 dark:text-primary-450">{listing.price}</span>
+                          </div>
+                        </div>
+
+                        {/* Payment choice selector */}
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Select Settlement Protocol</label>
+                          <div className="grid grid-cols-1 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPaymentOption('secured_escrow')}
+                              className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
+                                paymentOption === 'secured_escrow'
+                                  ? 'bg-primary-50/50 dark:bg-primary-950/20 border-primary-550'
+                                  : 'bg-white dark:bg-slate-950/20 border-slate-200 dark:border-slate-800 hover:border-slate-350'
+                              }`}
+                            >
+                              <ShieldCheck className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                              <div>
+                                <h4 className="text-[11px] font-extrabold text-slate-905 dark:text-white uppercase leading-none">Instant Escrow Lock</h4>
+                                <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 font-medium leading-relaxed">DirectRent Escrow holds funds until physical keys and draft are fully executed.</p>
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPaymentOption('card')}
+                              className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
+                                paymentOption === 'card'
+                                  ? 'bg-primary-50/50 dark:bg-primary-950/20 border-primary-550'
+                                  : 'bg-white dark:bg-slate-950/20 border-slate-200 dark:border-slate-800 hover:border-slate-350'
+                              }`}
+                            >
+                              <CreditCard className="w-4 h-4 text-primary-550 mt-0.5 shrink-0" />
+                              <div>
+                                <h4 className="text-[11px] font-extrabold text-slate-905 dark:text-white uppercase leading-none">Credit / Debit Card Channel</h4>
+                                <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 font-medium leading-relaxed">Settle instantly using standard Visa, Mastercard, or Interswitch network pipelines.</p>
+                              </div>
+                            </button>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={handleInitiateDummyPayment}
+                          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <ShieldCheck className="w-4 h-4" />
+                          <span>Initiate Security Settlement</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {paymentStep === 'processing' && (
+                      <div className="py-6 text-center space-y-4">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary-600 mx-auto" />
+                        <div className="space-y-1">
+                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Handshaking Gateway Pipeline</h4>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500">Transmitting payload parameters to Escrow settlements API...</p>
+                        </div>
+                        {/* Progress bar loop */}
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <motion.div 
+                            className="bg-emerald-500 h-full rounded-full"
+                            initial={{ width: '0%' }}
+                            animate={{ width: `${paymentProgress}%` }}
+                            transition={{ ease: "easeInOut" }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {paymentStep === 'success' && (
+                      <div className="py-4 text-center space-y-4">
+                        <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                          <Check className="w-6 h-6" />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Escrow Settlement locked</h4>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed font-medium">₦{listing.price} has been securely registered inside DirectRent escrow custody pipeline.</p>
+                        </div>
+                        <button
+                          onClick={handleCompletePaymentFlow}
+                          className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 py-3.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer animate-bounce"
+                        >
+                          Return to Chat Box
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
             {/* Header */}
             <div className="px-4 py-4 border-b border-slate-105 dark:border-slate-800/80 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0 shadow-sm">
               <div className="flex items-center gap-3.5 text-left">
-                <div className="w-10 h-10 rounded-2xl bg-primary-50 dark:bg-slate-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-extrabold border border-slate-150/60 dark:border-slate-700 overflow-hidden shrink-0 uppercase text-sm relative shadow-inner">
+                <button 
+                  onClick={() => {
+                    const idToView = listing.agent?.id || convData?.agentId;
+                    if (idToView && idToView !== 'unknown') {
+                      onClose();
+                      setSelectedAgentId(idToView);
+                    }
+                  }}
+                  className="w-10 h-10 rounded-2xl bg-primary-50 dark:bg-slate-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-extrabold border border-slate-150/60 dark:border-slate-700 overflow-hidden shrink-0 uppercase text-sm relative shadow-inner cursor-pointer hover:scale-105 transition-all duration-300"
+                >
                   {otherUser?.avatarUrl ? (
                     <img src={otherUser.avatarUrl} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
                   ) : (
                     (otherUser?.name || listing.agent?.name || 'A').charAt(0)
                   )}
                   <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full" />
-                </div>
+                </button>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <h3 className="font-display font-extrabold text-slate-900 dark:text-white text-sm sm:text-base leading-tight truncate tracking-tight">
+                  <button 
+                    onClick={() => {
+                      const idToView = listing.agent?.id || convData?.agentId;
+                      if (idToView && idToView !== 'unknown') {
+                        onClose();
+                        setSelectedAgentId(idToView);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 mb-0.5 text-left hover:text-primary-600 dark:hover:text-primary-400 group cursor-pointer"
+                  >
+                    <h3 className="font-display font-extrabold text-[#111827] dark:text-white text-sm sm:text-base leading-tight truncate tracking-tight group-hover:underline">
                       {otherUser?.name || listing.agent?.name}
                     </h3>
                     {otherUser?.verificationLevel && (
                       <VerificationBadge level={otherUser.verificationLevel} role={otherUser.role} showText={false} className="scale-90" />
                     )}
-                  </div>
+                  </button>
                   <div className="flex items-center gap-1.5">
                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     <p className="text-[9.5px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-wider">Active Secure Node</p>
@@ -706,19 +936,33 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
 
             {/* Property Reference Banner */}
             <div className="px-4.5 py-3.5 bg-slate-50/70 dark:bg-slate-950/40 border-b border-slate-105 dark:border-slate-800/60 flex items-center gap-3.5 shrink-0 backdrop-blur-md">
-              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-slate-150 dark:border-slate-800 relative group/ref">
+              <button 
+                onClick={() => {
+                  onClose();
+                  setCurrentListing(listing);
+                }}
+                className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-slate-150 dark:border-slate-800 relative group/ref cursor-pointer active:scale-95 transition-all"
+              >
                 <SafeImage 
                   src={listing.image} 
-                  className="w-full h-full object-cover transition-transform group-hover/ref:scale-105 duration-300" 
+                  className="w-full h-full object-cover transition-transform group-hover/ref:scale-110 duration-300" 
                   alt={listing.title}
                 />
-              </div>
+              </button>
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-[8.5px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Referenced Rental</p>
-                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-250 truncate tracking-tight">{listing.title}</h4>
+                <button 
+                  onClick={() => {
+                    onClose();
+                    setCurrentListing(listing);
+                  }}
+                  className="text-xs font-bold text-slate-800 dark:text-slate-250 hover:text-primary-600 dark:hover:text-primary-450 text-left truncate tracking-tight hover:underline cursor-pointer"
+                >
+                  {listing.title}
+                </button>
               </div>
               <div className="bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-150/60 dark:border-slate-800/80 shrink-0 shadow-sm">
-                <p className="text-xs font-black text-primary-600 dark:text-primary-450">{listing.price}</p>
+                <p className="text-xs font-black text-primary-605 dark:text-primary-450">{listing.price}</p>
               </div>
             </div>
 
@@ -745,12 +989,29 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             key="request_contract"
-                            onClick={() => handleAction('contract_requested', 'I\'d like to request a formal contract for this property.', 'contract_requested')}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors border border-primary-100 dark:border-primary-800 shadow-sm"
+                            onClick={() => !isChatSuspended && handleAction('contract_requested', 'I\'d like to request a formal contract for this property.', 'contract_requested')}
+                            disabled={isChatSuspended}
+                            className={`flex items-center gap-2 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors border border-primary-100 dark:border-primary-800 shadow-sm ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
                           >
                             <FileText className="w-3.5 h-3.5" /> Request Contract
                           </motion.button>
                           
+                          <motion.button 
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            key="make_payment"
+                            onClick={() => {
+                              if (isChatSuspended) return;
+                              setPaymentStep('checkout');
+                              setPaymentProgress(0);
+                              setShowPaymentCheckout(true);
+                            }}
+                            disabled={isChatSuspended}
+                            className={`flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors border border-emerald-105 dark:border-emerald-800 shadow-sm ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
+                          >
+                            <CreditCard className="w-3.5 h-3.5" /> Make Payment
+                          </motion.button>
                         </motion.div>
                       )}
                       {convStatus === 'contract_sent' && (
@@ -759,8 +1020,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                           animate={{ scale: 1, opacity: 1 }}
                           exit={{ scale: 0.9, opacity: 0 }}
                           key="pay_deposit"
-                          onClick={() => handleAction('paid', 'Payment of security deposit has been initiated.', 'paid')}
-                          className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors border border-emerald-100 dark:border-emerald-800 shadow-sm"
+                          onClick={() => {
+                            if (isChatSuspended) return;
+                            setPaymentStep('checkout');
+                            setPaymentProgress(0);
+                            setShowPaymentCheckout(true);
+                          }}
+                          disabled={isChatSuspended}
+                          className={`flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors border border-emerald-105 dark:border-emerald-800 shadow-sm ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
                         >
                           <CreditCard className="w-3.5 h-3.5" /> Pay Deposit
                         </motion.button>
@@ -776,8 +1043,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                           animate={{ scale: 1, opacity: 1 }}
                           exit={{ scale: 0.9, opacity: 0 }}
                           key="send_contract"
-                          onClick={() => handleAction('contract_sent', 'I have prepared and sent the draft contract for your review.', 'contract_sent')}
-                          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-xs font-bold whitespace-nowrap hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/20"
+                          onClick={() => !isChatSuspended && handleAction('contract_sent', 'I have prepared and sent the draft contract for your review.', 'contract_sent')}
+                          disabled={isChatSuspended}
+                          className={`flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-xs font-bold whitespace-nowrap hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/20 ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
                         >
                           <FileText className="w-3.5 h-3.5" /> Send Contract
                         </motion.button>
@@ -788,8 +1056,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                           animate={{ scale: 1, opacity: 1 }}
                           exit={{ scale: 0.9, opacity: 0 }}
                           key="close_txn"
-                          onClick={() => handleAction('completed', 'Transaction completed successfully. Welcome to your new home!', 'completed')}
-                          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold whitespace-nowrap hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-500/20"
+                          onClick={() => !isChatSuspended && handleAction('completed', 'Transaction completed successfully. Welcome to your new home!', 'completed')}
+                          disabled={isChatSuspended}
+                          className={`flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold whitespace-nowrap hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-500/20 ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" /> Close Transaction
                         </motion.button>
@@ -799,14 +1068,22 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                   
                   <button 
                     onClick={() => {/* Custom Negotiation Logic */}}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700"
+                    disabled={isChatSuspended}
+                    className={`flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700 ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
                   >
                     Negotiate Rent
                   </button>
 
                   <button 
-                    onClick={handleWhatsAppTransition}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-colors border border-emerald-100 dark:border-emerald-800/50"
+                    onClick={(e) => {
+                      if (isChatSuspended) {
+                        e.preventDefault();
+                        return;
+                      }
+                      handleWhatsAppTransition();
+                    }}
+                    disabled={isChatSuspended}
+                    className={`flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-colors border border-emerald-100 dark:border-emerald-800/50 ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
                   >
                     <MessageCircle className="w-3.5 h-3.5" /> Continue on WhatsApp
                   </button>
@@ -897,26 +1174,43 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
             </div>
 
             {/* Input Area */}
-            <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
-              <div className="relative group flex items-center gap-3">
-                <div className="relative flex-1">
-                  {isRecording ? (
-                    <motion.div 
-                      initial={{ opacity: 0, x: 20, scale: 0.95 }}
-                      animate={{ opacity: 1, x: 0, scale: 1 }}
-                      className="w-full flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 sm:py-2.5 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm"
-                    >
-                      <div className="flex items-center gap-2 px-2 py-1 bg-rose-100 dark:bg-rose-900/30 rounded-full">
-                        <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
-                        <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 tabular-nums shrink-0 tracking-widest">
-                          {Math.floor(recordingTime / 60)}:{Math.floor(recordingTime % 60).toString().padStart(2, '0')}
-                        </span>
-                      </div>
-                      
-                      <div className="flex-1 flex items-center justify-center gap-[3px] h-10 overflow-hidden">
-                        {visualizerLevels.map((lvl, i) => (
-                          <motion.div 
-                            key={`bar-${i}`}
+            {realtimeListingStatus === 'suspended' || (currentUser as any)?.isSuspended || otherUser?.isSuspended ? (
+              <div className="p-4 border-t border-rose-100 dark:border-rose-950/40 bg-rose-50/50 dark:bg-rose-950/5 transition-colors text-center font-sans">
+                <div className="max-w-md mx-auto py-2 flex flex-col items-center gap-1.5">
+                  <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-500 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Conversation Suspended</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium font-sans">
+                    {(currentUser as any)?.isSuspended
+                      ? "Your account is currently suspended. Messages and inquiries inside this conversation are paused."
+                      : otherUser?.isSuspended
+                        ? "This account has been suspended. No further messages can be sent or received."
+                        : "This Listing is currently suspended. Messages and inquiries inside this conversation are paused."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+                <div className="relative group flex items-center gap-3">
+                  <div className="relative flex-1">
+                    {isRecording ? (
+                      <motion.div 
+                        initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        className="w-full flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 sm:py-2.5 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm"
+                      >
+                        <div className="flex items-center gap-2 px-2 py-1 bg-rose-100 dark:bg-rose-900/30 rounded-full">
+                          <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                          <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 tabular-nums shrink-0 tracking-widest">
+                            {Math.floor(recordingTime / 60)}:{Math.floor(recordingTime % 60).toString().padStart(2, '0')}
+                          </span>
+                        </div>
+                        
+                        <div className="flex-1 flex items-center justify-center gap-[3px] h-10 overflow-hidden">
+                          {visualizerLevels.map((lvl, i) => (
+                            <motion.div 
+                              key={`bar-${i}`}
                             initial={{ height: 2 }}
                             animate={{ height: lvl }}
                             transition={{ type: "spring", stiffness: 300, damping: 20 }}
@@ -980,6 +1274,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                 </div>
               </div>
             </form>
+            )}
           </motion.div>
         </div>
       )}

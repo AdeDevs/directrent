@@ -27,6 +27,7 @@ import { ChatModal } from "../components/ChatModal";
 import { Listing, VerificationLevel, UserRole } from "../types";
 import NotificationBadge from "../components/NotificationBadge";
 import VerificationBadge from "../components/VerificationBadge";
+import HeaderPortal from "../components/HeaderPortal";
 
 import { calculateVerificationLevel } from "../lib/verification";
 
@@ -157,9 +158,10 @@ const ConversationRow = ({
 
         {unreadCount ? (
           <div className="absolute top-1/2 -translate-y-1/2 right-4 flex items-center justify-center pointer-events-none">
-            <div className="min-w-[20px] h-[20px] px-1.5 flex items-center justify-center bg-primary-600 text-white text-[10px] font-black rounded-full shadow-sm animate-pulse">
-               {unreadCount}
-            </div>
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-450 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-600"></span>
+            </span>
           </div>
         ) : null}
 
@@ -331,7 +333,7 @@ const Inbox = () => {
 
   return (
     <div className="min-h-screen bg-slate-50/30 dark:bg-slate-950 transition-colors duration-300">
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80">
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 lg:hidden">
         <div className="w-full max-w-none px-4 h-16 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-450 leading-none">Your Chats</span>
@@ -342,7 +344,7 @@ const Inbox = () => {
           
           <button 
             onClick={() => setActiveTab('notifications')}
-            className="p-2.5 relative hover:bg-slate-100/85 dark:hover:bg-slate-800/80 rounded-full transition-colors group border border-slate-150/40 dark:border-slate-800 lg:hidden"
+            className="p-2.5 relative hover:bg-slate-100/85 dark:hover:bg-slate-800/80 rounded-full transition-colors group lg:hidden"
           >
             <Bell className="w-5 h-5 text-slate-700 dark:text-slate-300 group-hover:text-primary-600 transition-colors" />
             <NotificationBadge />
@@ -350,7 +352,18 @@ const Inbox = () => {
         </div>
       </header>
 
-      <main className="w-full max-w-none px-4 py-6">
+      <HeaderPortal>
+        <div className="hidden lg:flex flex-1 items-center justify-between px-6 h-full">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-450 leading-none">Your Chats</span>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+              Messages
+            </h1>
+          </div>
+        </div>
+      </HeaderPortal>
+
+      <main className="w-full max-w-none px-[15px] pt-[15px] pb-0 mb-0">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -418,7 +431,7 @@ const Inbox = () => {
             overrideConversationId={selectedConv.id}
             listing={
               {
-                id: parseInt(selectedConv.listingId),
+                id: isNaN(Number(selectedConv.listingId)) ? selectedConv.listingId : parseInt(selectedConv.listingId),
                 title: selectedConv.listingTitle,
                 price: selectedConv.listingPrice,
                 image: selectedConv.listingImage,

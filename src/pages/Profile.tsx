@@ -57,10 +57,12 @@ import KYCVerification from "../components/KYCVerification";
 import TrustVerification from "../components/TrustVerification";
 import NotificationBadge from "../components/NotificationBadge";
 import { createNotification } from "../lib/notifications";
+import HeaderPortal from "../components/HeaderPortal";
+import { toast } from 'react-hot-toast';
 
 // Compact card for Interests section to reduce weight and fit viewport better
 const Profile = () => {
-  const { user, logout, updateProfile, favorites, setActiveTab } = useAuth();
+  const { user, logout, updateProfile, favorites, setActiveTab, setPublishingProgress, setPublishingStatus } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const handleToggleTheme = () => {
     const nextTheme = theme === 'light' ? 'dark' : 'light';
@@ -194,28 +196,56 @@ const Profile = () => {
     return () => unsubscribe();
   }, [user, showVault]);
 
-  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    setIsUploadingDoc(true);
-    try {
-      const fileName = `vault/${user.id}/${Date.now()}_${file.name}`;
-      const storageRef = ref(storage, fileName);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      await addDoc(collection(db, 'vault'), {
-        userId: user.id,
-        name: file.name,
-        url,
-        type: file.type,
-        createdAt: serverTimestamp()
-      });
-    } catch (err) {
-      console.error("Doc upload failed:", err);
-      alert("Failed to upload document.");
-    } finally {
-      setIsUploadingDoc(false);
-    }
+    
+    setPublishingStatus("Encrypting & uploading document...");
+    setPublishingProgress(20);
+    
+    // Close Vault to let user do other things, or they can stay if they want 
+    // Actually we'll keep Vault open but let them know it's uploading in the background
+    // setShowVault(false); 
+
+    (async () => {
+      try {
+        const fileName = `vault/${user.id}/${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, fileName);
+        
+        // Progress tick simulation
+        const timer = setInterval(() => {
+          setPublishingProgress(prev => prev ? Math.min(prev + 5, 80) : 80);
+        }, 500);
+
+        await uploadBytes(storageRef, file);
+        clearInterval(timer);
+        setPublishingProgress(90);
+
+        const url = await getDownloadURL(storageRef);
+        await addDoc(collection(db, 'vault'), {
+          userId: user.id,
+          name: file.name,
+          url,
+          type: file.type,
+          createdAt: serverTimestamp()
+        });
+        
+        setPublishingProgress(100);
+        setPublishingStatus("Document securely stored!");
+        toast.success("Document added to Vault!");
+        
+        setTimeout(() => {
+          setPublishingProgress(null);
+          setPublishingStatus('');
+        }, 1500);
+
+      } catch (err) {
+        console.error("Doc upload failed:", err);
+        toast.error("Failed to upload document.");
+        setPublishingProgress(null);
+        setPublishingStatus('');
+      }
+    })();
   };
 
   const handleDeleteDoc = async (docId: string, url: string) => {
@@ -552,7 +582,7 @@ const Profile = () => {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     // Validate National Identity Number (NIN)
     if (profileData.nin && profileData.nin.length > 0 && profileData.nin.length !== 11) {
       alert("National Identity Number (NIN) must be exactly 11 digits.");
@@ -563,123 +593,101 @@ const Profile = () => {
       return;
     }
 
-    setIsLoading(true);
-    console.log("Starting profile update...");
+    // Spin off to background
+    setPublishingStatus("Updating profile details...");
+    setPublishingProgress(10);
+    
+    setIsEditing(false); // Release user immediately
+    cleanupPreview();
 
-    try {
-      let finalAvatarUrl = user.avatarUrl || null;
+    // Background process
+    (async () => {
+      try {
+        let finalAvatarUrl = user?.avatarUrl || null;
 
-      // 1. Handle Avatar Upload if selected
-      if (selectedFile) {
-        setIsUploading(true);
-        console.log("Image selected, starting upload process...");
-        
-        // CLEANUP PREVIOUS IMAGE FROM STORAGE IF IT EXISTS
-        if (user.avatarUrl && user.avatarUrl.includes("firebasestorage")) {
-          await safeDeleteStorageFile(user.avatarUrl);
-        }
-        
-        try {
+        // 1. Handle Avatar Upload if selected
+        if (selectedFile) {
+          setPublishingStatus("Uploading new photo...");
+          setPublishingProgress(40);
+          console.log("Image selected, starting upload process...");
+          
+          if (user?.avatarUrl && user.avatarUrl.includes("firebasestorage")) {
+            await safeDeleteStorageFile(user.avatarUrl);
+          }
+          
+          try {
+            console.log("Compressing image...");
+            const compressedBlob = await compressImage(selectedFile);
+            const fileName = `avatars/${user?.id || 'unknown'}_${Date.now()}.jpg`;
+            const storageRef = ref(storage, fileName);
+            
+            const uploadPromise = uploadBytes(storageRef, compressedBlob);
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error("Storage upload timed out (60s)")), 60000)
+            );
 
-          // Compress the image (using a slightly smaller size for even better reliability)
-          console.log("Compressing image...");
-          const compressedBlob = await compressImage(selectedFile);
-          console.log(`Compression complete. Blob size: ${(compressedBlob.size / 1024).toFixed(2)}KB. Uploading to Firebase Storage...`);
-          
-          // Create Storage Reference
-          const fileName = `avatars/${user?.id || 'unknown'}_${Date.now()}.jpg`;
-          const storageRef = ref(storage, fileName);
-          
-          // Use a promise race to handle potential hanging with a longer timeout
-          console.log("Initiating uploadBytes...");
-          const uploadPromise = uploadBytes(storageRef, compressedBlob);
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("Storage upload timed out (60s)")), 60000)
-          );
-
-          const snapshot: any = await Promise.race([uploadPromise, timeoutPromise]);
-          console.log("Upload successful.");
-          
-          // Get Download URL
-          console.log("Retrieving download URL...");
-          finalAvatarUrl = await getDownloadURL(snapshot.ref);
-          console.log("Download URL retrieved successfully:", finalAvatarUrl);
-        } catch (uploadError: any) {
-          console.error("Avatar upload process failed:", uploadError);
-          
-          if (uploadError.message?.includes("timed out")) {
-            console.warn("Storage timed out. Attempting fallback to compressed Base64...");
-            try {
-               // CRITICAL FIX: Use the COMPRESSED blob for fallback, NOT the original file
-               const compressedBlob = await compressImage(selectedFile);
-               const reader = new FileReader();
-               const base64: string = await new Promise((res, rej) => {
-                 reader.onload = () => res(reader.result as string);
-                 reader.onerror = rej;
-                 reader.readAsDataURL(compressedBlob);
-               });
-               finalAvatarUrl = base64;
-               console.log(`Fallback to compressed Base64 successful. Size: ${(base64.length / 1024).toFixed(2)}KB`);
-            } catch (fallbackError) {
-               console.error("Fallback failed:", fallbackError);
+            const snapshot: any = await Promise.race([uploadPromise, timeoutPromise]);
+            finalAvatarUrl = await getDownloadURL(snapshot.ref);
+          } catch (uploadError: any) {
+            console.error("Avatar upload process failed:", uploadError);
+            if (uploadError.message?.includes("timed out")) {
+              try {
+                 const compressedBlob = await compressImage(selectedFile);
+                 const reader = new FileReader();
+                 const base64: string = await new Promise((res, rej) => {
+                   reader.onload = () => res(reader.result as string);
+                   reader.onerror = rej;
+                   reader.readAsDataURL(compressedBlob);
+                 });
+                 finalAvatarUrl = base64;
+              } catch (fallbackError) {
+                 console.error("Fallback failed:", fallbackError);
+              }
             }
           }
-
-          let errorMsg = uploadError.message || "Unknown storage error";
-          if (uploadError.code === 'storage/unauthorized') {
-            errorMsg = "Permission denied. Please ensure 'Firebase Storage' is enabled in your Firebase Console and rules are set to public for development.";
-          }
-          
-          if (!finalAvatarUrl || !finalAvatarUrl.startsWith('data:')) {
-            alert(`Storage Error: ${errorMsg}. Your profile changes will be saved, but the photo might not update. Please verify Storage is enabled in your Firebase Console.`);
-          }
         }
-        setIsUploading(false);
-      }
 
-      // 2. Prepare Data
-      console.log("Updating Firestore document...");
-      const fullName = `${profileData.firstName} ${profileData.lastName}`.trim();
-      const updatedData: any = {
-        ...profileData,
-        name: fullName,
-        avatarUrl: finalAvatarUrl || null,
-        verificationLevel: calculateVerificationLevel({ ...user || {}, ...profileData, name: fullName, avatarUrl: finalAvatarUrl || null })
-      };
+        setPublishingProgress(80);
+        setPublishingStatus("Saving profile data...");
+        // 2. Prepare Data
+        const fullName = `${profileData.firstName} ${profileData.lastName}`.trim();
+        const updatedData: any = {
+          ...profileData,
+          name: fullName,
+          avatarUrl: finalAvatarUrl || null,
+          verificationLevel: calculateVerificationLevel({ ...user || {}, ...profileData, name: fullName, avatarUrl: finalAvatarUrl || null })
+        };
 
-      // 3. Update Firestore using explicit updateDoc + deleteField cleanup
-      // This is the ONLY way to recover if the document is currently bloated (e.g. 1.4MB)
-      try {
-        const userRef = doc(db, 'users', user?.id || '');
-        await updateDoc(userRef, {
-          ...updatedData,
-          // Properly PURGE legacy fields to shrink document size
-          avatarBase64: deleteField(),
-          photo: deleteField()
-        });
+        // 3. Update Firestore
+        try {
+          const userRef = doc(db, 'users', user?.id || '');
+          await updateDoc(userRef, {
+            ...updatedData,
+            avatarBase64: deleteField(),
+            photo: deleteField()
+          });
+          
+          await updateProfile(updatedData);
+        } catch (updateError: any) {
+          await updateProfile(updatedData);
+        }
         
-        // Sync context state
-        await updateProfile(updatedData);
-        console.log("Firestore update and debloating successful.");
-      } catch (updateError: any) {
-        console.warn("Standard update failed, trying backup merge...");
-        await updateProfile(updatedData);
-      }
-      
-      cleanupPreview();
-      setIsEditing(false);
-      setSuccessMessage("Profile updated successfully!");
-      setShowSuccess(true);
-      setIsIdentityExpanded(false);
+        setPublishingProgress(100);
+        setPublishingStatus("Profile updated successfully!");
+        toast.success("Profile updated successfully!");
+        
+        setTimeout(() => {
+          setPublishingProgress(null);
+          setPublishingStatus('');
+        }, 1500);
 
-      setTimeout(() => setShowSuccess(false), 3000);
-    } catch (error: any) {
-      console.error("Save failed:", error);
-      alert(`Failed to save profile: ${error.message || "Unknown error"}. Please try again.`);
-    } finally {
-      setIsLoading(false);
-      setIsUploading(false);
-    }
+      } catch (error: any) {
+        console.error("Save failed:", error);
+        toast.error(`Failed to save profile: ${error.message || "Unknown error"}.`);
+        setPublishingProgress(null);
+        setPublishingStatus('');
+      }
+    })();
   };
 
   interface ProfileMenuItem {
@@ -736,7 +744,7 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-[0] transition-colors duration-300">
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 lg:hidden">
         <div className="w-full max-w-none px-4 h-16 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Your Space</span>
@@ -746,7 +754,7 @@ const Profile = () => {
           </div>
           <button 
             onClick={() => setActiveTab('notifications')}
-            className="p-2.5 relative hover:bg-slate-100/80 dark:hover:bg-slate-800/80 rounded-full transition-colors group border border-slate-150/40 dark:border-slate-800 lg:hidden"
+            className="p-2.5 relative hover:bg-slate-100/80 dark:hover:bg-slate-800/80 rounded-full transition-colors group lg:hidden"
           >
             <Bell className="w-5 h-5 text-slate-700 dark:text-slate-300 group-hover:text-primary-600 transition-colors" />
             <NotificationBadge />
@@ -754,7 +762,18 @@ const Profile = () => {
         </div>
       </header>
 
-      <main className="w-full max-w-none pt-6 pl-[15px] pr-4 space-y-6 pb-0">
+      <HeaderPortal>
+        <div className="hidden lg:flex flex-1 items-center justify-between px-6 h-full">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Your Space</span>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+              Profile
+            </h1>
+          </div>
+        </div>
+      </HeaderPortal>
+
+      <main className="w-full max-w-none px-[15px] pt-[15px] pb-0 mb-0 space-y-6">
         {showSuccess && (
           <motion.div
             initial={{ opacity: 0, y: -15 }}
@@ -889,20 +908,6 @@ const Profile = () => {
             </button>
 
             <button 
-              onClick={() => setActiveTab('terms')}
-              className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
-            >
-              <div className="w-10 h-10 bg-cyan-50 dark:bg-cyan-955/40 rounded-2xl flex items-center justify-center text-cyan-500 group-active:scale-95 transition-transform border border-cyan-100/40 dark:border-cyan-900/10">
-                <FileText className="w-5 h-5" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">Terms of Use</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">DirectRent rules of engagement</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-
-            <button 
               onClick={() => setShowVault(true)}
               className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
             >
@@ -912,17 +917,6 @@ const Profile = () => {
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-slate-900 dark:text-white">DirectRent Vault</p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Safe storage for contracts & rent receipts</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-
-            <button className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group">
-              <div className="w-10 h-10 bg-blue-50 dark:bg-blue-955/40 rounded-2xl flex items-center justify-center text-blue-500 group-active:scale-95 transition-transform border border-blue-100/40 dark:border-blue-900/10">
-                <CreditCard className="w-5 h-5" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">Add Card</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Securely add transaction cards</p>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
             </button>
@@ -978,19 +972,13 @@ const Profile = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 p-4 group">
-              <div className="w-10 h-10 bg-blue-50 dark:bg-blue-955/40 rounded-2xl flex items-center justify-center text-blue-500 group-active:scale-95 transition-transform border border-blue-100/40 dark:border-blue-900/10">
-                <Bell className="w-5 h-5" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">Push Notifications</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Receive real-time chat and alert notifications</p>
-              </div>
-              <div className="w-11 h-6 bg-primary-600 rounded-full flex items-center px-1">
-                <div className="w-4 h-4 bg-white rounded-full ml-auto shadow-sm" />
-              </div>
-            </div>
+          </div>
+        </section>
 
+        {/* Support & Legal */}
+        <section className="space-y-3">
+          <h3 className="text-xs font-black tracking-widest text-slate-400 dark:text-slate-500 uppercase pl-2">Support & Legal</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-150/80 dark:border-slate-800/80 shadow-sm overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/50 transition-colors select-none">
             <button 
               onClick={() => setActiveTab('faq')}
               className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
@@ -1006,6 +994,20 @@ const Profile = () => {
             </button>
 
             <button 
+              onClick={() => setActiveTab('terms')}
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
+            >
+              <div className="w-10 h-10 bg-cyan-50 dark:bg-cyan-955/40 rounded-2xl flex items-center justify-center text-cyan-500 group-active:scale-95 transition-transform border border-cyan-100/40 dark:border-cyan-900/10 font-sans">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Terms of Use</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">DirectRent rules of engagement</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+
+            <button 
               onClick={() => setShowLogoutConfirm(true)}
               className="w-full flex items-center gap-4 p-4 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors group"
             >
@@ -1013,8 +1015,8 @@ const Profile = () => {
                 <LogOut className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-rose-650 dark:text-rose-400">Log Out</p>
-                <p className="text-[10px] text-rose-400/80 dark:text-rose-500/50 font-medium">Securely end your active session</p>
+                <p className="text-sm font-bold text-rose-650 dark:text-rose-455 font-sans">Log Out</p>
+                <p className="text-[10px] text-rose-400/80 dark:text-rose-500/50 font-medium font-sans">Securely end your active session</p>
               </div>
               <ChevronRight className="w-4 h-4 text-rose-350 dark:text-rose-700 group-hover:translate-x-0.5 transition-transform" />
             </button>
@@ -1704,14 +1706,14 @@ const Profile = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-500"
+              className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-500"
             >
               <motion.div
                 initial={{ y: "100%" }}
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="bg-white dark:bg-slate-900 w-full max-w-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] border border-white/10"
+                className="bg-white dark:bg-slate-900 w-full max-w-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] border border-slate-200 dark:border-slate-800"
               >
                 <div className="p-5 sm:p-8 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 shrink-0">
                   <div className="flex items-center gap-3">

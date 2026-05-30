@@ -14,7 +14,9 @@ import {
   Sun, 
   Moon,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -22,7 +24,12 @@ import { AppTab } from '../types';
 import InboxBadge from './InboxBadge';
 import NotificationBadge from './NotificationBadge';
 
-const DesktopSidebar: React.FC = () => {
+interface DesktopSidebarProps {
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+}
+
+const DesktopSidebar: React.FC<DesktopSidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
   const { 
     user, 
     activeTab, 
@@ -70,90 +77,121 @@ const DesktopSidebar: React.FC = () => {
   };
 
   return (
-    <aside className="fixed top-0 left-0 bottom-0 w-72 h-screen hidden lg:flex flex-col bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800/80 z-50 transition-colors duration-300 select-none">
+    <aside className={`fixed top-16 left-0 bottom-0 ${isCollapsed ? 'w-20' : 'w-72'} h-[calc(100vh-4rem)] hidden lg:flex flex-col bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800/80 z-40 transition-all duration-300 select-none`}>
       
-      {/* 1. Header & Brand Logo */}
-      <div className="h-16 px-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-        <div 
-          onClick={() => handleTabChange('home')}
-          className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition-transform"
-        >
-          <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shadow-lg shadow-primary-500/20">
-            <HomeIcon className="text-white w-4 h-4" />
-          </div>
-          <span className="text-lg font-display font-black tracking-tight leading-none text-slate-900 dark:text-white">
-            Direct<span className="text-primary-600 dark:text-primary-400">Rent</span>
-          </span>
-        </div>
-      </div>
-
       {/* 2. Navigation Links Grid */}
-      <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+      <nav className="flex-1 min-h-0 px-3 py-6 space-y-1.5 overflow-y-auto scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:display-none">
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
-          return (
-            <button
-              key={`sidebar-nav-${item.id}`}
-              onClick={() => handleTabChange(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest relative cursor-pointer group transition-all duration-300 ${
-                isActive 
-                  ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/15' 
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-100'
-              }`}
-            >
-              <div className={`transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-[1.08]'}`}>
-                {item.icon}
-              </div>
-              <span className="flex-1 text-left truncate">{item.label}</span>
-              {item.badge && (
-                <div className={`shrink-0 ${isActive ? 'brightness-125' : ''}`}>
-                  {item.badge}
+          if (!isCollapsed) {
+            return (
+              <button
+                key={`sidebar-nav-${item.id}`}
+                onClick={() => handleTabChange(item.id)}
+                title={item.label}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest relative cursor-pointer group transition-all duration-300 ${
+                  isActive 
+                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/15' 
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-100'
+                }`}
+              >
+                <div className={`transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-[1.08]'}`}>
+                  {item.icon}
                 </div>
-              )}
-              {isActive && (
-                <motion.div 
-                  layoutId="activeTabIndicator" 
-                  className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"
-                  transition={{ type: "spring", bounce: 0.1, duration: 0.5 }}
-                />
-              )}
-            </button>
-          );
+                 <span className="flex-1 text-left truncate">{item.label}</span>
+                {item.badge && (
+                  <div className={`shrink-0 flex items-center justify-center ${isActive ? 'brightness-125' : ''}`}>
+                    {item.id === 'chat' ? (
+                      <InboxBadge className="flex items-center justify-center w-5 h-5 bg-primary-600 text-white text-[9px] font-black rounded-full select-none leading-none border border-transparent align-middle text-center" />
+                    ) : (
+                      <NotificationBadge className="flex items-center justify-center w-5 h-5 bg-primary-600 text-white text-[9px] font-black rounded-full select-none leading-none border border-transparent align-middle text-center" />
+                    )}
+                  </div>
+                )}
+              </button>
+            );
+          } else {
+            return (
+              <button
+                key={`sidebar-nav-${item.id}`}
+                onClick={() => handleTabChange(item.id)}
+                title={item.label}
+                className={`w-12 h-12 mx-auto flex items-center justify-center rounded-xl text-xs relative cursor-pointer group transition-all duration-300 ${
+                  isActive 
+                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/15' 
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-100'
+                }`}
+              >
+                <div className={`transition-all duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-[1.08]'}`}>
+                  {item.icon}
+                </div>
+                {item.badge && (
+                  <div className="absolute top-1 right-1 z-10 flex items-center justify-center">
+                    {item.id === 'chat' ? (
+                       <InboxBadge className="flex items-center justify-center w-4 h-4 bg-primary-600 text-white text-[8px] font-black rounded-full border border-white dark:border-slate-900 select-none leading-none text-center" />
+                    ) : (
+                      <NotificationBadge className="flex items-center justify-center w-4 h-4 bg-primary-600 text-white text-[8px] font-black rounded-full border border-white dark:border-slate-900 select-none leading-none text-center" />
+                    )}
+                  </div>
+                )}
+              </button>
+            );
+          }
         })}
       </nav>
 
       {/* 4. Footer Workspace Utilities */}
-      <div className="p-4 border-t border-slate-100 dark:border-slate-900/80 flex flex-col gap-3">
-        
-        {/* Theme Toggle - Beautiful Segmented iOS Slider style */}
-        <div className="bg-slate-50 dark:bg-slate-900/60 p-1.5 rounded-xl border border-slate-100 dark:border-slate-900 flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
-          <span className="pl-2 uppercase tracking-wide text-[10px]">Theme Mode</span>
-          <button 
-            onClick={handleToggleTheme}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm border border-slate-200/40 dark:border-slate-700/50 hover:scale-[1.02] transition-transform"
-          >
-            {theme === 'dark' ? (
-              <>
-                <Moon className="w-3.5 h-3.5 text-primary-400" />
-                <span className="text-[9px] font-black uppercase tracking-wider">Dark</span>
-              </>
-            ) : (
-              <>
-                <Sun className="w-3.5 h-3.5 text-amber-500" />
-                <span className="text-[9px] font-black uppercase tracking-wider">Light</span>
-              </>
-            )}
-          </button>
-        </div>
+      <div className="p-4 border-t border-slate-150 dark:border-slate-900 flex flex-col gap-3">
+        {!isCollapsed ? (
+          <>
+            {/* Theme Toggle - Beautiful Segmented iOS Slider style */}
+            <div className="bg-slate-50 dark:bg-slate-900/60 p-1.5 rounded-xl border border-slate-100 dark:border-slate-900 flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+              <span className="pl-2 uppercase tracking-wide text-[10px]">Theme Mode</span>
+              <button 
+                onClick={handleToggleTheme}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm border border-slate-200/40 dark:border-slate-700/50 hover:scale-[1.02] transition-transform"
+              >
+                {theme === 'dark' ? (
+                  <>
+                    <Moon className="w-3.5 h-3.5 text-primary-400" />
+                    <span className="text-[9px] font-black uppercase tracking-wider">Dark</span>
+                  </>
+                ) : (
+                  <>
+                    <Sun className="w-3.5 h-3.5 text-amber-500" />
+                    <span className="text-[9px] font-black uppercase tracking-wider">Light</span>
+                  </>
+                )}
+              </button>
+            </div>
 
-        {/* Logout Quick Button */}
-        <button
-          onClick={() => logout()}
-          className="w-full flex items-center justify-center gap-2 py-3 border border-red-200/50 dark:border-red-950/20 hover:border-red-200/80 text-red-600 bg-red-50/30 dark:bg-red-950/5 hover:bg-red-50 dark:hover:bg-red-950/15 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm active:scale-98"
-        >
-          <LogOut className="w-3.5 h-3.5 text-red-600" />
-          <span>Logout Account</span>
-        </button>
+            {/* Logout Quick Button */}
+            <button
+              onClick={() => logout()}
+              className="w-full flex items-center justify-center gap-2 py-3 border border-red-200/50 dark:border-red-950/20 hover:border-red-200/80 text-red-600 bg-red-50/30 dark:bg-red-950/5 hover:bg-red-50 dark:hover:bg-red-950/15 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm active:scale-98"
+            >
+              <LogOut className="w-3.5 h-3.5 text-red-600" />
+              <span>Logout Account</span>
+            </button>
+          </>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <button 
+              onClick={handleToggleTheme}
+              title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+              className="w-11 h-11 mx-auto bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800 transition-all active:scale-95 relative group cursor-pointer"
+            >
+              {theme === 'dark' ? <Moon className="w-4 h-4 text-primary-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
+            </button>
+            <button
+              onClick={() => logout()}
+              title="Logout"
+              className="w-11 h-11 mx-auto flex items-center justify-center text-red-600 bg-red-50/30 hover:bg-red-50 dark:bg-red-950/5 dark:hover:bg-red-950/15 border border-red-200/50 dark:border-red-950/20 hover:border-red-200/80 rounded-xl transition-all active:scale-95 relative group cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 text-red-600" />
+            </button>
+          </div>
+        )}
       </div>
 
     </aside>

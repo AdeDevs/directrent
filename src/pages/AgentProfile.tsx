@@ -5,7 +5,7 @@ import {
   CheckCircle2, MessageSquare, MapPin, Loader2, Calendar, 
   Zap, Building2, UserCheck, ShieldAlert, Award, Grid, Menu,
   Mail, Phone, ExternalLink, ArrowRight, Bed, Bath, Maximize2, Bookmark,
-  Plus, X
+  Plus, X, Flag, AlertTriangle, CheckSquare
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { 
@@ -26,6 +26,9 @@ import { Review, Listing } from '../types';
 import SafeImage from '../components/SafeImage';
 import { useAuth } from '../context/AuthContext';
 import { ChatModal } from '../components/ChatModal';
+import { HeaderPortal } from '../components/HeaderPortal';
+
+import { toast } from 'react-hot-toast';
 
 interface AgentProfileProps {
   agentId: string;
@@ -46,9 +49,9 @@ const AgentProfileSkeleton: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         </button>
       </nav>
 
-      <main className="w-full max-w-full px-4 py-8 space-y-12 pb-0 mx-0">
+      <main className="w-full max-w-full px-[15px] py-8 space-y-12 pb-0 mx-0">
         {/* Header Hero Card Skeleton */}
-        <section className="bg-white/85 dark:bg-[#0c111e] rounded-[32px] p-6 md:p-10 border border-slate-200 dark:border-[#1e293b] backdrop-blur-xl shadow-sm space-y-8">
+        <section className="bg-white/85 dark:bg-[#0c111e] rounded-[32px] p-[15px] border border-slate-200 dark:border-[#1e293b] backdrop-blur-xl shadow-sm space-y-8">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
             <div className="w-28 h-28 md:w-36 md:h-36 rounded-2xl md:rounded-[32px] bg-slate-200/60 dark:bg-slate-800 animate-pulse shrink-0" />
             <div className="text-center md:text-left space-y-4 flex-1">
@@ -138,6 +141,122 @@ const AgentProfileSkeleton: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   );
 };
 
+const ReportModal = ({ isOpen, onClose, agentId, userId }: { isOpen: boolean, onClose: () => void, agentId: string, userId?: string }) => {
+  const [reason, setReason] = useState('');
+  const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const reasons = ['Inappropriate Behavior', 'Fraudulent Account', 'Hidden Fees', 'Unresponsive', 'Other'];
+
+  const handleSubmit = async () => {
+    if (!reason) return;
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'reports'), {
+        agentId,
+        reporterId: userId || 'anonymous',
+        reason,
+        description,
+        type: 'agent',
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        onClose();
+      }, 2000);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'reports');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl relative z-10 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300"
+      >
+        {isSuccess ? (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckSquare className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Report Received</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Thank you for helping keep DirectRent safe. Our admins will review this agent's profile.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-xl flex items-center justify-center">
+                  <Flag className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Report Agent</h3>
+              </div>
+              <button 
+                onClick={onClose}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Reason</label>
+                <div className="grid grid-cols-1 gap-2">
+                  {reasons.map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setReason(r)}
+                      className={`w-full p-3 rounded-xl text-left text-sm font-bold transition-all border-2 ${reason === r ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-500 text-primary-700 dark:text-primary-400' : 'bg-slate-50 dark:bg-slate-800/50 border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Details (Optional)</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Tell us more about the issue..."
+                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-transparent p-4 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500/20 transition-all resize-none h-24"
+                />
+              </div>
+
+              <button
+                disabled={!reason || isSubmitting}
+                onClick={handleSubmit}
+                className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-4 rounded-2xl font-black text-sm shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit Report'}
+              </button>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
 const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
   const { user, setCurrentListing, favorites, toggleFavorite } = useAuth();
   const [agent, setAgent] = useState<any>(null);
@@ -146,8 +265,10 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
   const [allAgentListings, setAllAgentListings] = useState<Listing[]>([]);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
-  const [newReview, setNewReview] = useState({ rating: 5, comment: '', listingTitle: '' });
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [newReview, setNewReview] = useState({ rating: 5, comment: '', listingTitle: '', listingId: '' });
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [hasCompletedTxn, setHasCompletedTxn] = useState(false);
   
   const carouselRef = React.useRef<HTMLDivElement>(null);
 
@@ -178,6 +299,24 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
     setIsLoading(true);
     setError(null);
     try {
+      let localHasCompleted = false;
+      if (user) {
+        try {
+          const convsRef = collection(db, 'conversations');
+          const qCheck = query(
+            convsRef,
+            where('tenantId', '==', user.id),
+            where('agentId', '==', agentId),
+            where('status', 'in', ['completed', 'closed'])
+          );
+          const snaps = await getDocs(qCheck);
+          localHasCompleted = !snaps.empty;
+          setHasCompletedTxn(localHasCompleted);
+        } catch (e) {
+          console.warn("Txn check failed:", e);
+        }
+      }
+
       // Fetch Real Agent Profile
       const agentDoc = await getDoc(doc(db, 'users', agentId));
       if (!agentDoc.exists()) {
@@ -188,47 +327,58 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
       const agentData = agentDoc.data();
       setAgent(agentData);
 
-      // Fetch Stats directly from the database user record to ensure permission-safe and precise 0-centered statistics
-      const completedCount = agentData.completedTxns || 0;
-
       // Fetch Agent's Listings directly to calculate active count dynamically (safe public query)
       let listingsCount = 0;
-      let listings: Listing[] = [];
+      let closedCountFromListings = 0;
+      let activeListings: Listing[] = [];
       try {
         const listingsRef = collection(db, 'listings');
         const qListings = query(
           listingsRef, 
-          where('agent.id', '==', agentId),
-          where('isApproved', '==', true)
+          where('agent.id', '==', agentId)
         );
         const listingsSnap = await getDocs(qListings);
-        listings = listingsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Listing));
-        listingsCount = listingsSnap.size;
-        setFeaturedListings(listings.slice(0, 3));
-        setAllAgentListings(listings);
+        const rawListings = listingsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Listing));
+        
+        activeListings = rawListings.filter(l => l.isApproved === true && (l.status as any) !== 'closed' && (l.status as any) !== 'completed' && l.status !== 'suspended');
+        closedCountFromListings = rawListings.filter(l => (l.status as any) === 'closed' || (l.status as any) === 'completed' || (l as any).isClosed).length;
+        
+        listingsCount = activeListings.length;
+        setFeaturedListings(activeListings.slice(0, 3));
+        setAllAgentListings(activeListings);
       } catch (e) {
         console.warn("Listings fetch failed:", e);
       }
 
+      // Fetch Stats directly from the database user record to ensure permission-safe and precise 0-centered statistics
+      const completedCount = Math.max(agentData.completedTxns || 0, closedCountFromListings);
+
       // Use profile-recorded avgResponseTime, or adaptive string based on transaction history to avoid conversation scanning
-      let responseTimeStr = '15m';
+      let responseTimeStr = '--';
       if (agentData.avgResponseTime) {
         responseTimeStr = agentData.avgResponseTime;
-      } else if (completedCount === 0) {
-        responseTimeStr = '--';
+      } else {
+         try {
+           const convsRef = collection(db, 'conversations');
+           const qAll = query(convsRef, where('agentId', '==', agentId), limit(1));
+           const snaps = await getDocs(qAll);
+           if (!snaps.empty) {
+             responseTimeStr = '15m';
+           }
+         } catch(e) {}
       }
 
       const joinYear = agentData.createdAt?.toDate ? agentData.createdAt.toDate().getFullYear().toString() : '2024';
 
-      setStats({
-        completedTxns: completedCount,
+      setStats(prev => ({
+        ...prev,
+        completedTxns: Math.max(completedCount, localHasCompleted ? 1 : 0, prev.totalReviews),
         activeListingsCount: listingsCount,
-        avgRating: agentData.avgRating || 0.0,
-        totalReviews: 0,
+        avgRating: prev.totalReviews > 0 ? prev.avgRating : (agentData.avgRating || 0.0),
         responseTime: responseTimeStr,
         memberSince: joinYear,
         isIdentityVerified: !!(agentData.nin || agentData.phoneVerified)
-      });
+      }));
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, `users/${agentId}`);
     } finally {
@@ -349,8 +499,22 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-white font-sans selection:bg-primary-500/30 transition-colors duration-500">
+      <HeaderPortal>
+        <div className="hidden md:flex flex-1 items-center justify-end px-6 py-2 pb-3 mb-1">
+          {(!user || user.id !== agentId) && (
+            <button 
+              onClick={() => setShowReportModal(true)}
+              className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-rose-500 transition-all cursor-pointer shadow-sm border border-slate-200 dark:border-slate-700 hover:scale-105 active:scale-95"
+              title="Report Agent"
+            >
+              <Flag className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      </HeaderPortal>
+
       {/* Navigation */}
-      <nav className="sticky top-0 left-0 right-0 h-16 flex items-center px-6 z-[100] bg-white/80 dark:bg-[#020617]/80 backdrop-blur-xl border-b border-slate-200 dark:border-white/5 transition-all">
+      <nav className="sticky top-0 left-0 right-0 h-16 flex items-center px-6 z-[100] bg-white/80 dark:bg-[#020617]/80 backdrop-blur-xl border-b border-slate-200 dark:border-white/5 transition-all lg:hidden">
         <button 
           onClick={onBack}
           className="group flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all"
@@ -358,11 +522,22 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
           <ChevronLeft className="w-4 h-4" />
           Back
         </button>
+        <div className="flex-1 flex justify-end">
+          {(!user || user.id !== agentId) && (
+            <button 
+              onClick={() => setShowReportModal(true)}
+              className="p-2 text-slate-400 hover:text-rose-500 transition-colors active:scale-90"
+              title="Report Agent"
+            >
+              <Flag className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </nav>
 
-      <main className="w-full max-w-full px-4 py-8 space-y-12 pb-0 mx-0">
+      <main className="w-full max-w-full px-[15px] pt-[15px] pb-12 space-y-12 mx-0">
         {/* Combined Agent Profile Card: Redesigned based on Image */}
-        <section className="bg-white dark:bg-[#0c111e] rounded-[32px] p-6 md:p-10 border border-slate-200 dark:border-[#1e293b] shadow-2xl relative transition-all duration-300">
+        <section className="bg-white dark:bg-[#0c111e] rounded-[32px] p-[15px] border border-slate-200 dark:border-[#1e293b] shadow-2xl relative transition-all duration-300">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
             
             {/* Avatar */}
@@ -409,7 +584,6 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
               <p className="text-sm text-slate-605 dark:text-slate-300 leading-relaxed font-normal">
                 {agent.about || `Highly-rated real estate strategist specializing in high-yield luxury rentals and commercial portfolios. Providing verified listings and secure, transparent rental experiences for expatriates and corporate clients in the ${agent.city || 'Ibadan'} market.`}
               </p>
-
             </div>
           </div>
 
@@ -460,20 +634,31 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
               <h2 className="text-2xl font-display font-black tracking-tight text-slate-900 dark:text-white uppercase">Featured Listings</h2>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Exclusive high-end properties handpicked for quality and value.</p>
             </div>
-            <button 
-              onClick={() => {
-                const homeSection = document.getElementById('listings-grid');
-                if (homeSection) homeSection.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="text-xs font-black text-primary-500 hover:text-primary-400 transition-colors uppercase tracking-widest flex items-center gap-1 mt-2 sm:mt-0"
-            >
-              View Full Portfolio <ArrowRight className="w-3 h-3" />
-            </button>
+            {user?.role === 'agent' && (
+              <button 
+                onClick={() => {
+                  const homeSection = document.getElementById('listings-grid');
+                  if (homeSection) homeSection.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="text-xs font-black text-primary-500 hover:text-primary-400 transition-colors uppercase tracking-widest flex items-center gap-1 mt-2 sm:mt-0"
+              >
+                View Full Portfolio <ArrowRight className="w-3 h-3" />
+              </button>
+            )}
           </div>
 
-          {featuredListings.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {featuredListings.map((listing) => {
+          {allAgentListings.length > 0 ? (
+            <div className="flex gap-6 overflow-x-auto pb-6 snap-x snap-mandatory hide-scrollbar">
+              <style>{`
+                .hide-scrollbar::-webkit-scrollbar {
+                  display: none;
+                }
+                .hide-scrollbar {
+                  -ms-overflow-style: none;
+                  scrollbar-width: none;
+                }
+              `}</style>
+              {allAgentListings.map((listing) => {
                 const isFav = favorites?.includes(listing.id) || false;
                 return (
                   <motion.div 
@@ -483,7 +668,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                     whileHover={{ y: -6 }}
                     transition={{ duration: 0.25 }}
                     onClick={() => setCurrentListing?.(listing)}
-                    className="group bg-white dark:bg-[#0c111e] rounded-3xl overflow-hidden border border-slate-200/60 dark:border-[#1e293b] shadow-md hover:shadow-2xl hover:border-slate-300 dark:hover:border-white/10 transition-all duration-300 flex flex-col cursor-pointer"
+                    className="flex-none w-[85%] sm:w-[350px] md:w-[320px] snap-start group bg-white dark:bg-[#0c111e] rounded-3xl overflow-hidden border border-slate-200/60 dark:border-[#1e293b] shadow-md hover:shadow-2xl hover:border-slate-300 dark:hover:border-white/10 transition-all duration-300 flex flex-col cursor-pointer"
                   >
                     {/* Image Container with Cover Zoom */}
                     <div className="relative aspect-[16/10] overflow-hidden">
@@ -520,7 +705,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                     </div>
 
                     {/* Info Panel Info */}
-                    <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                    <div className="p-[15px] flex-1 flex flex-col justify-between space-y-4">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <h3 className="font-extrabold text-md text-slate-900 dark:text-white group-hover:text-primary-500 transition-colors truncate">
@@ -579,11 +764,27 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
               )}
             </div>
             <button 
-              onClick={() => setShowReviewModal(true)}
-              className="px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white font-extrabold uppercase rounded-full shadow-md shadow-primary-500/20 active:scale-95 transition-all text-[11px] tracking-widest flex items-center gap-1.5 cursor-pointer border border-primary-500/20 self-end sm:self-auto"
+              onClick={() => {
+                if (!user) {
+                  alert("Please sign in to leave feedback.");
+                  return;
+                }
+                if (!hasCompletedTxn) return;
+                setShowReviewModal(true);
+              }}
+              className={`px-4 py-2 font-extrabold uppercase rounded-full shadow-md active:scale-95 transition-all text-[11px] tracking-widest flex items-center gap-1.5 border self-end sm:self-auto group relative ${
+                !user || hasCompletedTxn
+                  ? 'bg-primary-600 hover:bg-primary-500 text-white shadow-primary-500/20 border-primary-500/20 cursor-pointer'
+                  : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-700 cursor-not-allowed'
+              }`}
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Add Feedback</span>
+              <span className="hidden sm:inline">Add Feedback</span>
+              {!hasCompletedTxn && user && (
+                <div className="absolute top-[calc(100%+8px)] right-0 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] p-2 rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-xl z-50 normal-case font-medium">
+                  You must complete a transaction first
+                </div>
+              )}
             </button>
           </div>
 
@@ -644,7 +845,27 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                             {review.rating}/5
                           </span>
                           {review.listingTitle && (
-                            <span className="text-[10px] text-slate-450 dark:text-slate-500 font-bold truncate max-w-[180px]" title={review.listingTitle}>
+                            <span 
+                              className="text-[10px] text-primary-500 hover:text-primary-600 dark:text-primary-400 font-bold truncate max-w-[180px] cursor-pointer hover:underline transition-all" 
+                              title={review.listingTitle}
+                              onClick={async () => {
+                                if (review.listingId) {
+                                  try {
+                                    const { getDoc, doc } = await import('firebase/firestore');
+                                    const listingDoc = await getDoc(doc(db, 'listings', review.listingId));
+                                    if (listingDoc.exists() && listingDoc.data().status !== 'hidden' && listingDoc.data().status !== 'closed' && listingDoc.data().status !== 'completed' && listingDoc.data().isApproved) {
+                                      setCurrentListing({ id: listingDoc.id, ...listingDoc.data() } as Listing);
+                                    } else {
+                                      toast.error("This property is no longer available.");
+                                    }
+                                  } catch(e) {
+                                    toast.error("Could not fetch property details.");
+                                  }
+                                } else {
+                                  toast.error("Property link unavailable for older reviews.");
+                                }
+                              }}
+                            >
                               • {review.listingTitle}
                             </span>
                           )}
@@ -677,6 +898,14 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
             currentUser={user!}
           />
         )}
+        {showReportModal && (
+          <ReportModal 
+            isOpen={showReportModal} 
+            onClose={() => setShowReportModal(false)}
+            agentId={agentId}
+            userId={user?.id}
+          />
+        )}
       </AnimatePresence>
 
       {/* Legacy Review Modal (Hidden unless needed) */}
@@ -691,14 +920,14 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
               initial={{ scale: 0.92, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.92, opacity: 0, y: 15 }}
-              className="bg-[#0f172a] w-full max-w-xl rounded-[32px] shadow-2xl overflow-hidden border border-white/10 cursor-default"
+              className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[32px] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 cursor-default"
             >
               <div className="p-6 md:p-8 space-y-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-display font-black uppercase tracking-tight text-white">Leave Feedback</h3>
+                  <h3 className="text-xl font-display font-black uppercase tracking-tight text-slate-900 dark:text-white">Leave Feedback</h3>
                   <button 
                     onClick={() => setShowReviewModal(false)}
-                    className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+                    className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-rose-500 active:scale-95 transition-all cursor-pointer"
                     aria-label="Close"
                   >
                     <X className="w-5 h-5" />
@@ -707,8 +936,8 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
 
                 <div className="space-y-6">
                   {/* Premium Slider for Selecting Rating Level */}
-                  <div className="flex flex-col gap-4 p-5 bg-[#1e293b]/50 rounded-2xl border border-white/5 shadow-inner">
-                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                  <div className="flex flex-col gap-4 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-inner">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
                       <span className="text-[10px] uppercase font-black tracking-widest text-slate-400">
                         Rating Level
                       </span>
@@ -728,21 +957,21 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                     
                     <div className="space-y-4 pt-1">
                       {/* Interactive Visual Star Indicators */}
-                      <div className="flex items-center justify-center gap-2.5 py-1">
+                      <div className="flex items-center justify-between w-full py-1">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <motion.button
                             key={`input-star-${star}`}
                             type="button"
-                            whileHover={{ scale: 1.25 }}
+                            whileHover={{ scale: 1.15 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={() => setNewReview({ ...newReview, rating: star })}
-                            className="cursor-pointer focus:outline-none"
+                            className="cursor-pointer focus:outline-none flex-1 flex justify-center w-full"
                           >
                             <Star 
-                              className={`w-8 h-8 transition-colors duration-300 ${
+                              className={`w-10 h-10 transition-colors duration-300 ${
                                 star <= newReview.rating 
-                                  ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]' 
-                                  : 'text-slate-600 dark:text-slate-700'
+                                  ? 'text-amber-400 fill-amber-400' 
+                                  : 'text-slate-200 dark:text-slate-700'
                               }`} 
                             />
                           </motion.button>
@@ -776,47 +1005,50 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                   <div className="space-y-4">
                     {allAgentListings.length > 0 ? (
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                           Referenced Property of {fullName}
                         </label>
                         <div className="relative">
                           <select 
-                            className="w-full bg-[#1e293b] text-slate-200 border border-white/10 p-4 pr-10 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-550/50 cursor-pointer appearance-none transition-all duration-300"
-                            value={newReview.listingTitle}
-                            onChange={(e) => setNewReview({ ...newReview, listingTitle: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-200 border border-slate-200 dark:border-slate-700 p-4 pr-10 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/50 cursor-pointer appearance-none transition-all duration-300"
+                            value={newReview.listingId}
+                            onChange={(e) => {
+                              const selected = allAgentListings.find(l => l.id.toString() === e.target.value);
+                              setNewReview({ ...newReview, listingId: e.target.value, listingTitle: selected ? selected.title : '' });
+                            }}
                           >
-                            <option value="" className="bg-[#0f172a] text-slate-400">Select Rated Property...</option>
+                            <option value="" className="bg-slate-50 dark:bg-slate-800 text-slate-500">Select Rated Property...</option>
                             {allAgentListings.map((lst) => (
-                              <option key={`opt-listing-${lst.id}`} value={lst.title} className="bg-[#0f172a] text-white">
+                              <option key={`opt-listing-${lst.id}`} value={lst.id.toString()} className="bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white">
                                 {lst.title} — {lst.location}
                               </option>
                             ))}
                           </select>
-                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-450">
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                             <ChevronLeft className="w-4 h-4 rotate-180" />
                           </div>
                         </div>
                       </div>
                     ) : (
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                           Referenced Property of {fullName}
                         </label>
                         <input 
                           type="text" 
                           placeholder="Referenced Property..."
-                          className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/50"
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-xl text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/50"
                           value={newReview.listingTitle}
                           onChange={(e) => setNewReview({ ...newReview, listingTitle: e.target.value })}
                         />
                       </div>
                     )}
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Your Feedback</label>
+                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Your Feedback</label>
                       <textarea 
                         rows={4}
                         placeholder="Your experience..."
-                        className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/50 resize-none"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-xl text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/50 resize-none"
                         value={newReview.comment}
                         onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
                       />
@@ -836,10 +1068,11 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                           rating: newReview.rating,
                           comment: newReview.comment,
                           listingTitle: newReview.listingTitle,
+                          listingId: newReview.listingId,
                           createdAt: serverTimestamp()
                         });
                         setShowReviewModal(false);
-                        setNewReview({ rating: 5, comment: '', listingTitle: '' });
+                        setNewReview({ rating: 5, comment: '', listingTitle: '', listingId: '' });
                         
                         // Dynamically reload profile, reviews and statistics immediately
                         await loadAgentProfile();
