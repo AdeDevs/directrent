@@ -348,12 +348,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       
       // Analyze up to 5 images to stay within token limits
       for (const url of imageUrls.slice(0, 5)) {
-        try {
-          const data = await fetchImageAsBase64(url);
-          images.push({ inlineData: { mimeType: "image/jpeg", data } });
-        } catch (imgErr) {
-          console.warn("Could not include image in listing AI analysis:", imgErr);
-        }
+        images.push({ url });
       }
 
       const response = await fetch("/api/gemini", {

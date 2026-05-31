@@ -222,11 +222,9 @@ service cloud.firestore {
     match /conversations/{convId} {
       allow get: if isSignedIn() && (isAdmin() || (!isUserSuspended() && convId.matches('.*' + request.auth.uid + '.*')));
       allow list: if isSignedIn() && (
-        isAdmin() || 
-        (!isUserSuspended() && (
-          (resource.data.tenantId == request.auth.uid) || 
-          (resource.data.agentId == request.auth.uid)
-        ))
+        resource.data.tenantId == request.auth.uid || 
+        resource.data.agentId == request.auth.uid ||
+        isAdmin()
       );
       
       allow create: if isSignedIn() && !isUserSuspended() && isValidConversation(incoming()) && (

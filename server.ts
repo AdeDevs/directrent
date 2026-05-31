@@ -405,6 +405,13 @@ app.post("/api/gemini", async (req, res) => {
                   url: `data:${img.inlineData.mimeType};base64,${img.inlineData.data}`
                 }
               });
+            } else if (img.url) {
+              content.push({
+                type: "image_url",
+                image_url: {
+                  url: img.url
+                }
+              });
             }
         }
     }
