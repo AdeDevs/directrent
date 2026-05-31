@@ -146,7 +146,7 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
         )}
         <div className="absolute top-3.5 left-3.5 flex flex-col items-start gap-1.5">
           {renderBadges()}
-          {listing.slotsLeft && (
+          {!!listing.slotsLeft && (
             <span className="bg-rose-500 text-white px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider shadow-sm flex items-center gap-1 border border-rose-450/20">
               <span className="h-1.5 w-1.5 bg-white rounded-full animate-pulse" />
               <span>Only {listing.slotsLeft} Left</span>

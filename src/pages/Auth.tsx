@@ -1726,7 +1726,7 @@ To authorize it, follow these steps:
           {smsStep !== 'done' && (
             <button 
               type="submit" 
-              disabled={isLoading || resetSent}
+              disabled={isLoading || resetSent || !isReady}
               className={`w-full py-4 rounded-xl font-bold mt-6 transition-all flex items-center justify-center gap-2 
                 ${isReady && !isLoading && !resetSent
                   ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-xl shadow-primary-200/50 dark:shadow-none active:scale-[0.98]' 

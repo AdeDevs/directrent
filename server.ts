@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -187,13 +190,25 @@ app.get("/api/health", (req, res) => {
 app.get("/api/fetch-image", async (req, res) => {
   const url = req.query.url as string;
   if (!url) return res.status(400).send("Missing url parameter");
+  console.log("[fetch-image] Proxying URL:", url);
   try {
-    const response = await fetch(url);
-    if (!response.ok) return res.status(500).send("Failed to fetch image");
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9"
+      }
+    });
+    if (!response.ok) {
+      console.error(`[fetch-image] Google/Firebase returned status: ${response.status} ${response.statusText} for URL:`, url);
+      return res.status(response.status || 500).send(`Failed to fetch image: Remote server returned ${response.status} ${response.statusText}`);
+    }
     const buffer = Buffer.from(await response.arrayBuffer());
+    console.log("[fetch-image] Successful fetch. Base64 length:", buffer.length);
     res.json({ data: buffer.toString('base64') });
   } catch (err: any) {
-    res.status(500).send(err.message);
+    console.error(`[fetch-image] Network or resolution error fetching imageUrl:`, err);
+    res.status(500).send(`Network error: ${err.message}`);
   }
 });
 

@@ -936,7 +936,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
       )}
 
       {/* Directions Modal */}
-      {listing.latitude && listing.longitude && (
+      {!!listing.latitude && !!listing.longitude && (
         <DirectionsModal
           isOpen={showDirectionsModal}
           onClose={() => setShowDirectionsModal(false)}
@@ -1043,6 +1043,13 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2 pointer-events-auto">
+            <button 
+              onClick={handleReportClick}
+              className="w-10 h-10 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md flex items-center justify-center text-slate-500 hover:text-rose-500 transition-all cursor-pointer shadow-md border border-white/20"
+              title="Report Listing"
+            >
+              <Flag className="w-4.5 h-4.5" />
+            </button>
             <button 
               onClick={handleShare}
               className={`w-10 h-10 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md flex items-center justify-center text-slate-500 hover:text-primary-500 transition-all cursor-pointer shadow-md border border-white/20 ${isSharing ? 'animate-pulse' : ''}`}
@@ -1339,7 +1346,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
           {/* Property Specific Specifications Overview */}
           <div className="py-2 my-2">
             <div className="flex flex-wrap items-center gap-x-5 sm:gap-x-8 gap-y-4 sm:gap-y-6">
-              {listing.beds && (
+              {!!listing.beds && (
                 <div className="flex items-center gap-2.5 sm:gap-3">
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
                     <Bed className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1351,7 +1358,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
                 </div>
               )}
 
-              {listing.baths && (
+              {!!listing.baths && (
                 <div className="flex items-center gap-2.5 sm:gap-3">
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
                     <Bath className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1363,7 +1370,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
                 </div>
               )}
 
-              {listing.area && (
+              {!!listing.area && (
                 <div className="flex items-center gap-2.5 sm:gap-3">
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
                     <Maximize className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1426,7 +1433,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
           )}
 
           {/* Video Tour Section */}
-          {listing.video && (
+          {!!listing.video && (
             <div className="space-y-4">
               <h2 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">Video Tour</h2>
               <div 
@@ -1444,7 +1451,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
           )}
 
           {/* Lease & Payment Terms Breakdown */}
-          {(listing.paymentPeriod || listing.initialPayment || listing.leaseDuration) && (
+          {!!(listing.paymentPeriod || listing.initialPayment || listing.leaseDuration) && (
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-[15px] space-y-6 shadow-sm hover:shadow-md transition-all">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-150 dark:border-slate-800">
                 <div>
