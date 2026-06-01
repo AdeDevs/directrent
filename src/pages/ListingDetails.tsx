@@ -6,7 +6,7 @@ import {
   ShieldCheck, Share2, MessageCircleMore, LayoutGrid, Droplets,
   Navigation, ExternalLink, BarChart3, Eye, Calendar, TrendingUp,
   Settings, Trash2, Edit3, Video, Flag, AlertTriangle, X, CheckSquare,
-  Zap, Clock, Bed, Bath, Maximize
+  Zap, Clock, Bed, Bath, Maximize, Lock
 } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Listing } from '../types';
@@ -830,6 +830,39 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
           <button
             onClick={onBack}
             className="w-full flex items-center justify-center gap-2 py-3 px-5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 text-white rounded-2xl text-xs font-bold transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+          >
+            Go Back
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (isAgent && !isOwnListing && !isAdmin) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center font-sans w-full"
+      >
+        <div className="max-w-md w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-xl flex flex-col items-center gap-6 animate-fade-in">
+          <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-500 dark:text-amber-400 flex items-center justify-center shadow-inner">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div>
+            <h1 className="text-lg font-black text-amber-600 dark:text-amber-450 uppercase tracking-wider mb-2">Access Denied</h1>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+              You are signed in as an Agent. On DirectRent, agents are only authorized to view and manage their own listed properties to ensure peer-to-peer data integrity.
+            </p>
+            <div className="bg-slate-50 dark:bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-750">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-0.5">Listing ID</span>
+              <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">{listing.id}</span>
+            </div>
+          </div>
+          <button
+            onClick={onBack}
+            className="w-full flex items-center justify-center gap-2 py-3.5 px-5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 text-white rounded-2xl text-xs font-bold transition-all shadow-sm active:scale-[0.98] cursor-pointer"
           >
             Go Back
           </button>

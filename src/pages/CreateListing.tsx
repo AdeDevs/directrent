@@ -24,7 +24,6 @@ import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { createNotification } from '../lib/notifications';
 import { compressImage } from '../lib/storage';
-import { GoogleMapsGuard } from '../components/GoogleMapsGuard';
 import { LocationPicker } from '../components/LocationPicker';
 import { HeaderPortal } from '../components/HeaderPortal';
 
@@ -579,7 +578,6 @@ export default function CreateListing() {
           </motion.div>
         )}
 
-        <GoogleMapsGuard>
         <form onSubmit={handleCreate} className={`space-y-8 ${atLimit && !isEditMode ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
           {/* Media Section */}
           <section className="space-y-6">
@@ -950,7 +948,6 @@ export default function CreateListing() {
             </p>
           </div>
         </form>
-        </GoogleMapsGuard>
       </main>
     </div>
   );

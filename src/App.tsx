@@ -120,6 +120,15 @@ const AppContent = () => {
   const { view, isLoading, user, logout } = useAuth();
   const path = window.location.pathname;
 
+  // Track if path is listing detail
+  const isListingPath = (path.startsWith('/listings/') || path.startsWith('/property/')) && path.split('/').length >= 3;
+
+  useEffect(() => {
+    if (isListingPath && !user && !isLoading) {
+      sessionStorage.setItem('redirect_after_auth', path);
+    }
+  }, [isListingPath, user, isLoading, path]);
+
   // Handle views based on AuthContext state
   const ViewComponent = useMemo(() => {
     switch (view) {
@@ -147,8 +156,15 @@ const AppContent = () => {
     return <SuspendedScreen onLogout={logout} userId={(user as any).id || "Unknown"} />;
   }
 
-  // Priority: If path is listing detail, show it regardless of view state
-  if (path.startsWith('/listings/') && path.split('/').length >= 3) {
+  // Priority: If path is listing detail, show it or prompt to register if not signed in
+  if (isListingPath) {
+    if (!user) {
+      return (
+        <Suspense fallback={<LoadingScreen message="Prompting account creation..." />}>
+          <Auth />
+        </Suspense>
+      );
+    }
     return (
       <Suspense fallback={<LoadingScreen message="Loading property..." />}>
         <ListingPreviewHandler />

@@ -1056,7 +1056,18 @@ To authorize it, follow these steps:
         </header>
 
         <main className="max-w-md mx-auto w-full py-6 md:py-12 flex-1 flex flex-col justify-center">
-        <div className="text-center mb-8">
+          {sessionStorage.getItem('redirect_after_auth') && (
+            <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-2xl flex items-start gap-3">
+              <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-0.5">Authentication Required</h4>
+                <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 leading-normal">
+                  You must {authMode === 'login' ? 'sign in' : 'create an account'} on DirectRent to view the shared property listing details.
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="text-center mb-8">
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">
             {isResetMode ? 'Reset password' : (authMode === 'login' ? 'Welcome back' : (signupStep === 1 ? 'Create account' : 'Verify Identity'))}
           </h1>

@@ -70,8 +70,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<(string | number)[]>([]);
   const [activeTab, setActiveTabState] = useState<AppTab>(() => {
+    const pathname = window.location.pathname;
+    const cleanPath = pathname.replace(/^\//, '');
+    const tabList: AppTab[] = ['home', 'chat', 'profile', 'favorites', 'create', 'mylistings', 'notifications', 'terms', 'faq'];
+    if (tabList.includes(cleanPath as AppTab)) {
+      return cleanPath as AppTab;
+    }
     const saved = localStorage.getItem('last_active_tab') as AppTab;
-    return (saved && ['home', 'chat', 'profile', 'favorites', 'create', 'mylistings'].includes(saved)) ? saved : 'home';
+    return (saved && tabList.includes(saved)) ? saved : 'home';
   });
 
   const setActiveTab = (tab: AppTab) => {
@@ -97,12 +103,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Initialize the first state on mount so we can replaceState
   useEffect(() => {
+    // Sync initial states from deep link if applicable
+    const pathname = window.location.pathname;
+    if (pathname && pathname !== '/' && pathname !== '/home') {
+      const parts = pathname.split('/');
+      const firstPart = parts[1];
+      const secondPart = parts[2];
+      
+      const tabList: AppTab[] = ['home', 'chat', 'profile', 'favorites', 'create', 'mylistings', 'notifications', 'terms', 'faq'];
+      if (tabList.includes(firstPart as AppTab)) {
+        setActiveTabState(firstPart as AppTab);
+      } else if (firstPart === 'agent' && secondPart) {
+        setSelectedAgentId(secondPart);
+        setActiveTabState('home');
+      }
+    }
+
     const initialState = {
       activeTab: activeTab,
       currentListing: currentListing,
       selectedAgentId: selectedAgentId
     };
-    window.history.replaceState(initialState, "");
+    
+    const initialPath = selectedAgentId 
+      ? `/agent/${selectedAgentId}` 
+      : (currentListing 
+        ? `/listings/${currentListing.id}` 
+        : (activeTab === 'home' ? '/home' : `/${activeTab}`)
+      );
+    window.history.replaceState(initialState, "", initialPath);
 
     const handlePopState = (event: PopStateEvent) => {
       if (event.state) {
@@ -140,15 +169,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       selectedAgentId
     };
 
+    const targetPath = selectedAgentId 
+      ? `/agent/${selectedAgentId}` 
+      : (currentListing 
+        ? `/listings/${currentListing.id}` 
+        : (activeTab === 'home' ? '/home' : `/${activeTab}`)
+      );
+
     // Only push if the state is actually different from the stored history state to prevent redundant entries
     const historyState = window.history.state;
     const isDifferent = !historyState ||
       historyState.activeTab !== activeTab ||
       JSON.stringify(historyState.currentListing) !== JSON.stringify(currentListing) ||
-      historyState.selectedAgentId !== selectedAgentId;
+      historyState.selectedAgentId !== selectedAgentId ||
+      window.location.pathname !== targetPath;
 
     if (isDifferent) {
-      window.history.pushState(newState, "");
+      window.history.pushState(newState, "", targetPath);
     }
   }, [activeTab, currentListing, selectedAgentId]);
 
@@ -209,6 +246,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             // Redirect logic (only run once on login or if role changes)
             const justLoggedIn = sessionStorage.getItem("just_logged_in") === "true";
             
+            const targetRedirect = sessionStorage.getItem('redirect_after_auth');
+            if (targetRedirect && firebaseUser) {
+              sessionStorage.removeItem('redirect_after_auth');
+              sessionStorage.removeItem('just_logged_in');
+              setUser(userData);
+              setView('app');
+              setIsLoading(false);
+              window.location.href = targetRedirect;
+              return;
+            }
+            
             // Check if redirect is necessary: only on login or role change
             const roleChanged = userRefForEffect.current?.role !== userData.role;
             const needsRedirect = justLoggedIn || roleChanged;
@@ -260,6 +308,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setUser(null);
         setView(prev => (prev === "app" || prev === "admin") ? "landing" : prev);
+        
+        // If logged out and on a protected path (non-listing), redirect to root
+        const p = window.location.pathname;
+        const isListPath = p.startsWith('/listings/') || p.startsWith('/property/');
+        if (!isListPath && p !== '/' && p !== '/admin' && p !== '/admin-auth') {
+          window.history.replaceState(null, "", "/");
+        }
         setIsLoading(false);
       }
     });
@@ -273,6 +328,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = (role: UserRole, userData: Partial<User>) => {
     // Local state will be updated by the onSnapshot listener automatically
     // But we still handle initial redirects here for speed
+    const targetRedirect = sessionStorage.getItem('redirect_after_auth');
+    if (targetRedirect) {
+      sessionStorage.removeItem('redirect_after_auth');
+      sessionStorage.removeItem('just_logged_in');
+      setView('app');
+      window.location.href = targetRedirect;
+      return;
+    }
     if (userData && userData.id) {
        if (userData.role === 'admin' || userData.role === 'moderator') {
          setView('admin');
