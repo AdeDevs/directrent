@@ -356,7 +356,12 @@ export const purgeUserData = async (userId: string) => {
         });
         
         if (!response.ok) {
-          const errorData = await response.json();
+          let errorData = { error: "Unknown HTTP Error", activationUrl: "" };
+          try {
+            errorData = await response.json();
+          } catch(e) {
+            errorData.error = `HTTP ${response.status}: Vercel/Backend error`;
+          }
           console.warn(`Auth deletion for user ${userId} returned ${response.status}: ${errorData.error}`);
           authWarning = {
             type: errorData.error === "IDENTITY_TOOLKIT_API_DISABLED" ? "IDENTITY_TOOLKIT_API_DISABLED" : "AUTH_DELETION_FAILED",
@@ -366,8 +371,14 @@ export const purgeUserData = async (userId: string) => {
           console.log(`Successfully deleted auth record for user ${userId}`);
         }
       }
-    } catch (authErr) {
+    } catch (authErr: any) {
       console.error("Failed to delete user from Auth:", authErr);
+      if (!authWarning) {
+        authWarning = {
+          type: "AUTH_DELETION_FAILED",
+          activationUrl: ""
+        };
+      }
       // We continue since we already cleaned up the data
     }
 

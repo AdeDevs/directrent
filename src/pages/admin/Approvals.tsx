@@ -55,6 +55,7 @@ import {
   analyzeDuplicatesWithGemini, 
   DuplicateAnalysis 
 } from '../../lib/geminiListingService';
+import { cleanAndParseJSON } from '../../utils/jsonParser';
 
 const STORAGE_BUCKET = firebaseConfig.storageBucket;
 
@@ -231,7 +232,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
             Location: ${agent.location || 'Not provided'}
             
             MANDATORY TASKS:
-            1. PERFORM OCR: Extract all text from the Government ID image. Look for:
+            1. PERFORM OCR: The images (ID and Selfie) are attached to this message. Extract all text from the Government ID image. Look for:
                - Full Name: Verify if first and last names match "${agent.name}". Note: The ID may contain a middle name while the target name does not; this is acceptable.
                - ID Number: Does it match ${agent.idNumber}?
                - Date of Birth: Compare with ${dob || 'the target dob'}.
@@ -249,9 +250,9 @@ const Approvals: React.FC<ApprovalsProps> = () => {
 
             STRICT JSON OUTPUT FORMAT:
             {
-              "analysis": "Markdown report here",
+              "analysis": "Markdown report here. Explicitly mention what you observed in the attached images.",
               "recommendation": "approve" | "flag" | "reject",
-              "confidence": number, // 0-100 scale
+              "confidence": number, // 0-100 scale. This score explains how certain you are of your recommendation. 100 means you have undeniable proof (e.g. clear fake or perfect match), while lower scores mean you suspect issues but don't have definitive proof.
               "ocrData": {
                 "extractedName": "Full name found on ID",
                 "extractedId": "Number found on ID",
@@ -281,7 +282,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         console.warn("Falling back to text analysis due to image error:", imgErr);
       }
 
-      const response = await fetch("/api/gemini", {
+      const response = await fetch("/api/openrouter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, images })
@@ -292,7 +293,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       }
 
       const data = await response.json();
-      const report = JSON.parse(data.text || '{}');
+      const report = cleanAndParseJSON(data.text || '{}');
       
       // Ensure we are still looking at the same agent before setting state
       if (selectedAgentIdRef.current === currentId) {
@@ -323,18 +324,20 @@ const Approvals: React.FC<ApprovalsProps> = () => {
             - Amenities: ${listing.amenities?.join(', ') || 'None'}
             
             MANDATORY TASKS:
-            1. IMAGE ANALYSIS: Analyze the provided listing image. Does it match the description? Does it look like a real home or a stock/render? Identify potential red flags (e.g., logo watermarks from other sites).
-            2. PRICING AUDIT: Based on the location (${listing.location}) and type (${listing.type}), is the price (${listing.price}) realistic for the Nigerian market? Flag if suspiciously low or high.
-            3. FRAUD DETECTION: Look for serious red flags (e.g., requests for direct payment in description, stolen watermarked images, price-to-location impossibility).
-            4. NOTE ON STYLE: BE LENIENT. Nigerian real estate listings often have informal language, lack of capitalization, or generic titles (like "Ajala Homes"). These are acceptable. Do not penalize for "low quality" or "informal" descriptions.
-            5. PRICING: Allow for a wide margin of error in pricing. Only flag if the price is mathematically impossible for the area (e.g., a mansion for ₦10,000).
+            1. PRICING CROSS-REFERENCE WITH LOCATION: You MUST comprehensively analyze the price of ${listing.price} against the location context of "${listing.location}" for a "${listing.type}" property. Is it fair, suspicious, or highly out-of-line?
+            2. STRUCTURED PROS AND CONS: Specify the clear advantages and potential issues of this listing:
+               - Compile a dedicated "Pros" list based on the listed amenities, description, and pictures.
+               - Compile a dedicated "Cons & Red Flags" list based on missing items, suspicious prices, or layout anomalies.
+            3. IMAGE ANALYSIS: The listing images are attached directly to this message. Analyze them in detail. Do they match the property type and description? Do they match the location context? Identify potential red flags (e.g., logo watermarks from other sites). If no images are supplied, note that. 
+            4. AMENITIES EVALUATION: Check if the listed amenities are realistic and consistent with the description.
+            5. FRAUD DETECTION: Check for serious red flags (e.g., requests for direct payment in description, stolen watermarked images).
             6. RECOMMENDATION: Output "approve", "flag", or "reject".
             
             STRICT JSON OUTPUT FORMAT:
             {
-              "analysis": "Markdown report with pros/cons/red-flags",
+              "analysis": "### Price vs Location Context Analysis\\nDetailed analysis comparing ${listing.price} with market averages around ${listing.location}.\\n\\n### Pros\\n- Bullet points of advantages here...\\n\\n### Cons & Red Flags\\n- Bullet points of issues, missing items or red flags here...\\n\\n### Image Analysis\\nYour evaluation of the attached images.",
               "recommendation": "approve" | "flag" | "reject",
-              "confidence": number, // 0-100 scale
+              "confidence": number, // 0-100 scale.
               "assessment": {
                 "pricing": "fair" | "high" | "suspiciously_low",
                 "imageQuality": "high" | "average" | "low",
@@ -351,7 +354,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
         images.push({ url });
       }
 
-      const response = await fetch("/api/gemini", {
+      const response = await fetch("/api/openrouter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, images })
@@ -362,7 +365,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       }
 
       const data = await response.json();
-      const report = JSON.parse(data.text || '{}');
+      const report = cleanAndParseJSON(data.text || '{}');
       if (selectedListingIdRef.current === currentId) {
         setListingAiReport(report);
       }

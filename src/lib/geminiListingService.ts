@@ -1,6 +1,7 @@
 import { Listing } from "../types";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "./firebase";
+import { cleanAndParseJSON } from "../utils/jsonParser";
 
 export interface DuplicateAnalysis {
   score: number;
@@ -87,15 +88,15 @@ export const analyzeDuplicatesWithGemini = async (
     `).join('\n')}
     
     INSTRUCTIONS:
-    1. SCENE UNDERSTANDING: Analyze the images of the NEW listing and the EXISTING listings.
+    1. SCENE UNDERSTANDING: The images of both the NEW listing and the EXISTING listings are attached to this message sequentially (New listing images first, then existing listings images). Please analyze them.
     2. LOOK FOR: Matching interior fixtures (cabinets, tiling), window views, architectural layouts, or watermarks.
     3. LOGIC: BE LENIENT. Only flag as a duplicate if the images show the EXACT same physical unit or if the description is a 90%+ copy-paste. Minor similarities in furniture or tiling are common in developers' estates.
     4. RETURN: A similarity score (0-100) and specific reasoning.
-    
+
     STRICT JSON OUTPUT:
     {
-      "score": number, // 0-100
-      "reasoning": "Explain why they match or don't match (e.g., 'Identical unique crack in floor tile found in both images')",
+      "score": number, // 0-100 scale indicating how confident you are they are duplicates. 100 means absolute certainty based on identical unique physical flaws/watermarks, 0 means entirely different properties.
+      "reasoning": "Explain why they match or don't match based on the provided text and images (e.g., 'Identical unique crack in floor tile found in both images').",
       "matchedListingId": "string or null",
       "matchedListingTitle": "string or null",
       "isFlagged": boolean // true ONLY if score > 85
@@ -119,7 +120,7 @@ export const analyzeDuplicatesWithGemini = async (
       }
     }
 
-    const response = await fetch("/api/gemini", {
+    const response = await fetch("/api/openrouter", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, images })
@@ -130,7 +131,7 @@ export const analyzeDuplicatesWithGemini = async (
     }
 
     const data = await response.json();
-    return JSON.parse(data.text || '{}');
+    return cleanAndParseJSON(data.text || '{}');
   } catch (error) {
     console.error("Gemini Duplicate Detection Error:", error);
     throw error;

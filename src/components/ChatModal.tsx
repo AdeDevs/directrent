@@ -544,8 +544,52 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
         reader.readAsDataURL(blob);
       });
 
+      const convRef = doc(db, 'conversations', conversationId);
       const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
       const agentId = listing.agent?.id || 'unknown';
+
+      // Check if conversation exists, if not create metadata
+      const convDoc = await getDoc(convRef);
+      if (!convDoc.exists()) {
+        let agentImage = '';
+        if (agentId !== 'unknown') {
+          const agentDoc = await getDoc(doc(db, 'users', agentId));
+          if (agentDoc.exists()) {
+            agentImage = agentDoc.data().avatarUrl || '';
+          }
+        }
+
+        await setDoc(convRef, {
+          id: conversationId,
+          tenantId: currentUser.role === 'tenant' ? currentUser.id : tenantId,
+          agentId: agentId,
+          listingId: listing.id.toString(),
+          tenantName: currentUser.role === 'tenant' ? (`${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'User') : (convData?.tenantName || 'Tenant'),
+          agentName: listing.agent?.name || 'Agent',
+          tenantImage: currentUser.role === 'tenant' ? (currentUser.avatarUrl || '') : (convData?.tenantImage || ''),
+          agentImage: agentImage,
+          listingTitle: listing.title,
+          listingImage: listing.image,
+          listingPrice: listing.price,
+          status: 'inquiry',
+          updatedAt: serverTimestamp(),
+          lastMessage: "Audio message",
+          unreadCount_tenant: currentUser.role === 'tenant' ? 0 : 1,
+          unreadCount_agent: currentUser.role === 'agent' ? 0 : 1
+        });
+
+        const listingDocRef = doc(db, 'listings', listing.id.toString());
+        await setDoc(listingDocRef, { 
+          inquiryCount: increment(1),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } else {
+        await updateDoc(convRef, {
+          lastMessage: "Audio message",
+          updatedAt: serverTimestamp(),
+          [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
+        });
+      }
 
       // Send as message directly to Firestore (embedded)
       await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
@@ -557,13 +601,6 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
         createdAt: serverTimestamp()
       });
       
-      // Update conv metadata for audio
-      await updateDoc(doc(db, 'conversations', conversationId), {
-        lastMessage: "Audio message",
-        updatedAt: serverTimestamp(),
-        [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
-      });
-
       // Send notification
       const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
       if (recipientId && recipientId !== 'unknown') {

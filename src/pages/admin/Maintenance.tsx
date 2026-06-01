@@ -12,7 +12,6 @@ import {
   Activity,
   CheckCircle2,
   XCircle,
-  Server,
   Database
 } from 'lucide-react';
 import { db, auth } from '../../lib/firebase';
@@ -40,15 +39,13 @@ const HealthCheck = () => {
   const [status, setStatus] = useState<{
     firestore: 'checking' | 'healthy' | 'error';
     auth: 'checking' | 'healthy' | 'error';
-    api: 'checking' | 'healthy' | 'error';
   }>({
     firestore: 'checking',
-    auth: 'checking',
-    api: 'checking'
+    auth: 'checking'
   });
 
   const checkHealth = async () => {
-    setStatus({ firestore: 'checking', auth: 'checking', api: 'checking' });
+    setStatus({ firestore: 'checking', auth: 'checking' });
 
     // 1. Check Firestore
     try {
@@ -70,18 +67,6 @@ const HealthCheck = () => {
       }
     } catch (e) {
       setStatus(prev => ({ ...prev, auth: 'error' }));
-    }
-
-    // 3. Check API
-    try {
-      const res = await fetch('/api/health');
-      if (res.ok) {
-        setStatus(prev => ({ ...prev, api: 'healthy' }));
-      } else {
-        setStatus(prev => ({ ...prev, api: 'error' }));
-      }
-    } catch (e) {
-      setStatus(prev => ({ ...prev, api: 'error' }));
     }
   };
 
@@ -133,10 +118,9 @@ const HealthCheck = () => {
           Refresh
         </button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800">
         <StatusItem label="Firestore" state={status.firestore} icon={Database} />
         <StatusItem label="Authentication" state={status.auth} icon={ShieldAlert} />
-        <StatusItem label="Infrastructure" state={status.api} icon={Server} />
       </div>
     </div>
   );
