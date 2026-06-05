@@ -12,7 +12,8 @@ import {
   Search,
   Plus,
   Bell,
-  X
+  X,
+  CreditCard
 } from 'lucide-react';
 import SafeImage from '../components/SafeImage';
 import { useAuth } from '../context/AuthContext';
@@ -27,7 +28,7 @@ export default function MyListings() {
   const { user, setCurrentListing, setActiveTab } = useAuth();
   const [listings, setListings] = useState<Listing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'approved' | 'pending' | 'suspended'>(() => {
+  const [activeFilter, setActiveFilter] = useState<'all' | 'approved' | 'pending' | 'suspended' | 'completed'>(() => {
     const saved = localStorage.getItem('mylistings_filter');
     if (saved === 'suspended') {
       localStorage.removeItem('mylistings_filter');
@@ -36,6 +37,7 @@ export default function MyListings() {
     return 'all';
   });
 
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [appealListingId, setAppealListingId] = useState<string | number | null>(null);
   const [appealReasonText, setAppealReasonText] = useState('');
   const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
@@ -68,18 +70,42 @@ export default function MyListings() {
     return () => unsubscribe();
   }, [user]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    const q = query(
+      collection(db, 'transactions'),
+      where('agentId', '==', user.id)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetched = snapshot.docs.map(doc => ({
+        docId: doc.id,
+        ...doc.data()
+      })).sort((a: any, b: any) => {
+        const dateA = a.createdAt?.seconds || 0;
+        const dateB = b.createdAt?.seconds || 0;
+        return dateB - dateA;
+      });
+      setTransactions(fetched);
+    }, (error) => {
+      console.error("Failed to load transactions:", error);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
   const filteredListings = listings.filter(l => {
-    if (activeFilter === 'approved') return l.isApproved === true && l.status !== 'suspended';
-    if (activeFilter === 'pending') return l.isApproved !== true && l.status !== 'suspended';
+    if (activeFilter === 'approved') return l.isApproved === true && l.status !== 'suspended' && l.status !== 'completed';
+    if (activeFilter === 'pending') return l.isApproved !== true && l.status !== 'suspended' && l.status !== 'completed';
     if (activeFilter === 'suspended') return l.status === 'suspended';
+    if (activeFilter === 'completed') return l.status === 'completed';
+    if (activeFilter === 'all') return l.status !== 'suspended' && l.status !== 'completed';
     return true;
   });
 
   const stats = [
     { 
-      label: 'Total', 
-      title: 'Total Listings',
-      value: listings.filter(l => l.status !== 'suspended').length, 
+      label: 'Active', 
+      title: 'Active Listings',
+      value: listings.filter(l => l.status !== 'suspended' && l.status !== 'completed').length, 
       icon: <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 dark:text-indigo-400" />,
       color: 'bg-indigo-50 dark:bg-indigo-900/20',
       borderColor: 'border-indigo-200/60 dark:border-indigo-800/40'
@@ -87,10 +113,18 @@ export default function MyListings() {
     { 
       label: 'Live', 
       title: 'Approved',
-      value: listings.filter(l => l.isApproved && l.status !== 'suspended').length, 
+      value: listings.filter(l => l.isApproved && l.status !== 'suspended' && l.status !== 'completed').length, 
       icon: <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400" />,
       color: 'bg-emerald-50 dark:bg-emerald-900/20',
       borderColor: 'border-emerald-200/60 dark:border-emerald-800/40'
+    },
+    { 
+      label: 'Completed', 
+      title: 'Completed Deals',
+      value: listings.filter(l => l.status === 'completed').length, 
+      icon: <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-violet-600 dark:text-violet-400" />,
+      color: 'bg-violet-50 dark:bg-violet-900/20',
+      borderColor: 'border-violet-200/60 dark:border-violet-800/40'
     },
     { 
       label: 'Suspended', 
@@ -156,7 +190,7 @@ export default function MyListings() {
 
       <main className="w-full px-[15px] pt-[15px] pb-0 mb-0 space-y-6 sm:space-y-10">
         {/* Stats Grid */}
-        <section className="grid grid-cols-3 gap-2.5 sm:gap-4">
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
           {stats.map((stat, i) => (
             <div 
               key={`listing-stat-${i}`} 
@@ -178,12 +212,12 @@ export default function MyListings() {
         </section>
 
         {/* Filters */}
-        <section className="flex gap-1 bg-slate-100/80 dark:bg-slate-900/80 p-1 rounded-lg w-fit">
-          {(['all', 'approved', 'pending', 'suspended'] as const).map((f) => (
+        <section className="flex gap-1 bg-slate-100/80 dark:bg-slate-900/80 p-1 rounded-lg w-fit overflow-x-auto max-w-full">
+          {(['all', 'approved', 'pending', 'completed', 'suspended'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setActiveFilter(f)}
-              className={`px-3 py-1 rounded-md text-[11px] sm:text-xs font-semibold capitalize transition-all ${activeFilter === f ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+              className={`px-3 py-1 rounded-md text-[11px] sm:text-xs font-semibold capitalize transition-all whitespace-nowrap ${activeFilter === f ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500'}`}
             >
               {f}
             </button>
@@ -208,9 +242,14 @@ export default function MyListings() {
                     alt={listing.title} 
                     className="w-full h-full object-cover" 
                   />
-                  {!listing.isApproved && (
+                  {!listing.isApproved && listing.status !== 'completed' && (
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center">
                       <Clock className="w-5 h-5 text-amber-400" />
+                    </div>
+                  )}
+                  {listing.status === 'completed' && (
+                    <div className="absolute inset-0 bg-emerald-950/60 backdrop-blur-[1px] flex items-center justify-center">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                     </div>
                   )}
                 </div>
@@ -283,6 +322,61 @@ export default function MyListings() {
               >
                 Post your first listing
               </button>
+            </div>
+          )}
+        </section>
+        {/* Transaction History Section */}
+        <section className="border-t border-slate-200 dark:border-slate-800 pt-[15px] sm:pt-10 pb-16 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-violet-50 dark:bg-violet-950/20 text-violet-600 dark:text-violet-400 flex items-center justify-center">
+              <CreditCard className="w-4 h-4 sm:w-5 sm:h-5! " />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-display font-black text-slate-900 dark:text-white tracking-tight">Transaction History</h2>
+              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest block mt-0.5">Verified escrow ledger settlements</span>
+            </div>
+          </div>
+
+          {transactions.length > 0 ? (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50 dark:bg-slate-950/30 border-b border-slate-150 dark:border-slate-850">
+                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Transaction ID</th>
+                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Property</th>
+                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Buyer</th>
+                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Settlement</th>
+                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Method</th>
+                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                    {transactions.map((tx, idx) => (
+                      <tr key={`tx-${tx.id || idx}`} className="hover:bg-slate-50/40 dark:hover:bg-slate-950/20 transition-all font-sans text-xs">
+                        <td className="p-3.5 sm:p-4 font-mono font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tight whitespace-nowrap">{tx.id || 'DR-TXN-UNKNOWN'}</td>
+                        <td className="p-3.5 sm:p-4 font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px] whitespace-nowrap">{tx.propertyTitle}</td>
+                        <td className="p-3.5 sm:p-4 text-slate-500 font-medium whitespace-nowrap">{tx.tenantName || 'Verified Buyer'}</td>
+                        <td className="p-3.5 sm:p-4 font-extrabold text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap">{tx.amount}</td>
+                        <td className="p-3.5 sm:p-4 text-[10px] text-slate-400 uppercase font-bold tracking-wider whitespace-nowrap">{tx.paymentMethod}</td>
+                        <td className="p-3.5 sm:p-4 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 font-black text-[9px] uppercase tracking-wider text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">
+                            Success
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 sm:p-12 rounded-3xl text-center space-y-2">
+              <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800/40 rounded-full flex items-center justify-center mx-auto text-slate-300">
+                <CreditCard className="w-6 h-6" />
+              </div>
+              <p className="text-slate-550 dark:text-slate-400 font-medium text-xs">No settlements resolved yet.</p>
+              <p className="text-[10px] text-slate-400 leading-normal">Rentals successfully paid via our dummy escrow pipeline will establish dynamic logs here.</p>
             </div>
           )}
         </section>

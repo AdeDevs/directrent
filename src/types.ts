@@ -14,7 +14,7 @@ export interface Listing {
   image: string;
   verified: boolean;
   isApproved?: boolean;
-  status?: 'active' | 'pending' | 'rejected' | 'hidden' | 'suspended';
+  status?: 'active' | 'pending' | 'rejected' | 'hidden' | 'suspended' | 'completed' | 'ACTIVE';
   noFee: boolean;
   beds?: number;
   baths?: number;

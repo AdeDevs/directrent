@@ -381,13 +381,40 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
         [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
       }).catch(err => handleFirestoreError(err, OperationType.UPDATE, `conversations/${conversationId}`));
 
-      // If completing, increment agent's success count
-      if (nextStatus === 'completed' && agentId !== 'unknown') {
+      // If completing or paid, increment agent's success count and update listing status
+      if ((nextStatus === 'completed' || nextStatus === 'paid') && agentId !== 'unknown') {
         const agentDocRef = doc(db, 'users', agentId);
         await updateDoc(agentDocRef, {
           completedTxns: increment(1),
           updatedAt: serverTimestamp()
         }).catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${agentId}`));
+
+        if (listing.id) {
+          const listingDocRef = doc(db, 'listings', listing.id.toString());
+          await updateDoc(listingDocRef, {
+            status: 'completed',
+            updatedAt: serverTimestamp()
+          }).catch(err => console.error("Failed to update listing to completed status:", err));
+        }
+
+        if (nextStatus === 'paid') {
+          // Write real persistent transaction document to Firestore
+          const txId = `DR-TXN-${Math.floor(100000 + Math.random() * 900000)}`;
+          await addDoc(collection(db, 'transactions'), {
+            id: txId,
+            listingId: listing.id.toString(),
+            propertyTitle: listing.title || 'Property',
+            amount: listing.price || '₦0',
+            priceValue: listing.priceValue || 0,
+            tenantId: tenantId,
+            tenantName: convData?.tenantName || (currentUser.role === 'tenant' ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() : 'Tenant'),
+            agentId: agentId,
+            agentName: listing.agent?.name || convData?.agentName || 'Agent',
+            status: 'completed',
+            paymentMethod: paymentOption === 'secured_escrow' ? 'Escrow Lock' : 'Card Channel',
+            createdAt: serverTimestamp()
+          }).catch(err => console.error("Failed to store transaction history record:", err));
+        }
       }
 
       // Add system message

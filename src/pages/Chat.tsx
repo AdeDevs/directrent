@@ -445,8 +445,6 @@ const Inbox = () => {
                 type: "",
                 amenities: [],
                 landmark: "",
-                beds: 0,
-                baths: 0,
                 area: "",
                 verified: true,
                 noFee: true,

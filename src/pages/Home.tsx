@@ -331,6 +331,8 @@ const Home = () => {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
 
+  // Auto-seeder removed due to permissions issues and static merge
+
   useEffect(() => {
     const observer = new MutationObserver(() => {
       setIsDark(document.documentElement.classList.contains('dark'));
@@ -382,8 +384,18 @@ const Home = () => {
   const filters = ['All', 'Self-Contain', '1 Bedroom Flat', 'Shared'];
 
   const filteredListings = useMemo(() => {
-    // ONLY use DB listings
-    let baseListings = [...dbListings].filter(l => l.status !== 'suspended');
+    const dbListingIds = new Set(dbListings.map(l => String(l.id)));
+    
+    // We safely require FEATURED_LISTINGS strictly when needed if not statically imported
+    let staticListings: Listing[] = [];
+    try {
+      const { FEATURED_LISTINGS } = require('../data');
+      staticListings = FEATURED_LISTINGS.filter((l: Listing) => !dbListingIds.has(String(l.id)));
+    } catch (e) {
+      // Ignore
+    }
+
+    let baseListings = [...dbListings, ...staticListings].filter(l => l.status !== 'suspended' && l.status !== 'completed');
     
     // Filter based on user role and approval status
     if (isAgent && user) {

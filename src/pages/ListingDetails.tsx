@@ -6,7 +6,7 @@ import {
   ShieldCheck, Share2, MessageCircleMore, LayoutGrid, Droplets,
   Navigation, ExternalLink, BarChart3, Eye, Calendar, TrendingUp,
   Settings, Trash2, Edit3, Video, Flag, AlertTriangle, X, CheckSquare,
-  Zap, Clock, Bed, Bath, Maximize, Lock
+  Zap, Clock, Building2, Sparkles, Maximize, Lock
 } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Listing } from '../types';
@@ -919,11 +919,6 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
               "price": listing.priceValue || 0,
               "priceCurrency": "NGN",
               "availability": "https://schema.org/InStock"
-            },
-            "numberOfRooms": listing.beds,
-            "occupancy": {
-              "@type": "QuantitativeValue",
-              "maxValue": listing.beds * 2
             }
           })}
         </script>
@@ -1379,26 +1374,26 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
           {/* Property Specific Specifications Overview */}
           <div className="py-2 my-2">
             <div className="flex flex-wrap items-center gap-x-5 sm:gap-x-8 gap-y-4 sm:gap-y-6">
-              {!!listing.beds && (
+              {!!listing.type && (
                 <div className="flex items-center gap-2.5 sm:gap-3">
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
-                    <Bed className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Beds</div>
-                    <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wide">{listing.beds} {listing.beds === 1 ? 'Bedroom' : 'Bedrooms'}</div>
+                    <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Property Type</div>
+                    <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wide">{listing.type}</div>
                   </div>
                 </div>
               )}
 
-              {!!listing.baths && (
+              {listing.amenities && listing.amenities.length > 0 && (
                 <div className="flex items-center gap-2.5 sm:gap-3">
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
-                    <Bath className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Baths</div>
-                    <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wide">{listing.baths} {listing.baths === 1 ? 'Bathroom' : 'Bathrooms'}</div>
+                    <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Amenities</div>
+                    <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wide">{listing.amenities.length} Features Included</div>
                   </div>
                 </div>
               )}

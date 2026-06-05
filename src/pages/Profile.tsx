@@ -186,6 +186,21 @@ const Profile = () => {
   const [vaultDocs, setVaultDocs] = useState<any[]>([]);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
 
+  const [showTransactions, setShowTransactions] = useState(false);
+  const [transactions, setTransactions] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user || (!showTransactions && user.role !== 'tenant')) return;
+    const docsRef = collection(db, 'transactions');
+    // For tenant or agent based on user.role
+    const qField = user.role === 'tenant' ? 'tenantId' : 'agentId';
+    const q = query(docsRef, where(qField, '==', user.id), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, [user, showTransactions]);
+
   useEffect(() => {
     if (!user || !showVault) return;
     const docsRef = collection(db, 'vault');
@@ -917,6 +932,19 @@ const Profile = () => {
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-slate-900 dark:text-white">DirectRent Vault</p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Safe storage for contracts & rent receipts</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+            <button 
+              onClick={() => setShowTransactions(true)}
+              className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
+            >
+              <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-955/40 rounded-2xl flex items-center justify-center text-emerald-500 group-active:scale-95 transition-transform border border-emerald-100/40 dark:border-emerald-900/10">
+                <CreditCard className="w-5 h-5" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Transaction History</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Verified escrow ledger settlements</p>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
             </button>
@@ -1835,6 +1863,80 @@ const Profile = () => {
                   >
                     Close Vault
                   </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showTransactions && (
+            <motion.div 
+              key="transactions-modal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6"
+              onClick={() => setShowTransactions(false)}
+            >
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="bg-white dark:bg-slate-900 rounded-[2rem] w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl flex items-center justify-center text-emerald-500">
+                      <CreditCard className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight">Transaction History</h3>
+                      <p className="text-[10px] text-slate-400 font-medium">Your dummy escrow payments and settlements</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setShowTransactions(false)}
+                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-950/20">
+                  {transactions.length > 0 ? (
+                    <div className="space-y-3">
+                      {transactions.map((tx) => (
+                        <div key={tx.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:border-emerald-200 dark:hover:border-emerald-900/50 transition-colors">
+                          <div className="space-y-1 sm:max-w-[70%]">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">Paid</span>
+                              <span className="text-[10px] text-slate-400 font-mono font-bold">{tx.id}</span>
+                            </div>
+                            <h4 className="font-bold text-slate-900 dark:text-white">{tx.propertyTitle}</h4>
+                            <p className="text-[11px] text-slate-500">
+                              {user.role === 'tenant' ? 'Agent: ' + tx.agentName : 'Tenant: ' + tx.tenantName}
+                            </p>
+                          </div>
+                          <div className="flex justify-between sm:flex-col items-center sm:items-end gap-1">
+                            <span className="text-sm font-black text-slate-900 dark:text-white">{tx.amount}</span>
+                            <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full font-medium">Dummy Settlement</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center space-y-4">
+                      <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800/40 rounded-full flex items-center justify-center text-slate-300 dark:text-slate-600">
+                        <FileText className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white mb-1">No Transactions Found</p>
+                        <p className="text-[11px] text-slate-400 max-w-[200px] mx-auto">You haven't completed any dummy transactions yet. They will appear here once settled.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </motion.div>

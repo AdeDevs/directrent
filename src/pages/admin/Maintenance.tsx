@@ -165,11 +165,28 @@ const Maintenance = () => {
     setIsSyncing(true);
     setMessage(null);
     try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const activeUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const leonUser = activeUsers.find(u => u.email === 'leonofatlas@gmail.com');
+      const peaceUser = activeUsers.find(u => u.email === 'peaceolaoluwa2006@gmail.com');
+
+      const leonId = leonUser?.id || 'agent_leon';
+      const peaceId = peaceUser?.id || 'agent_peace';
+
       const batch = writeBatch(db);
       for (const listing of FEATURED_LISTINGS) {
         const docRef = doc(db, 'listings', listing.id.toString());
+        
+        let finalAgentId = listing.agent?.id;
+        if (finalAgentId === 'agent_leon') finalAgentId = leonId;
+        if (finalAgentId === 'agent_peace') finalAgentId = peaceId;
+
         batch.set(docRef, {
           ...listing,
+          agent: {
+            ...listing.agent,
+            id: finalAgentId
+          },
           viewCount: 0,
           favoritesCount: 0,
           inquiryCount: 0,

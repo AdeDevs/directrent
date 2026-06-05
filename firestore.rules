@@ -316,5 +316,12 @@ service cloud.firestore {
                     (incoming().createdAt == request.time || !('createdAt' in incoming()));
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
+
+    // Transactions
+    match /transactions/{transactionId} {
+      allow list, get: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && !isUserSuspended();
+      allow delete: if isAdmin();
+    }
   }
 }
