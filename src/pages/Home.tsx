@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import HamburgerButton from '../components/HamburgerButton';
 import { AnimatePresence, motion } from 'motion/react';
 import { Search, Settings2, MapPin, FilterX, Home as HomeIcon, Trash2, Bell, Map, LayoutGrid, Navigation, Info, Compass, RotateCcw, Building2, Layers, Globe } from 'lucide-react';
 import { APIProvider, Map as GoogleMap, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef, useMap } from '@vis.gl/react-google-maps';
 import ListingCard from '../components/ListingCard';
 import SafeImage from '../components/SafeImage';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, onSnapshot, orderBy, doc, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { purgeListingData } from '../utils/adminCleanup';
@@ -316,6 +318,7 @@ const MapCenteringController: React.FC<{ listings: Listing[] }> = ({ listings })
   return null;
 };
 
+
 const Home = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
@@ -326,6 +329,7 @@ const Home = () => {
   const [dbListings, setDbListings] = useState<Listing[]>([]);
   const [isMapView, setIsMapView] = useState(false);
   const { user, setCurrentListing, setActiveTab } = useAuth();
+  const [logoFailed, setLogoFailed] = useState(false);
   const [itemsLoaded, setItemsLoaded] = useState(12);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -364,8 +368,8 @@ const Home = () => {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched = snapshot.docs.map(doc => ({
-        id: doc.id as any,
-        ...doc.data()
+        ...doc.data(),
+        id: doc.id as any
       } as Listing)).sort((a, b) => {
         const dateA = a.createdAt?.seconds || 0;
         const dateB = b.createdAt?.seconds || 0;
@@ -384,18 +388,7 @@ const Home = () => {
   const filters = ['All', 'Self-Contain', '1 Bedroom Flat', 'Shared'];
 
   const filteredListings = useMemo(() => {
-    const dbListingIds = new Set(dbListings.map(l => String(l.id)));
-    
-    // We safely require FEATURED_LISTINGS strictly when needed if not statically imported
-    let staticListings: Listing[] = [];
-    try {
-      const { FEATURED_LISTINGS } = require('../data');
-      staticListings = FEATURED_LISTINGS.filter((l: Listing) => !dbListingIds.has(String(l.id)));
-    } catch (e) {
-      // Ignore
-    }
-
-    let baseListings = [...dbListings, ...staticListings].filter(l => l.status !== 'suspended' && l.status !== 'completed');
+    let baseListings = dbListings.filter(l => l.status !== 'suspended' && l.status !== 'completed');
     
     // Filter based on user role and approval status
     if (isAgent && user) {
@@ -404,7 +397,7 @@ const Home = () => {
         l.agent?.id && String(l.agent.id) === String(user.id) && (l.isApproved === true || l.isApproved === undefined)
       );
     } else {
-      // Tenants see approved DB listings AND all Featured listings
+      // Tenants see approved DB listings
       // Using a more robust check for isApproved
       baseListings = baseListings.filter(l => {
         const approved = l.isApproved === true || String(l.isApproved) === 'true' || l.isApproved === undefined;
@@ -429,24 +422,24 @@ const Home = () => {
 
   const visibleListings = useMemo(() => filteredListings.slice(0, itemsLoaded), [filteredListings, itemsLoaded]);
 
-  const clearFilters = () => {
+  const clearFilters = React.useCallback(() => {
     setSearchQuery('');
     setActiveFilter('All');
     setMaxBudget(1000000000);
-  };
+  }, []);
 
-  const handleDelete = async (listingId: string | number) => {
+  const handleDelete = React.useCallback(async (listingId: string | number) => {
     const idStr = String(listingId);
     try {
       await purgeListingData(idStr);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `listings/${idStr}`);
     }
-  };
+  }, []);
 
   const [isSavingSearch, setIsSavingSearch] = useState(false);
 
-  const handleSaveSearch = async () => {
+  const handleSaveSearch = React.useCallback(async () => {
     if (!user) return;
     setIsSavingSearch(true);
     try {
@@ -464,19 +457,32 @@ const Home = () => {
     } finally {
       setIsSavingSearch(false);
     }
-  };
+  }, [user, searchQuery, activeFilter, maxBudget]);
 
   const showSaveSearch = !isAgent && (searchQuery || activeFilter !== 'All' || maxBudget < 1000000000);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       {/* 1st part: mobile sticky header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 lg:hidden px-4 h-16 flex items-center justify-between">
+      <header className={`sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 lg:hidden px-4 h-16 flex items-center justify-between`}>
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-            <HomeIcon className="text-white w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </div>
-          <span className="text-sm sm:text-base font-display font-bold text-slate-900 dark:text-white tracking-tight">Direct<span className="text-primary-600">Rent</span></span>
+          <HamburgerButton />
+          {!logoFailed ? (
+            <img 
+              src={isDark ? '/logo-dark.png' : '/logo-light.png'} 
+              onError={() => setLogoFailed(true)}
+              className="h-9 w-auto object-contain max-w-[120px]"
+              alt="DirectRent"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+                <HomeIcon className="text-white w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </div>
+              <span className="text-sm sm:text-base font-display font-bold text-slate-900 dark:text-white tracking-tight">Direct<span className="text-primary-600">Rent</span></span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {!isAgent && (
@@ -521,7 +527,7 @@ const Home = () => {
         </div>
       </HeaderPortal>
 
-      <main className="px-[14px] pb-0 mb-0" style={{ paddingTop: '15px' }}>
+      <main className="px-[14px] pb-[15px] mb-0" style={{ paddingTop: '15px' }}>
         <motion.div 
           initial={{ opacity: 0, y: 10 }} 
           animate={{ opacity: 1, y: 0 }} 
@@ -754,7 +760,7 @@ const Home = () => {
             </div>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-4 sm:gap-6 lg:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-4 sm:gap-6 lg:gap-8 min-h-[400px]">
             {visibleListings.length > 0 ? (
               visibleListings.map((listing) => (
                 <ListingCard 

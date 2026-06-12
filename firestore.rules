@@ -14,8 +14,8 @@ service cloud.firestore {
 
     function isUserSuspended() {
       return isSignedIn() && 
-             (exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? 
-              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isSuspended', false) == true : false);
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isSuspended', false) == true;
     }
 
   function isGodMode() {
@@ -28,8 +28,8 @@ service cloud.firestore {
   function isAdmin() {
     return isSignedIn() && (
       isGodMode() || 
-      (exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? 
-       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'moderator', 'god', 'admin_staff'] : false)
+      (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'moderator', 'god', 'admin_staff'])
     );
   }
 
@@ -98,6 +98,8 @@ service cloud.firestore {
              (!('verificationStatus' in data) || (data.verificationStatus is string || data.verificationStatus == null)) &&
              (!('favoritesCount' in data) || (data.favoritesCount is number)) &&
              (!('listingsCount' in data) || (data.listingsCount is number)) &&
+             (!('completedTxns' in data) || (data.completedTxns is number)) &&
+             (!('avgRating' in data) || (data.avgRating is number)) &&
              (!('isSuspended' in data) || (data.isSuspended is bool)) &&
              (!('internalPhone' in data) || (data.internalPhone is string || data.internalPhone == null)) &&
              (!('adminTier' in data) || (data.adminTier is string || data.adminTier == null)) &&
@@ -125,31 +127,37 @@ service cloud.firestore {
     }
 
     function isValidConversation(data) {
-      return (!('tenantId' in data) || data.tenantId is string) && 
-             (!('agentId' in data) || data.agentId is string) && 
-             (!('listingId' in data) || data.listingId is string) &&
-             (!('status' in data) || data.status in ['inquiry', 'negotiating', 'contract_requested', 'contract_sent', 'paid', 'completed']) &&
-             (!('unreadCount_tenant' in data) || data.unreadCount_tenant is number) &&
-             (!('unreadCount_agent' in data) || data.unreadCount_agent is number) &&
-             (!('lastMessage' in data) || data.lastMessage is string) &&
-             (!('tenantName' in data) || data.tenantName is string) &&
-             (!('agentName' in data) || data.agentName is string) &&
-             (!('listingTitle' in data) || data.listingTitle is string) &&
-             (!('listingImage' in data) || data.listingImage is string) &&
-             (!('listingPrice' in data) || data.listingPrice is string) &&
-             (!('tenantImage' in data) || data.tenantImage is string) &&
-             (!('agentImage' in data) || data.agentImage is string) &&
-             (!('updatedAt' in data) || data.updatedAt == request.time || data.updatedAt is timestamp);
+      return (!('tenantId' in data) || data.tenantId is string || data.tenantId == null) && 
+             (!('agentId' in data) || data.agentId is string || data.agentId == null) && 
+             (!('listingId' in data) || data.listingId is string || data.listingId == null) &&
+             (!('status' in data) || data.status in ['inquiry', 'negotiating', 'contract_requested', 'contract_sent', 'paid', 'completed', 'tour_requested', 'tour_confirmed', 'escrow_locked', 'disputed'] || data.status == null) &&
+             (!('unreadCount_tenant' in data) || data.unreadCount_tenant is number || data.unreadCount_tenant == null) &&
+             (!('unreadCount_agent' in data) || data.unreadCount_agent is number || data.unreadCount_agent == null) &&
+             (!('lastMessage' in data) || data.lastMessage is string || data.lastMessage == null) &&
+             (!('tenantName' in data) || data.tenantName is string || data.tenantName == null) &&
+             (!('agentName' in data) || data.agentName is string || data.agentName == null) &&
+             (!('listingTitle' in data) || data.listingTitle is string || data.listingTitle == null) &&
+             (!('listingImage' in data) || data.listingImage is string || data.listingImage == null) &&
+             (!('listingPrice' in data) || data.listingPrice is string || data.listingPrice is number || data.listingPrice == null) &&
+             (!('listingPriceValue' in data) || data.listingPriceValue is number || data.listingPriceValue == null) &&
+             (!('tenantImage' in data) || data.tenantImage is string || data.tenantImage == null) &&
+             (!('agentImage' in data) || data.agentImage is string || data.agentImage == null) &&
+             (!('id' in data) || data.id is string || data.id == null) &&
+             (!('updatedAt' in data) || data.updatedAt == request.time || data.updatedAt is timestamp || data.updatedAt == null);
     }
 
     function isValidMessage(data) {
-       return data.content is string && data.content.size() <= 1000000 &&
+       return data.content is string && data.content.size() <= 1048576 &&
               data.senderId == request.auth.uid &&
-              (data.createdAt == request.time || data.createdAt is timestamp) &&
-              (!('type' in data) || data.type in ['text', 'action', 'audio']) &&
-              (!('actionType' in data) || data.actionType is string) &&
-              (!('tenantId' in data) || data.tenantId is string) &&
-              (!('agentId' in data) || data.agentId is string);
+              (!('createdAt' in data) || data.createdAt == request.time || data.createdAt is timestamp || data.createdAt is map || data.createdAt == null) &&
+              (!('type' in data) || data.type in ['text', 'action', 'audio', 'document', 'file']) &&
+              (!('actionType' in data) || data.actionType is string || data.actionType == null) &&
+              (!('tenantId' in data) || data.tenantId is string || data.tenantId == null) &&
+              (!('agentId' in data) || data.agentId is string || data.agentId == null) &&
+              (!('fileName' in data) || data.fileName is string || data.fileName == null) &&
+              (!('fileSize' in data) || data.fileSize is string || data.fileSize == null) &&
+              (!('fileType' in data) || data.fileType is string || data.fileType == null) &&
+              (!('duration' in data) || data.duration is number || data.duration == null);
     }
 
     function isValidNotification(data) {
@@ -172,10 +180,10 @@ service cloud.firestore {
       allow create: if isSignedIn() && !isUserSuspended() && isValidId(listingId) && isValidListing(incoming()) && (
         isAdmin() || (
           incoming().agent.id == request.auth.uid && (
-            exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('verificationLevel', 'none') == 'verified' ||
               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('listingsCount', 0) < 5
-            ) : false
+            )
           )
         )
       );
@@ -183,10 +191,11 @@ service cloud.firestore {
         isAdmin() ||
         (!isUserSuspended() && (
           // Action: Agent Edit
-          (existing().agent.id == request.auth.uid && isValidListing(incoming()) && incoming().agent.id == existing().agent.id) ||
+          (existing().agent.id == request.auth.uid && incoming().agent.id == existing().agent.id) ||
           // Action: Engagement Incr (Public)
-          (incoming().diff(existing()).affectedKeys().hasOnly(['viewCount', 'favoritesCount', 'inquiryCount', 'updatedAt']) && 
-           incoming().updatedAt == request.time)
+          (incoming().diff(existing()).affectedKeys().hasOnly(['viewCount', 'favoritesCount', 'inquiryCount', 'updatedAt'])) ||
+          // Action: Mark as completed via Transaction
+          (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
         ))
       );
       allow delete: if isAdmin() || (isSignedIn() && !isUserSuspended() && existing().agent.id == request.auth.uid);
@@ -197,18 +206,14 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdmin();
       allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if (isOwner(userId) || isAdmin()) && (
+      allow update: if (
         isAdmin() ||
-        (
-          isValidUser(incoming()) &&
-          // Prevent self-suspension manipulation
+        (isOwner(userId) && isValidUser(incoming()) && 
           (!('isSuspended' in incoming().diff(existing()).affectedKeys())) &&
-          // Prevent role/email spoofing
-          (!('role' in incoming().diff(existing()).affectedKeys()) || 
-            incoming().get('role', '') == existing().get('role', '')) &&
-          (!('email' in incoming().diff(existing()).affectedKeys()) || 
-            incoming().get('email', '') == existing().get('email', ''))
-        )
+          (!('role' in incoming().diff(existing()).affectedKeys()) || incoming().get('role', '') == existing().get('role', '')) &&
+          (!('email' in incoming().diff(existing()).affectedKeys()) || incoming().get('email', '') == existing().get('email', ''))
+        ) ||
+        (isSignedIn() && !isUserSuspended() && incoming().diff(existing()).affectedKeys().hasOnly(['completedTxns', 'updatedAt', 'avgRating', 'reviewsCount']))
       );
       allow delete: if isAdmin();
 
@@ -220,40 +225,12 @@ service cloud.firestore {
     }
 
     match /conversations/{convId} {
-      allow get: if isSignedIn() && (isAdmin() || (!isUserSuspended() && convId.matches('.*' + request.auth.uid + '.*')));
-      allow list: if isSignedIn() && (
-        resource.data.tenantId == request.auth.uid || 
-        resource.data.agentId == request.auth.uid ||
-        isAdmin()
-      );
-      
-      allow create: if isSignedIn() && !isUserSuspended() && isValidConversation(incoming()) && (
-        incoming().tenantId == request.auth.uid || 
-        incoming().agentId == request.auth.uid || 
-        isAdmin()
-      );
-
-      allow update: if isSignedIn() && (
-        isAdmin() ||
-        (!isUserSuspended() && (
-          resource.data.tenantId == request.auth.uid || 
-          resource.data.agentId == request.auth.uid
-        ))
-      ) && isValidConversation(incoming());
-      
-      allow delete: if isAdmin();
+      allow read, write: if isSignedIn();
 
       match /messages/{msgId} {
-        allow read: if isSignedIn() && (isAdmin() || (!isUserSuspended() && convId.matches('.*' + request.auth.uid + '.*')));
-
-        allow create: if isSignedIn() && !isUserSuspended() && isValidMessage(incoming()) && (
-          incoming().tenantId == request.auth.uid || 
-          incoming().agentId == request.auth.uid || 
-          isAdmin() ||
-          convId.matches('.*' + request.auth.uid + '.*')
-        );
-        
-        allow delete: if isAdmin();
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn() && isValidMessage(incoming());
+        allow delete: if isSignedIn();
       }
     }
 
@@ -281,20 +258,15 @@ service cloud.firestore {
 
     // Notifications (Pillar 8)
     match /notifications/{notifId} {
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && !isUserSuspended() && isValidNotification(incoming());
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && 
-                    incoming().diff(existing()).affectedKeys().hasOnly(['read']);
-      allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow read: if isSignedIn() && (isAdmin() || (resource != null && resource.data.userId == request.auth.uid));
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (isAdmin() || (resource != null && resource.data.userId == request.auth.uid));
     }
 
     // Reports
     match /reports/{reportId} {
-      allow create: if (!isUserSuspended() && (
-        (isSignedIn() && incoming().reporterId == request.auth.uid) || (!isSignedIn() && incoming().reporterId == 'anonymous')
-      ));
-      allow get, list, update, delete: if isAdmin();
+      allow create: if isSignedIn() || incoming().reporterId == 'anonymous';
+      allow read, write: if isAdmin();
     }
 
     // Moderator Logs
@@ -319,8 +291,9 @@ service cloud.firestore {
 
     // Transactions
     match /transactions/{transactionId} {
-      allow list, get: if isSignedIn() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && !isUserSuspended();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (isAdmin() || (!isUserSuspended() && (resource.data.tenantId == request.auth.uid || resource.data.agentId == request.auth.uid || incoming().tenantId == request.auth.uid || incoming().agentId == request.auth.uid)));
       allow delete: if isAdmin();
     }
   }

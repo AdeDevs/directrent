@@ -29,7 +29,11 @@ import {
 import Navbar from '../components/Navbar';
 import ListingCard from '../components/ListingCard';
 import Footer from '../components/Footer';
-import { FEATURED_LISTINGS } from '../data';
+import { collection, query, limit, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { Listing } from '../types';
+
+// ... (omitting top imports for brevity, replacing inside the file)
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import SafeImage from '../components/SafeImage';
@@ -282,10 +286,10 @@ const Hero = () => {
 {/* Value Comparative Metrics - Eliminates Boring Info, Increases Trust */}
 const CompareTraditional = () => {
   return (
-    <section className="py-24 bg-white text-slate-900 transition-colors duration-300 relative border-y border-slate-200">
+    <section className="py-16 sm:py-20 bg-white text-slate-900 transition-colors duration-300 relative border-y border-slate-200">
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
+        <div className="text-center max-w-2xl mx-auto mb-12 space-y-4">
           <span className="text-primary-600 text-xs font-black tracking-widest uppercase">The Honest Reality</span>
           <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
             Traditional Housing vs DirectRent
@@ -382,10 +386,10 @@ const RoleSelection = () => {
   };
 
   return (
-    <section className="py-24 bg-slate-50/50 transition-colors duration-300 relative">
+    <section className="py-16 sm:py-20 bg-slate-50/50 transition-colors duration-300 relative">
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
+        <div className="text-center max-w-2xl mx-auto mb-12 space-y-4">
           <span className="text-indigo-600 text-xs font-black tracking-widest uppercase">Platform Portals</span>
           <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">Choose your path</h2>
           <p className="text-slate-500 text-sm sm:text-base font-light">Whether you are trying to nest or looking to host, get started with premium tools.</p>
@@ -460,8 +464,93 @@ const RoleSelection = () => {
   );
 };
 
+const demoListings: Listing[] = [
+  {
+    id: 'demo-1',
+    title: 'Modern 2-Bedroom Studio',
+    description: 'A well-furnished and fully serviced modern apartment.',
+    price: '₦1,500,000',
+    priceValue: 1500000,
+    paymentPeriod: 'annually',
+    location: 'Lekki Phase 1, Lagos',
+    type: 'Apartment',
+    beds: 2,
+    baths: 2,
+    area: '120 sqm',
+    verified: true,
+    noFee: true,
+    amenities: ['Furnished', '24/7 Power', 'Security'],
+    images: ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80'],
+    image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80',
+    agent: { id: 'demo-agent-1', name: 'Ade Lawal', isVerified: true, avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120&q=80' },
+    status: 'active',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'demo-2',
+    title: 'Spacious Self-Contain',
+    description: 'Clean space suitable for a young professional or student.',
+    price: '₦600,000',
+    priceValue: 600000,
+    paymentPeriod: 'annually',
+    location: 'Yaba, Lagos',
+    type: 'Self-Contain',
+    beds: 1,
+    baths: 1,
+    area: '45 sqm',
+    verified: true,
+    noFee: true,
+    amenities: ['Water', 'Security Guard'],
+    images: ['https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80'],
+    image: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80',
+    agent: { id: 'demo-agent-2', name: 'Chioma Ndubusi', isVerified: true, avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&h=120&q=80' },
+    status: 'active',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'demo-3',
+    title: 'Premium 3-Bedroom Flat',
+    description: 'Luxury flat with top notch facilities, parking space, and security.',
+    price: '₦3,500,000',
+    priceValue: 3500000,
+    paymentPeriod: 'annually',
+    location: 'Gwarinpa, Abuja',
+    type: 'Flat',
+    beds: 3,
+    baths: 3,
+    area: '250 sqm',
+    verified: true,
+    noFee: true,
+    amenities: ['Furnished', 'Swimming Pool', 'Gym', 'Parking'],
+    images: ['https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80'],
+    image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
+    agent: { id: 'demo-agent-3', name: 'Femi Ojo', isVerified: true, avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&h=120&q=80' },
+    status: 'active',
+    createdAt: new Date().toISOString()
+  }
+] as unknown as Listing[];
+
 const FeaturedListings = () => {
   const { setView, user, setAuthMode } = useAuth();
+  const [featured, setFeatured] = useState<Listing[]>(demoListings); // Pre-fill with demo
+
+  useEffect(() => {
+    const listingsRef = collection(db, 'listings');
+    const q = query(listingsRef, orderBy('createdAt', 'desc'), limit(3));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const realListings = snapshot.docs.map(d => ({...d.data(), id: d.id}) as Listing);
+      // Merge with demo listings if there are less than 3
+      if (realListings.length < 3) {
+        setFeatured([...realListings, ...demoListings.slice(realListings.length)]);
+      } else {
+        setFeatured(realListings);
+      }
+    }, (error: any) => {
+      if (error?.code === 'permission-denied' || error?.message?.includes('permission')) return;
+      console.warn("Featured listings error:", error);
+    });
+    return () => unsubscribe();
+  }, []);
   
   const handleAction = () => {
     if (user) {
@@ -473,10 +562,10 @@ const FeaturedListings = () => {
   };
 
   return (
-    <section id="listings" className="py-24 lg:py-32 bg-white transition-colors duration-300">
+    <section id="listings" className="py-16 sm:py-20 lg:py-24 bg-white transition-colors duration-300">
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
+        <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
           <div className="text-center md:text-left mx-auto md:mx-0 max-w-xl">
             <span className="text-primary-600 text-xs font-black tracking-widest uppercase">Verified Showcase</span>
             <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 mt-1">Hand-picked premium listings</h2>
@@ -490,24 +579,30 @@ const FeaturedListings = () => {
           </button>
         </div>
 
-        <motion.div 
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          variants={staggerContainer}
-          className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-8"
-        >
-          {FEATURED_LISTINGS.slice(0, 3).map((listing) => (
-            <motion.div key={`featured-listing-${listing.id}`} variants={fadeUpVariant} className="flex w-full flex-col">
-              <ListingCard 
-                listing={listing} 
-                onViewDetails={handleAction} 
-                hideHeart 
-                hideAgent
-              />
-            </motion.div>
-          ))}
-        </motion.div>
+        {featured.length > 0 ? (
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-8"
+          >
+            {featured.map((listing) => (
+              <motion.div key={`featured-listing-${listing.id}`} variants={fadeUpVariant} className="flex w-full flex-col">
+                <ListingCard 
+                  listing={listing} 
+                  onViewDetails={handleAction} 
+                  hideHeart 
+                  hideAgent
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+        ) : (
+          <div className="text-center py-10 bg-slate-50 rounded-3xl border border-slate-200">
+             <p className="text-slate-500 font-medium">No verified listings available right now. Check back soon!</p>
+          </div>
+        )}
 
       </div>
     </section>
@@ -515,11 +610,11 @@ const FeaturedListings = () => {
 };
 
 const HowItWorks = () => (
-  <section id="how-it-works" className="py-24 lg:py-32 bg-slate-50/50 transition-colors duration-300 relative overflow-hidden">
+  <section id="how-it-works" className="py-16 sm:py-20 lg:py-24 bg-slate-50/50 transition-colors duration-300 relative overflow-hidden">
     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary-500/5 rounded-full blur-[140px] pointer-events-none" />
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
       
-      <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
+      <div className="text-center max-w-2xl mx-auto mb-12 space-y-4">
         <span className="text-primary-600 text-xs font-black tracking-widest uppercase">Process Engine</span>
         <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">Three steps to your keys</h2>
         <p className="text-slate-500 text-sm sm:text-base font-light">Eradicating inspections taxes and long protocols.</p>
@@ -564,7 +659,7 @@ const HowItWorks = () => (
 );
 
 const TrustSafety = () => (
-  <section id="security" className="py-24 bg-white text-slate-900 relative overflow-hidden transition-colors duration-500 border-t border-slate-200">
+  <section id="security" className="py-16 sm:py-20 bg-white text-slate-900 relative overflow-hidden transition-colors duration-500 border-t border-slate-200">
     {/* Glow Layout */}
     <div className="absolute inset-0 z-0 opacity-15 pointer-events-none">
       <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[140px]" />
@@ -611,49 +706,82 @@ const TrustSafety = () => (
 );
 
 const Testimonials = () => (
-  <section className="py-24 bg-slate-50/35 text-slate-900 transition-colors duration-300 relative border-t border-slate-200">
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <section className="py-16 sm:py-20 bg-slate-50/35 text-slate-900 transition-colors duration-300 relative border-t border-slate-200">
+    <div className="absolute top-0 right-1/4 w-96 h-96 bg-primary-500/5 rounded-full blur-[100px] pointer-events-none" />
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
       
-      <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
-        <span className="text-indigo-600 text-xs font-black tracking-widest uppercase">Verified Backings</span>
-        <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight">Stories from DirectRent tenants</h2>
-        <p className="text-slate-500 text-sm sm:text-base font-light">Zero agent inspections, actual real-world experiences.</p>
+      <div className="text-center max-w-2xl mx-auto mb-12 space-y-4">
+        <span className="text-indigo-600 text-xs font-black tracking-widest uppercase">Verified Voices</span>
+        <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight">Our Community</h2>
+        <p className="text-slate-500 text-sm sm:text-base font-light">From students hunting for campus flats to landlords securing great tenants.</p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-        {[
-          { 
-            name: "Tunde Akinyemi", 
-            dept: "Lagos, Nigeria", 
-            text: "Searching for student hosting around Yaba of Unilag can drive you crazy. DirectRent map views saved me. Clicked a listing, verified credentials, and got in. Simple.", 
-            avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120&q=80" 
-          },
-          { 
-            name: "Bisi Olaseinde", 
-            dept: "Ibadan, Oyo", 
-            text: "Skipped random form fees completely. I saved nearly ₦120k on administrative agent commissions for my flat near Bodija. Highly recommended platform.", 
-            avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&h=120&q=80" 
-          },
-          { 
-            name: "Sola W.", 
-            dept: "Gwarinpa, Abuja", 
-            text: "No shady agency agents chasing your pockets. Flat details are listed upfront, and communication with owners is completely transparent. Verified seals actually mean business.", 
-            avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&h=120&q=80" 
-          }
-        ].map((test, index) => (
-          <div key={`testimonial-${index}`} className="bg-white p-8 rounded-3xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex flex-col justify-between h-full hover:shadow-md transition-all duration-300">
-            <p className="text-xs sm:text-sm text-slate-600 italic leading-relaxed mb-6 font-light">
-              "{test.text}"
-            </p>
-            <div className="flex items-center gap-4 border-t border-slate-200 pt-4 mt-auto">
-              <SafeImage src={test.avatar} className="w-11 h-11 rounded-full border border-slate-200 object-cover shadow-sm" alt={test.name} />
-              <div>
-                <h5 className="font-bold text-slate-900 text-xs sm:text-sm font-display leading-none mb-1">{test.name}</h5>
-                <p className="text-[10px] text-slate-450 font-mono tracking-wider font-semibold uppercase">{test.dept}</p>
-              </div>
+      <div className="flex overflow-x-auto snap-x snap-mandatory md:grid md:grid-cols-12 gap-4 md:gap-6 max-w-6xl mx-auto pb-8 md:pb-0 px-4 md:px-0 -mx-4 md:mx-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {/* Large Review Card */}
+        <div className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-8 bg-white p-6 sm:p-10 rounded-[2rem] border-[0.5px] border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 flex flex-col justify-between group">
+          <div>
+            <div className="flex gap-1 mb-4 sm:mb-6 text-amber-400">
+              {[1,2,3,4,5].map(star => <Sparkles key={star} className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />)}
+            </div>
+            <h3 className="text-lg sm:text-2xl font-display font-medium text-slate-800 leading-tight mb-4">
+              "Finding a student apartment near UNILAG used to mean fighting with multiple agents and losing money on 'form fees'. DirectRent gave me direct contact with the owner. The 3D view actually matched reality."
+            </h3>
+          </div>
+          <div className="flex items-center gap-4 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-100">
+            <SafeImage src="https://images.unsplash.com/photo-1531123897727-8f129e1bfa8ea?auto=format&fit=crop&w=150&h=150&q=80" className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-white shadow-md object-cover" alt="Pelumi Adeyemi" />
+            <div>
+              <h5 className="font-bold text-slate-900 text-sm sm:text-base leading-none mb-1">Pelumi Adeyemi</h5>
+              <p className="text-[10px] sm:text-xs text-primary-600 font-semibold tracking-wide">Final Year Student, Lagos</p>
             </div>
           </div>
-        ))}
+        </div>
+
+        {/* Square Right Card */}
+        <div className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-4 bg-primary-600 p-6 sm:p-8 rounded-[2rem] border border-primary-500 shadow-md hover:shadow-xl hover:scale-[1.02] transform transition-all duration-300 flex flex-col text-white">
+          <div className="bg-primary-500/50 w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center mb-4 sm:mb-6">
+            <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+          </div>
+          <h3 className="text-base sm:text-lg font-display text-primary-50 mb-auto leading-relaxed italic">
+            "As a landlord, I was tired of agents hiking my rent prices to collect extra cuts, which chased good tenants away. Now I list my flats directly."
+          </h3>
+          <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-primary-500/50">
+            <h5 className="font-bold text-white text-sm sm:text-base leading-none mb-1">Chief Okafor</h5>
+            <p className="text-[10px] sm:text-xs text-primary-200 font-semibold tracking-wide">Property Owner, Abuja</p>
+          </div>
+        </div>
+
+        {/* Bottom Left Card */}
+        <div className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-4 bg-slate-900 p-6 sm:p-8 rounded-[2rem] border border-slate-800 shadow-lg hover:shadow-xl hover:-translate-y-1 transform transition-all duration-300 flex flex-col text-slate-100">
+          <div className="bg-slate-800 w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center mb-4 sm:mb-6">
+            <Handshake className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400" />
+          </div>
+          <h3 className="text-base sm:text-lg font-display text-slate-300 mb-auto leading-relaxed">
+            "I manage multiple hostels in Ibadan. Using the custom dash on DirectRent lets me verify a student's ID digitally before they even come for inspection."
+          </h3>
+          <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-800">
+            <h5 className="font-bold text-white text-sm sm:text-base leading-none mb-1">Mrs. Bola</h5>
+            <p className="text-[10px] sm:text-xs text-slate-400 font-semibold tracking-wide">Hostel Manager, UI Area</p>
+          </div>
+        </div>
+
+        {/* Bottom Right Card */}
+        <div className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-8 bg-white p-6 sm:p-10 rounded-[2rem] border-[0.5px] border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 flex flex-col justify-between">
+          <div>
+            <div className="flex gap-1 mb-4 sm:mb-6 text-amber-400">
+              {[1,2,3,4,5].map(star => <Sparkles key={star} className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />)}
+            </div>
+            <h3 className="text-lg sm:text-xl font-display font-medium text-slate-800 leading-relaxed mb-4">
+              "We relocated for NYSC to Port Harcourt and had no idea how to get a place safely. A friend recommended DirectRent. Found an affordable self-contain online and paid the landlord straight. No drama."
+            </h3>
+          </div>
+          <div className="flex items-center gap-4 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-100">
+            <SafeImage src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&h=150&q=80" className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-white shadow-md object-cover" alt="Chidinma N." />
+            <div>
+              <h5 className="font-bold text-slate-900 text-sm sm:text-base leading-none mb-1">Chidinma N.</h5>
+              <p className="text-[10px] sm:text-xs text-primary-600 font-semibold tracking-wide">Corper, Rivers State</p>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -665,28 +793,32 @@ const FAQ = () => {
 
   const faqs = [
     { 
-      q: "Are the properties really verified?", 
-      a: "Yes. Every listing represented on the DirectRent map undergoes severe verification procedures. Hosts must pass automated identity checks and must produce accurate lease documents or verified building parameters." 
+      q: "I'm a student on a budget, are there affordable rooms?", 
+      a: "Yes. DirectRent is specially designed for students and young professionals. You can filter for self-contains, shared apartments, or hostels near your campus without paying any exorbitant 20% agency fees." 
     },
     { 
-      q: "Do I have to pay agent viewing fees?", 
-      a: "Absolutely not. One of our structural rules is zero inspection viewing charges. You browse coordinate parameters for free and coordinate open listings cleanly in real-time." 
+      q: "As a landlord, how am I protected from difficult tenants?", 
+      a: "All tenants must pass our strict KYC (Know Your Customer) process, providing their government ID and BVN-verified details before they can message you. We verify them so you don't have to guess." 
     },
     { 
-      q: "How do I secure dynamic properties?", 
-      a: "Simply browse through our interface details, select verified options, click to initiate secured messaging chat requests, and draft real coordinate viewing plans or lease contracts directly with landlords." 
+      q: "Do I have to pay an agent viewing form fee before seeing a property?", 
+      a: "Absolutely not. DirectRent strictly prohibits viewing fees. You browse accurate listings with coordinates for free, and only spend money when you are ready to sign your verified lease." 
     },
     { 
-      q: "Can I manage real estate assets directly as a listing owner?", 
-      a: "Yes. DirectRent offers robust portals. You register as an Agent specifying landlord credentials, upload structural assets quickly, and manage qualified client requests comfortably." 
+      q: "How does the rental payment structure work?", 
+      a: "Once you inspect a property and approve it, you draft a digital agreement directly with the landlord on our app. Payments can be routed safely through our integrated escrow wallet until you confidently receive the keys." 
+    },
+    { 
+      q: "Are the property images actually real or fake?", 
+      a: "DirectRent enforces a stern visual policy. Landlords take live photos that are location-stamped by our system. If you spot a disparity during your physical visit, flag it, and we will take down the listing." 
     }
   ];
 
   return (
-    <section className="py-24 bg-slate-50/50 transition-colors duration-300">
+    <section id="faq" className="py-16 sm:py-20 bg-slate-50/50 transition-colors duration-300">
       <div className="w-full max-w-4xl mx-auto px-4 sm:px-6">
         
-        <div className="text-center mb-16 space-y-4">
+        <div className="text-center mb-12 space-y-4">
           <span className="text-primary-600 text-xs font-black tracking-widest uppercase">FAQ Guides</span>
           <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">Got questions?</h2>
           <p className="text-slate-500 text-sm sm:text-base font-light">Transparent details about DirectRent's operations.</p>
@@ -780,14 +912,14 @@ const Landing = () => {
         <FAQ />
         
         {/* Call to action section with highly stylistic visuals -- LIGHT DESIGN */}
-        <section className="py-24 bg-white">
+        <section className="py-16 sm:py-20 bg-white">
           <div className="w-full max-w-6xl mx-auto px-4">
             <motion.div 
               initial={{ opacity: 0, scale: 0.97 }} 
               whileInView={{ opacity: 1, scale: 1 }} 
               viewport={{ once: true }}
               transition={{ duration: 0.6 }} 
-              className="bg-slate-50 border-[0.5px] border-slate-200 dark:border-[#0f172b] rounded-[2.5rem] p-12 md:p-20 text-center relative overflow-hidden shadow-sm"
+              className="bg-slate-50 border-[0.5px] border-slate-200 dark:border-[#0f172b] rounded-[2.5rem] p-10 md:p-14 text-center relative overflow-hidden shadow-sm"
             >
               {/* Subtle back reflection glows */}
               <div className="absolute top-0 right-0 w-[350px] h-[350px] bg-primary-500/5 rounded-full blur-[100px] pointer-events-none" />

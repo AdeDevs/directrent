@@ -1,21 +1,33 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import { Home as HomeIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import BottomNav from "../components/BottomNav";
+import MobileDrawer from "../components/MobileDrawer";
 import DesktopSidebar from "../components/DesktopSidebar";
-import HomePage from "../pages/Home";
-import ChatPage from "../pages/Chat";
-import ProfilePage from "../pages/Profile";
-import FavoritesPage from "../pages/Favorites";
-import ListingDetails from "../pages/ListingDetails";
-import AgentProfile from "../pages/AgentProfile";
-import CreateListing from "../pages/CreateListing";
-import MyListings from "../pages/MyListings";
-import NotificationsPage from "../pages/Notifications";
-import FAQPage from "../pages/FAQ";
-import TermsOfUsePage from "../pages/TermsOfUse";
+
+const HomePage = lazy(() => import("../pages/Home"));
+const ChatPage = lazy(() => import("../pages/Chat"));
+const ProfilePage = lazy(() => import("../pages/Profile"));
+const FavoritesPage = lazy(() => import("../pages/Favorites"));
+const ListingDetails = lazy(() => import("../pages/ListingDetails"));
+const AgentProfile = lazy(() => import("../pages/AgentProfile"));
+const CreateListing = lazy(() => import("../pages/CreateListing"));
+const MyListings = lazy(() => import("../pages/MyListings"));
+const NotificationsPage = lazy(() => import("../pages/Notifications"));
+const FAQPage = lazy(() => import("../pages/FAQ"));
+const WalletPage = lazy(() => import("../pages/Wallet"));
+const TermsOfUsePage = lazy(() => import("../pages/TermsOfUse"));
+
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { AppTab } from "../types";
+
+const PageLoader = () => (
+  <div className="w-full min-h-[50vh] flex flex-col items-center justify-center gap-3">
+    <div className="w-8 h-8 border-2 border-slate-200 dark:border-slate-800 rounded-full animate-spin border-t-primary-600" />
+    <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Loading section...</span>
+  </div>
+);
 
 const AppLayout = () => {
   const {
@@ -33,6 +45,8 @@ const AppLayout = () => {
   } = useAuth();
 
   const isCollapsed = isSidebarCollapsed;
+  const { theme } = useTheme();
+  const [logoFailed, setLogoFailed] = useState(false);
 
   const handleToggleCollapse = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
@@ -66,14 +80,27 @@ const AppLayout = () => {
                   }}
                   className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition-transform"
                 >
-                  <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shadow-lg shadow-primary-500/20">
-                    <HomeIcon className="text-white w-4 h-4" />
-                  </div>
-                  <span className="text-lg font-display font-black tracking-tight leading-none text-slate-900 dark:text-white">
-                    Direct<span className="text-primary-600 dark:text-primary-400">Rent</span>
-                  </span>
+                  {!logoFailed ? (
+                    <img 
+                      src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'} 
+                      onError={() => setLogoFailed(true)}
+                      className="h-11 w-auto object-contain max-w-[150px]"
+                      alt="DirectRent"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <>
+                      <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shadow-lg shadow-primary-500/20">
+                        <HomeIcon className="text-white w-4 h-4" />
+                      </div>
+                      <span className="text-lg font-display font-black tracking-tight leading-none text-slate-900 dark:text-white">
+                        Direct<span className="text-primary-600 dark:text-primary-400">Rent</span>
+                      </span>
+                    </>
+                  )}
                 </div>
                 <button 
+                  type="button"
                   onClick={handleToggleCollapse} 
                   className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
                   title="Collapse sidebar"
@@ -83,6 +110,7 @@ const AppLayout = () => {
               </>
             ) : (
               <button 
+                type="button"
                 onClick={handleToggleCollapse}
                 className="w-10 h-10 bg-primary-600/10 hover:bg-primary-600 hover:text-white rounded-xl flex items-center justify-center text-primary-600 transition-all shadow-sm mx-auto"
                 title="Expand sidebar"
@@ -103,7 +131,7 @@ const AppLayout = () => {
         {/* Persistent left sidebar on desktop view ports */}
         <DesktopSidebar isCollapsed={isCollapsed} onToggleCollapse={handleToggleCollapse} />
 
-        <main className={`w-full max-w-full px-0 pb-24 md:pb-32 lg:pb-12 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-72'} flex-1 relative transition-all duration-300 min-w-0`}>
+        <main className={`w-full max-w-full px-0 ${user?.role === 'agent' ? 'pb-0' : 'pb-24'} lg:pb-12 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-72'} flex-1 relative transition-all duration-300 min-w-0`}>
           {publishingProgress !== null && (
             <div className="sticky top-0 lg:top-0 z-[120] w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-primary-500/10 p-4 transition-all duration-300 shadow-sm">
               <div className="max-w-4xl mx-auto space-y-2 px-4">
@@ -127,67 +155,75 @@ const AppLayout = () => {
             </div>
           )}
 
-          <AnimatePresence mode="wait">
-          {selectedAgentId ? (
-            <motion.div
-              key={`agent-${selectedAgentId}`}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <AgentProfile
-                agentId={selectedAgentId}
-                onBack={() => setSelectedAgentId(null)}
-              />
-            </motion.div>
-          ) : (currentListing && activeTab !== "create") ? (
-            <motion.div
-              key={`listing-${currentListing.id}`}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <ListingDetails
-                listing={currentListing}
-                onBack={() => setCurrentListing(null)}
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              key={`dashboard-${user.role}-${activeTab}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activeTab === "home" && <HomePage key={`home-${user.role}`} />}
-              {activeTab === "chat" && <ChatPage key={`chat-${user.role}`} />}
-              {activeTab === "profile" && <ProfilePage key={`profile-${user.role}`} />}
-              {activeTab === "favorites" && <FavoritesPage key={`favorites-${user.role}`} />}
-              {activeTab === "create" && <CreateListing key={`create-${user.role}`} />}
-              {activeTab === "mylistings" && <MyListings key={`mylistings-${user.role}`} />}
-              {activeTab === "notifications" && <NotificationsPage key={`notifications-${user.role}`} />}
-              {activeTab === "terms" && <TermsOfUsePage key={`terms-${user.role}`} />}
-              {activeTab === "faq" && <FAQPage key={`faq-${user.role}`} />}
-            </motion.div>
-          )}
-        </AnimatePresence>
+          <Suspense fallback={<PageLoader />}>
+            <AnimatePresence mode="wait">
+            {selectedAgentId ? (
+              <motion.div
+                key={`agent-${selectedAgentId}`}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <AgentProfile
+                  agentId={selectedAgentId}
+                  onBack={() => setSelectedAgentId(null)}
+                />
+              </motion.div>
+            ) : (currentListing && activeTab !== "create") ? (
+              <motion.div
+                key={`listing-${currentListing.id}`}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <ListingDetails
+                  listing={currentListing}
+                  onBack={() => setCurrentListing(null)}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key={`dashboard-${user.role}-${activeTab}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                {activeTab === "home" && <HomePage key={`home-${user.role}`} />}
+                {activeTab === "chat" && <ChatPage key={`chat-${user.role}`} />}
+                {activeTab === "profile" && <ProfilePage key={`profile-${user.role}`} />}
+                {activeTab === "favorites" && <FavoritesPage key={`favorites-${user.role}`} />}
+                {activeTab === "create" && <CreateListing key={`create-${user.role}`} />}
+                {activeTab === "mylistings" && <MyListings key={`mylistings-${user.role}`} />}
+                {activeTab === "notifications" && <NotificationsPage key={`notifications-${user.role}`} />}
+                {activeTab === "terms" && <TermsOfUsePage key={`terms-${user.role}`} />}
+                {activeTab === "faq" && <FAQPage key={`faq-${user.role}`} />}
+                {activeTab === "wallet" && <WalletPage key={`wallet-${user.role}`} />}
+              </motion.div>
+            )}
+            </AnimatePresence>
+          </Suspense>
       </main>
       </div>
 
-      {/* Floating BottomNav for mobile & tablet viewers only */}
+      {/* Mobile Navigation */}
       <div className="relative z-[100] lg:hidden">
-        <BottomNav
-          activeTab={activeTab}
-          user={user}
-          setActiveTab={(tab) => {
-            setCurrentListing(null);
-            setSelectedAgentId(null);
-            setActiveTab(tab);
-          }}
-        />
+        {!currentListing && user?.role === 'agent' && (
+          <MobileDrawer
+            activeTab={activeTab}
+            user={user}
+            setActiveTab={(tab: any) => {
+              setCurrentListing(null);
+              setSelectedAgentId(null);
+              setActiveTab(tab);
+            }}
+          />
+        )}
+        {!currentListing && user?.role !== 'agent' && (
+          <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} />
+        )}
       </div>
     </div>
   );

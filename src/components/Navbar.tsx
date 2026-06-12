@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Home, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
+  const { theme } = useTheme();
   const { setView, setAuthMode, setPreselectedRole } = useAuth();
   
   useEffect(() => {
@@ -40,12 +43,24 @@ const Navbar = () => {
               className="flex-shrink-0 flex items-center gap-2 cursor-pointer active:scale-95 transition-transform"
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             >
-              <div className="w-8 h-8 bg-primary-600 rounded-md flex items-center justify-center">
-                <Home className="text-white w-5 h-5" />
-              </div>
-              <span className="text-xl font-display font-black tracking-tight leading-none text-slate-900">
-                Direct<span className="text-primary-600">Rent</span>
-              </span>
+              {!logoFailed ? (
+                <img 
+                  src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'} 
+                  onError={() => setLogoFailed(true)}
+                  className="h-11 w-auto object-contain max-w-[150px]"
+                  alt="DirectRent"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <>
+                  <div className="w-8 h-8 bg-primary-600 rounded-md flex items-center justify-center">
+                    <Home className="text-white w-5 h-5" />
+                  </div>
+                  <span className="text-xl font-display font-black tracking-tight leading-none text-slate-900">
+                    Direct<span className="text-primary-600">Rent</span>
+                  </span>
+                </>
+              )}
             </div>
           </div>
           

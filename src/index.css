@@ -39,6 +39,17 @@
     transition: background-color 0.3s ease, color 0.3s ease;
   }
   
+  /* Always hide scrollbars globally for cleaner aesthetics */
+  * {
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE 10+ */
+  }
+  *::-webkit-scrollbar {
+    display: none !important; /* Webkit / Safari / Chrome */
+    width: 0 !important;
+    height: 0 !important;
+  }
+  
   button, a, [role="button"], select, label, .no-select {
     cursor: pointer;
     -webkit-tap-highlight-color: transparent !important;

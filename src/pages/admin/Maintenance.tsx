@@ -24,7 +24,6 @@ import {
   serverTimestamp,
   limit
 } from 'firebase/firestore';
-import { FEATURED_LISTINGS } from '../../data';
 import { 
   purgeAllChats, 
   purgeAllFavorites, 
@@ -32,7 +31,8 @@ import {
   purgeAllNotifications,
   purgeAllReports,
   purgeAllReviews,
-  purgeAllTours
+  purgeAllTours,
+  purgeAllTransactions
 } from '../../utils/adminCleanup';
 
 const HealthCheck = () => {
@@ -151,7 +151,8 @@ const Maintenance = () => {
       await purgeAllReports();
       await purgeAllReviews();
       await purgeAllTours();
-      setMessage({ type: 'success', text: 'Message history, favorites, analytics, notifications, reports, reviews, and tours have been reset across the entire platform.' });
+      await purgeAllTransactions();
+      setMessage({ type: 'success', text: 'Message history, favorites, analytics, notifications, reports, reviews, tours, and completed escrow transactions have been fully reset across the entire platform. Rented listings are now active and available again.' });
     } catch (err: any) {
       console.error('Reset error:', err);
       setMessage({ type: 'error', text: 'Failed to reset interaction data: ' + err.message });
@@ -162,49 +163,7 @@ const Maintenance = () => {
   };
 
   const handleRebuildRegistry = async () => {
-    setIsSyncing(true);
-    setMessage(null);
-    try {
-      const usersSnap = await getDocs(collection(db, 'users'));
-      const activeUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const leonUser = activeUsers.find(u => u.email === 'leonofatlas@gmail.com');
-      const peaceUser = activeUsers.find(u => u.email === 'peaceolaoluwa2006@gmail.com');
-
-      const leonId = leonUser?.id || 'agent_leon';
-      const peaceId = peaceUser?.id || 'agent_peace';
-
-      const batch = writeBatch(db);
-      for (const listing of FEATURED_LISTINGS) {
-        const docRef = doc(db, 'listings', listing.id.toString());
-        
-        let finalAgentId = listing.agent?.id;
-        if (finalAgentId === 'agent_leon') finalAgentId = leonId;
-        if (finalAgentId === 'agent_peace') finalAgentId = peaceId;
-
-        batch.set(docRef, {
-          ...listing,
-          agent: {
-            ...listing.agent,
-            id: finalAgentId
-          },
-          viewCount: 0,
-          favoritesCount: 0,
-          inquiryCount: 0,
-          updatedAt: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          isApproved: true,
-          status: 'ACTIVE'
-        });
-      }
-      await batch.commit();
-      setMessage({ type: 'success', text: 'Listing registry successfully rebuilt and counters zeroed.' });
-    } catch (err) {
-      console.error('Rebuild error:', err);
-      setMessage({ type: 'error', text: 'Failed to rebuild registry.' });
-    } finally {
-      setIsSyncing(false);
-      setConfirmModal(null);
-    }
+    setMessage({ type: 'success', text: 'Rebuild registry not supported manually.' });
   };
 
   const handleGlobalPurge = async () => {

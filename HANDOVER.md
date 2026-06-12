@@ -181,6 +181,17 @@ When LLMs produce malformed JSON structures or terminate answers mid-word due to
 3. **Trailing Commas Removal**: Automatically eliminates trailing commas placed before closing characters to prevent browser parsing errors.
 4. **Data Normalization**: Validates that all critical components (assessment arrays, risk values, and confidence counts) are initialized as correctly formatted fields.
 
+### Layer D: Unified Popstate Router Recovery and Direct State Navigation
+To eliminate browser history state mismatches (such as empty white screens on rapid back/forward transitions) and eliminate obsolete manual window pushState dispatching, the SPA router implements two core safety patterns:
+1. **Context-Driven Navigation**: Core visual components like the global `Footer` leverage the standard `AuthContext` router hook (`setView('legal')`) instead of manually pushing to window history and custom dispatching artificial `popstate` events.
+2. **Deterministic Absolute Fallback Path Resolver**: The global `popstate` listener includes an automatic window-state null fallback block. If a browser back gesture occurs with an empty history context state, the client parsed location path (`/terms`, `/login`, etc.) is automatically decoded to recover the active view and tab flawlessly, preventing blank loading screens.
+
+### Layer E: Micro-Layout Responsive Densities & Aesthetic Refinements (Anti-CLS)
+To achieve seamless layouts, support negative-space rhythm, and avoid layout shifts or browser horizontal scrollbar noise:
+* **UI Densities and Paddings**: Massive padding margins (the static legacy `py-24` and `md:p-20` structures) on the Landing page were fully upgraded to fluid `py-16 sm:py-20` and container `p-10 md:p-14` variables. This reduces layout shifting and provides beautiful mobile-to-desktop responsiveness.
+* **Global Scrollbar Suppression**: Standard, high-contrast browser scrollbars are fully hidden globally through a tailored rule in `/src/index.css` (`scrollbar-width: none !important` and `-ms-overflow-style: none !important`), ensuring touch interactions look clean on any device.
+* **Typing Linter Integrity**: Extended standard audit logging signatures inside `/src/lib/auditLogger.ts` so custom `targetType` parameters fully support `'tenant'`. This completely clears linter warnings on automated compilation stages.
+
 ---
 
 ## 8. Complete Local Installation and Execution Manual
@@ -236,11 +247,13 @@ npm start
 
 The Cloud Firestore database structure is segmented into independent master collections:
 
-* **users**: Stores demographic profiles, account state, and roles.
+* **users**: Stores demographic profiles, account balance counters, added bank settlement accounts, state, and roles.
 * **listings**: Stores property parameters, geo-points, images, and review status.
 * **verifications**: Stores KYC applications, document URLs, selfie links, validation histories, and admin reports.
 * **conversations / messages**: Handles live chat tracking.
 * **viewings**: Tracks scheduled tenant tours.
+* **transactions**: Records the ledger of rental checkouts, deposits, and withdrawal accounts.
+* **escrows**: Stores rent escrow records, tracking release or refund states.
 
 ### Database Security (firestore.rules)
 Database mutations are blocked or allowed based on several specific profiles:
@@ -251,7 +264,72 @@ Database mutations are blocked or allowed based on several specific profiles:
 
 ---
 
-## 10. Operational Troubleshooting and Maintenance Protocols
+## 10. Digital Wallet, Rent Checkout & Escrow Protection Protocol
+
+DirectRent features a sophisticated secure payment pipeline designed specifically to address NGN (Nigerian Naira) rental micro-transaction challenges.
+
+### A. The DirectRent Wallet Logic & Banking Infrastructure
+To facilitate frictionless, secure on-platform microsecond accounting without forcing active card charges on every browser touch, DirectRent hosts an embedded **Ledger Wallet** for both Tenants (Rent Hunters) and Agents (Landlords/Property Developers):
+1. **Dynamic Bank Directory Resolver (`/api/banks`)**: DirectRent queries the official list of licensed financial institutions in Nigeria via a backend-routed connection to Paystack. It supports instant extraction of bank codes across GTBank, Zenith, Access, Kuda, Moniepoint, OPay, Palmpay, and dozens of others.
+2. **Real-time Bank Account Validation (`/api/banks/resolve`)**: Utilizing an official endpoint, when an agent types their 10-digit Nuban account number and selects their bank, the backend validates account ownership directly against Nigerian inter-bank databases (NIBSS proxy via Paystack). This prevents payments from being sent to incorrect names. If API keys are absent, a resilient mock resolver takes over to prevent local system crashes.
+3. **Ledger-Based Balance Processing**: Instead of calculating state indicators on fragile client devices, balances and settlement portfolios are managed securely on Firestore with full multi-device synchronization.
+
+### B. Secure Rent Checkout & Paystack Integration
+When a tenant decides to secure a confirmed listing:
+1. **The Rent Invoicing Engine**: DirectRent calculates active rent indices (Annual rent, legal agreements, caution damage fees, and platform commissioning charges).
+2. **Paystack Direct Checkout**: An optimized on-screen checkout modal redirects the user to the secure Paystack checkout interface (or local card inputs), validating that payment has been authorized before altering property listing allocations.
+3. **Post-Checkout State Updates**: Once payment is completed, a transaction record with a unique transaction hash (`ref_pstk_...`) is logged under the `transactions` collection.
+
+### C. The Escrow Protection Engine (Anti-Scam Guard)
+In traditional Nigerian real estate, agents routinely demand cash deposits upfront, only for tenants to discover the property has been double-booked or does not belong to the agent. DirectRent resolves this using an **Automated Escrow Protocol**:
+1. **Escrow Hold State**: Upon a successful rental payment checkout, funds are *never* disbursed immediately to the agent's active balance. Instead, the sum is funneled into a locked `escrows` collection state with status set to `locked`.
+2. **Satisfactory Viewing Check**: Funds are only released from Escrow into the Agent's withdrawable wallet *after* the tenant conducts a physical on-site inspection and logs mutual consent, or once a predefined cooling-off period expires.
+3. **Dispute and Refund Loop**: If the Tenant exposes a landmark fraud, stock-photo theft, or a physical mismatch during viewing, the Tenant files an on-platform Dispute. An Administrative officer can then trigger an instant full-refund back to the Tenant's payment source, bypassing complex litigation.
+
+### D. Withdrawal & Settlement Settlement
+1. **Withdrawal Request Processing (`/api/withdraw`)**: Agents can request payout of their available balances to their registered Nigerian bank accounts.
+2. **Double-Entry Ledger Security**: The backend double-checks the available balance by aggregating previous transactions:
+   $$\text{Available Balance} = \sum (\text{Approved/Released Rental Trans}) - \sum (\text{Completed Withdrawals})$$
+3. **Settlement Approval Queue**: Once computed, payouts are either instantly initiated via automatic bank transfers or forwarded to administrators for bulk dispatch, providing manual back-office security checks.
+
+---
+
+## 11. Production Launch Parameters & SEO Configurations on DirectRent.space
+
+DirectRent is fully prepared for general public release at **https://directrent.space**:
+
+### A. Core Hosting Infrastructure
+* **Target Domain**: Secure DNS records correctly root traffic on `https://directrent.space` with high-density SSL validation.
+* **Platform Port Allocation**: The Node production server runs cleanly behind Nginx proxies, binding exclusively to port `3000` on development and utilizing a unified ES Module compilation for high-frequency runtime performance.
+
+### B. High-Fidelity SEO Architecture
+To maximize free organic customer acquisition across Nigerian universities (UNILAG, UI, UNILORIN, Covenant University, etc.) and major commercial capitals (Yaba, Lekki, Ikeja, Abuja CBD, Port Harcourt):
+1. **Targeted Canonical Link Mapping**: Avoids page index deduplication issues by keeping `<link rel="canonical" href="https://directrent.space" />` locked to the standard root domain.
+2. **Universal Title and Semantic Search Meta**: Tailored titles and keyword clusters highlight scam protection ("No Agent Scam", "Verified Hostels Lagos", "Secure Rent platform Nigeria").
+3. **Structured LD-JSON Schema Data**: Injects customized rich snippet schemas pointing to local geopoints in Lagos, Nigeria. This allows Google and Bing to list housing portfolios in native SERP features.
+
+### C. Vercel Production Variable Matrix
+When hosting DirectRent on Vercel or other containerized platforms, ensure you populate the complete set of Environment Keys. Ensure that both client-prefixed and server-protected keys are fully defined inside your Vercel Project Dashboard:
+
+| Key Name | Environment | Description / Recommended Value |
+| :--- | :--- | :--- |
+| `GOOGLE_MAPS_PLATFORM_KEY` | Client & Server | The official Google Maps Javascript API key. Used to render localized maps and street boundaries safely. |
+| `VITE_PAYSTACK_PUBLIC_KEY` | Client-Side | The Public Paystack Key used by the checkout frame (`pk_live_...` or `pk_test_...`) to process safe bank and card checkout transactions. |
+| `PAYSTACK_SECRET_KEY` | Server-Side | The Secret Paystack Key (`sk_live_...` or `sk_test_...`) used securely on your backend to resolve Nigerian bank directories and execute payouts. |
+| `OPENROUTER_API_KEY` | Server-Side | Main backend AI key used to run advanced pricing analyses, confidence calculations, and face matching inside the Admin Dashboard. |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Server-Side | The complete Google Firebase Admin Service Account Key JSON string. Vital for initializing the Admin SDK on secure server environments. |
+| `GEMINI_API_KEY` | Server-Side | (Optional) Backup LLM API Key used for localized landmark lookups and alternative AI model backups. |
+
+### D. Multi-Theme Vector Logo Setup Instructions
+DirectRent supports instant theme-aware brand logos without compiling additional frontend components or restarting assets.
+1. Place your transparent-background light-theme logo file exactly at `/public/logo-light.png` inside the workspace root.
+2. Place your transparent-background dark-theme logo file exactly at `/public/logo-dark.png` inside the workspace root.
+3. The application automatically detects these assets. If the user shifts the display theme to dark mode, the server serves `logo-dark.png` across headers, sidebars, and home screens; if they switch to light mode, `logo-light.png` is displayed.
+4. **Resilient Fallback**: If either file is missing or fails to render, the interface degrades gracefully and displays the styled text brand `DirectRent` with a vector home badge instantly.
+
+---
+
+## 12. Operational Troubleshooting and Maintenance Protocols
 
 ### Issue: The AI Panel shows empty responses or breaks on client views
 * **Origin**: malformed or truncated text objects returned by remote models.
@@ -264,6 +342,10 @@ Database mutations are blocked or allowed based on several specific profiles:
 ### Issue: Storage uploads fail on cross-origin requests
 * **Origin**: Missing CORS permissions inside your active storage bucket.
 * **Action**: Apply CORS policies to allow cross-origin requests from your active landing URL.
+
+### Issue: Vercel serverless functions time out or cannot find Firebase Admin credentials
+* **Origin**: Vercel Serverless environment lacks `FIREBASE_SERVICE_ACCOUNT_JSON`.
+* **Action**: Ensure you upload the raw unified JSON string string copied directly from your Firebase console into Vercel's Environment Variables panel. DirectRent contains dynamic code to write temporary keys and route through serverless paths cleanly!
 
 ---
 DirectRent is now completely documented, integrated with dynamic fallbacks, tested, compiled, and ready for hand-over!

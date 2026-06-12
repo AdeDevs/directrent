@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import HamburgerButton from '../components/HamburgerButton';
 import { motion } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { 
@@ -53,6 +54,7 @@ const AMENITIES_LIST = [
 ];
 
 const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80";
+
 
 export default function CreateListing() {
   const { 
@@ -487,10 +489,11 @@ export default function CreateListing() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-[0] transition-colors">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-0 transition-colors">
       {/* 1st part: mobile sticky header */}
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center justify-between lg:hidden">
+      <header className={`sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center justify-between lg:hidden`}>
         <div className="flex items-center gap-3">
+          <HamburgerButton />
           <div>
             <span className="text-[8px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-400 leading-none block">
               {isEditMode ? 'Listing Editor' : 'Publishing Workspace'}
@@ -541,7 +544,7 @@ export default function CreateListing() {
         </div>
       )}
 
-      <main className="w-full px-[15px] pt-4 pb-0 mb-0 space-y-8 lg:space-y-12">
+      <main className="w-full px-[15px] pt-4 pb-[15px] mb-0 space-y-8 lg:space-y-12">
         {atLimit && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
@@ -714,7 +717,8 @@ export default function CreateListing() {
                     <select 
                       value={formData.paymentPeriod}
                       onChange={(e) => handleInputChange('paymentPeriod', e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-4 pr-10 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white appearance-none cursor-pointer"
+                      disabled={isEditMode}
+                      className={`w-full border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-4 pr-10 text-sm font-medium outline-none transition-all dark:text-white appearance-none ${isEditMode ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-800/50 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 cursor-pointer'}`}
                     >
                       <option value="annually">Annually (Yearly)</option>
                       <option value="monthly">Monthly</option>
@@ -749,7 +753,8 @@ export default function CreateListing() {
                       value={formData.type}
                       onChange={(e) => handleInputChange('type', e.target.value)}
                       onBlur={() => handleBlur('type')}
-                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 px-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                      disabled={isEditMode}
+                      className={`w-full border border-slate-200 dark:border-white/10 rounded-2xl py-4 px-4 text-sm font-medium outline-none transition-all dark:text-white ${isEditMode ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-800/50 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500'}`}
                     />
                     <datalist id="property-types">
                       {SUGGESTED_PROPERTY_TYPES.map(t => <option key={`prop-type-${t}`} value={t} />)}
@@ -760,12 +765,13 @@ export default function CreateListing() {
 
             {/* Split payments / Initial deposit difference */}
             <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-white/5 w-full">
-                <label className="flex items-start gap-3 cursor-pointer group">
+                <label className={`flex items-start gap-3 ${isEditMode ? 'cursor-not-allowed opacity-70' : 'cursor-pointer group'}`}>
                   <input 
                     type="checkbox" 
                     checked={formData.hasSplitPayment}
                     onChange={(e) => setFormData(prev => ({ ...prev, hasSplitPayment: e.target.checked }))}
-                    className="mt-1 rounded border-slate-350 dark:border-slate-750 text-primary-600 focus:ring-primary-500/10 w-4 h-4"
+                    disabled={isEditMode}
+                    className={`mt-1 rounded border-slate-350 dark:border-slate-750 text-primary-600 focus:ring-primary-500/10 w-4 h-4 ${isEditMode ? 'cursor-not-allowed' : ''}`}
                   />
                   <div className="flex flex-col">
                     <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide group-hover:text-primary-600 transition-colors">Setup Initial / Subsequent Payment structure?</span>
@@ -789,7 +795,8 @@ export default function CreateListing() {
                             const formattedValue = rawValue ? parseInt(rawValue).toLocaleString() : '';
                             setFormData(prev => ({ ...prev, initialPaymentValue: formattedValue }));
                           }}
-                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                          disabled={isEditMode}
+                          className={`w-full border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium outline-none transition-all dark:text-white ${isEditMode ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-white dark:bg-slate-800 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500'}`}
                         />
                       </div>
                     </div>
@@ -807,7 +814,8 @@ export default function CreateListing() {
                             const formattedValue = rawValue ? parseInt(rawValue).toLocaleString() : '';
                             setFormData(prev => ({ ...prev, subsequentPaymentValue: formattedValue }));
                           }}
-                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                          disabled={isEditMode}
+                          className={`w-full border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium outline-none transition-all dark:text-white ${isEditMode ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-white dark:bg-slate-800 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500'}`}
                         />
                       </div>
                     </div>
@@ -824,6 +832,7 @@ export default function CreateListing() {
                 <LocationPicker 
                   initialValue={formData.location}
                   onLocationSelect={handleLocationSelect}
+                  disabled={isEditMode}
                 />
               </div>
 
@@ -833,9 +842,9 @@ export default function CreateListing() {
                   <button
                     type="button"
                     onClick={handleFetchLandmarkSuggestions}
-                    disabled={isGeneratingLandmarks || !formData.location}
+                    disabled={isGeneratingLandmarks || !formData.location || isEditMode}
                     className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-all select-none ${
-                      !formData.location 
+                      (!formData.location || isEditMode)
                         ? 'bg-slate-100 dark:bg-slate-800/40 text-slate-400 dark:text-slate-600 cursor-not-allowed'
                         : 'bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 border border-primary-200/50 dark:border-primary-800/35'
                     }`}
@@ -862,11 +871,12 @@ export default function CreateListing() {
                     value={formData.landmark}
                     onChange={(e) => handleInputChange('landmark', e.target.value)}
                     onBlur={() => handleBlur('landmark')}
-                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all dark:text-white"
+                    disabled={isEditMode}
+                    className={`w-full border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium outline-none transition-all dark:text-white ${isEditMode ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-800/50 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500'}`}
                   />
                 </div>
 
-                {suggestedLandmarks.length > 0 && (
+                {suggestedLandmarks.length > 0 && !isEditMode && (
                   <div className="mt-2.5 p-3 rounded-2xl bg-primary-50/20 dark:bg-primary-950/10 border border-primary-100/30 dark:border-primary-900/20 space-y-1.5 animate-fadeIn">
                     <div className="text-[8px] font-black tracking-widest text-primary-600 dark:text-primary-450 uppercase flex items-center gap-1">
                       <Sparkles className="w-2.5 h-2.5" /> Neighborhood landmarks generator:

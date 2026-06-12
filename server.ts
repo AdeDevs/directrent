@@ -231,6 +231,89 @@ app.get("/api/fetch-image", async (req, res) => {
     }
   });
 
+  app.get("/api/banks", async (req, res) => {
+    try {
+      const response = await fetch("https://api.paystack.co/bank");
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/banks/resolve", async (req, res) => {
+    const { account_number, bank_code } = req.query;
+    
+    if (!account_number || !bank_code) {
+      return res.status(400).json({ status: false, message: "account_number and bank_code are required" });
+    }
+
+    const secretKey = process.env.PAYSTACK_SECRET_KEY;
+    if (!secretKey) {
+      // If no secret key is provided, fallback to the mock behavior safely
+      return res.json({ 
+        status: true, 
+        message: "Account number resolved (Mock Mode - No Secret Key)", 
+        data: { account_name: "Mocked User Name" }
+      });
+    }
+
+    try {
+      const response = await fetch(`https://api.paystack.co/bank/resolve?account_number=${account_number}&bank_code=${bank_code}`, {
+        headers: {
+          Authorization: `Bearer ${secretKey}`
+        }
+      });
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ status: false, message: err.message });
+    }
+  });
+
+  app.post("/api/withdraw", async (req, res) => {
+    const { amount, bankAccountId, agentId } = req.body;
+    
+    if (!amount || !bankAccountId || !agentId) {
+      return res.status(400).json({ status: false, message: "Missing required fields" });
+    }
+
+    try {
+      const db = getDb();
+      const transactionsRef = db.collection('transactions');
+      
+      // Basic security check: verify if the agent has enough balance
+      const snapshot = await transactionsRef.where('agentId', '==', agentId).get();
+      const transactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      const availableBalance = transactions
+        .filter((t: any) => t.status === 'released' || t.status === 'completed')
+        .reduce((sum: number, t: any) => sum + (t.rentAmount || t.priceValue || t.amountValue || t.amount || 0), 0);
+      const totalPayouts = transactions
+        .filter((t: any) => t.status === 'withdrawn')
+        .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+
+      const netBalance = availableBalance - totalPayouts;
+
+      if (Number(amount) > netBalance) {
+        return res.status(400).json({ status: false, message: "Insufficient balance" });
+      }
+
+      await transactionsRef.add({
+        amount: Number(amount),
+        bankAccountId,
+        agentId,
+        status: 'withdrawn',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        type: 'withdrawal'
+      });
+      
+      res.json({ status: true, message: "Withdrawal request submitted" });
+    } catch (err: any) {
+      console.error("Withdrawal error:", err);
+      res.status(500).json({ status: false, message: err.message });
+    }
+  });
+
   app.delete("/api/admin/users/:userId", async (req, res) => {
     const { userId } = req.params;
     const authHeader = req.headers.authorization;

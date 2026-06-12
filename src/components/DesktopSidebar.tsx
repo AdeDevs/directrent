@@ -16,7 +16,8 @@ import {
   ShieldCheck,
   AlertTriangle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Wallet
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -52,6 +53,7 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({ isCollapsed, onToggleCo
     { id: 'chat', icon: <MessageCircleMore className="w-5 h-5" />, label: 'Chat', badge: <InboxBadge /> },
     { id: 'create', icon: <PlusCircle className="w-5 h-5" />, label: 'Post Property' },
     { id: 'mylistings', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard' },
+    { id: 'wallet', icon: <Wallet className="w-5 h-5" />, label: 'Wallet & Earnings' },
     { id: 'notifications', icon: <Bell className="w-5 h-5" />, label: 'Notifications', badge: <div className="relative w-4 h-4"><NotificationBadge /></div> },
     { id: 'profile', icon: <UserCircle className="w-5 h-5" />, label: 'Profile' },
   ] : [

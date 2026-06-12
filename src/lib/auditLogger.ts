@@ -3,7 +3,7 @@ import { db, auth } from './firebase';
 
 export const logModeratorAction = async (
   actionType: 'approve' | 'reject' | 'delete' | 'suspend',
-  targetType: 'listing' | 'agent' | 'user',
+  targetType: 'listing' | 'agent' | 'user' | 'tenant',
   targetId: string,
   details: any = {}
 ) => {

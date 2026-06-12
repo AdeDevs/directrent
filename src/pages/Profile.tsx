@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import HamburgerButton from '../components/HamburgerButton';
 import { motion, AnimatePresence } from "motion/react";
 import {
   Settings,
@@ -61,6 +62,7 @@ import HeaderPortal from "../components/HeaderPortal";
 import { toast } from 'react-hot-toast';
 
 // Compact card for Interests section to reduce weight and fit viewport better
+
 const Profile = () => {
   const { user, logout, updateProfile, favorites, setActiveTab, setPublishingProgress, setPublishingStatus } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -186,27 +188,47 @@ const Profile = () => {
   const [vaultDocs, setVaultDocs] = useState<any[]>([]);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
 
-  const [showTransactions, setShowTransactions] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!user || (!showTransactions && user.role !== 'tenant')) return;
+    if (!user || user.role !== 'agent') return;
     const docsRef = collection(db, 'transactions');
-    // For tenant or agent based on user.role
-    const qField = user.role === 'tenant' ? 'tenantId' : 'agentId';
-    const q = query(docsRef, where(qField, '==', user.id), orderBy('createdAt', 'desc'));
+    const qField = 'agentId';
+    const q = query(docsRef, where(qField, '==', user.id));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const fetched = snapshot.docs.map(doc => ({ ...doc.data() as any, id: doc.id }));
+      fetched.sort((a, b) => {
+        const tA = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+        const tB = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+        return tB - tA;
+      });
+      setTransactions(fetched);
+    }, (error: any) => {
+      if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
+        return;
+      }
+      console.error("Transaction docs error:", error);
     });
     return () => unsubscribe();
-  }, [user, showTransactions]);
+  }, [user]);
 
   useEffect(() => {
     if (!user || !showVault) return;
     const docsRef = collection(db, 'vault');
-    const q = query(docsRef, where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+    const q = query(docsRef, where('userId', '==', user.id));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setVaultDocs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const fetched = snapshot.docs.map(doc => ({ ...doc.data() as any, id: doc.id }));
+      fetched.sort((a, b) => {
+        const tA = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+        const tB = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+        return tB - tA;
+      });
+      setVaultDocs(fetched);
+    }, (error: any) => {
+      if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
+        return;
+      }
+      console.warn("Vault docs error:", error);
     });
     return () => unsubscribe();
   }, [user, showVault]);
@@ -758,14 +780,17 @@ const Profile = () => {
   const currentLevel = calculateVerificationLevel(user);
 
   return (
-    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-[0] transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-0 transition-colors duration-300">
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 lg:hidden">
         <div className="w-full max-w-none px-4 h-16 flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Your Space</span>
-            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-              Profile
-            </h1>
+          <div className="flex items-center gap-2">
+            <HamburgerButton />
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Your Space</span>
+              <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                Profile
+              </h1>
+            </div>
           </div>
           <button 
             onClick={() => setActiveTab('notifications')}
@@ -788,7 +813,7 @@ const Profile = () => {
         </div>
       </HeaderPortal>
 
-      <main className="w-full max-w-none px-[15px] pt-[15px] pb-0 mb-0 space-y-6">
+      <main className="w-full max-w-none px-[15px] pt-[15px] pb-[15px] mb-0 space-y-6">
         {showSuccess && (
           <motion.div
             initial={{ opacity: 0, y: -15 }}
@@ -857,6 +882,29 @@ const Profile = () => {
           </section>
         )}
 
+        {user.role === 'agent' && (
+          <section className="space-y-3 animate-fade-in">
+            <h3 className="text-xs font-black tracking-widest text-slate-400 dark:text-slate-500 uppercase pl-2">Earnings & Settlements</h3>
+            <button 
+              onClick={() => setActiveTab('wallet' as any)}
+              className="w-full flex items-center gap-4 p-4 bg-white dark:bg-slate-900 rounded-3xl border border-slate-150/80 dark:border-slate-800/80 shadow-sm hover:border-emerald-500/30 transition-colors group select-none"
+            >
+              <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-955/40 rounded-2xl flex items-center justify-center text-emerald-500 group-active:scale-95 transition-transform border border-emerald-100/40 dark:border-emerald-900/10">
+                <CreditCard className="w-5 h-5" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Wallet Overview</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Available: <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">₦{(transactions.filter(t => t.status === 'released' || t.status === 'completed').reduce((sum, t) => sum + (t.rentAmount || t.priceValue || t.amountValue || t.amount || 0), 0) - transactions.filter(t => t.status === 'withdrawn').reduce((sum, t) => sum + (t.amount || 0), 0)).toLocaleString()}</span></span>
+                  <span className="text-slate-200 dark:text-slate-700 text-[10px]">•</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Pending: <span className="font-bold text-amber-600 dark:text-amber-500 font-mono tracking-tight">₦{transactions.filter(t => t.status === 'locked').reduce((sum, t) => sum + (t.totalPaid || t.priceValue || t.amount || 0), 0).toLocaleString()}</span></span>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </section>
+        )}
+
         {/* General Settings */}
         <section className="space-y-3">
           <h3 className="text-xs font-black tracking-widest text-slate-400 dark:text-slate-500 uppercase pl-2">General</h3>
@@ -875,15 +923,11 @@ const Profile = () => {
               <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
             </button>
 
-            {user.role === 'agent' && (
+            {(user.role === 'agent' || user.role === 'tenant') && (
               <>
                 <KYCVerification />
                 <TrustVerification onVerifyPhone={() => setShowPhoneInput(true)} />
               </>
-            )}
-
-            {user.role === 'tenant' && (
-              <TrustVerification onVerifyPhone={() => setShowPhoneInput(true)} />
             )}
 
             {!user.phoneVerified && (
@@ -935,21 +979,10 @@ const Profile = () => {
               </div>
               <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
             </button>
-            <button 
-              onClick={() => setShowTransactions(true)}
-              className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
-            >
-              <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-955/40 rounded-2xl flex items-center justify-center text-emerald-500 group-active:scale-95 transition-transform border border-emerald-100/40 dark:border-emerald-900/10">
-                <CreditCard className="w-5 h-5" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">Transaction History</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Verified escrow ledger settlements</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
-            </button>
           </div>
         </section>
+
+
 
         {/* Preferences Settings */}
         <section className="space-y-3">
@@ -1870,77 +1903,6 @@ const Profile = () => {
         </AnimatePresence>
 
         <AnimatePresence>
-          {showTransactions && (
-            <motion.div 
-              key="transactions-modal"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6"
-              onClick={() => setShowTransactions(false)}
-            >
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className="bg-white dark:bg-slate-900 rounded-[2rem] w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl flex items-center justify-center text-emerald-500">
-                      <CreditCard className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight">Transaction History</h3>
-                      <p className="text-[10px] text-slate-400 font-medium">Your dummy escrow payments and settlements</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setShowTransactions(false)}
-                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-950/20">
-                  {transactions.length > 0 ? (
-                    <div className="space-y-3">
-                      {transactions.map((tx) => (
-                        <div key={tx.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:border-emerald-200 dark:hover:border-emerald-900/50 transition-colors">
-                          <div className="space-y-1 sm:max-w-[70%]">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">Paid</span>
-                              <span className="text-[10px] text-slate-400 font-mono font-bold">{tx.id}</span>
-                            </div>
-                            <h4 className="font-bold text-slate-900 dark:text-white">{tx.propertyTitle}</h4>
-                            <p className="text-[11px] text-slate-500">
-                              {user.role === 'tenant' ? 'Agent: ' + tx.agentName : 'Tenant: ' + tx.tenantName}
-                            </p>
-                          </div>
-                          <div className="flex justify-between sm:flex-col items-center sm:items-end gap-1">
-                            <span className="text-sm font-black text-slate-900 dark:text-white">{tx.amount}</span>
-                            <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full font-medium">Dummy Settlement</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center space-y-4">
-                      <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800/40 rounded-full flex items-center justify-center text-slate-300 dark:text-slate-600">
-                        <FileText className="w-8 h-8" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-900 dark:text-white mb-1">No Transactions Found</p>
-                        <p className="text-[11px] text-slate-400 max-w-[200px] mx-auto">You haven't completed any dummy transactions yet. They will appear here once settled.</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
         </AnimatePresence>
 
         <AnimatePresence>

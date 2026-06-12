@@ -49,7 +49,7 @@ const AgentProfileSkeleton: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         </button>
       </nav>
 
-      <main className="w-full max-w-full px-[15px] py-8 space-y-12 pb-0 mx-0">
+      <main className="w-full max-w-full px-[15px] py-8 space-y-12 pb-[15px] mx-0">
         {/* Header Hero Card Skeleton */}
         <section className="bg-white/85 dark:bg-[#0c111e] rounded-[32px] p-[15px] border border-slate-200 dark:border-[#1e293b] backdrop-blur-xl shadow-sm space-y-8">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
@@ -338,7 +338,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
           where('agent.id', '==', agentId)
         );
         const listingsSnap = await getDocs(qListings);
-        const rawListings = listingsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Listing));
+        const rawListings = listingsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Listing));
         
         activeListings = rawListings.filter(l => l.isApproved === true && (l.status as any) !== 'closed' && (l.status as any) !== 'completed' && l.status !== 'suspended');
         closedCountFromListings = rawListings.filter(l => (l.status as any) === 'closed' || (l.status as any) === 'completed' || (l as any).isClosed).length;
@@ -398,7 +398,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
     const qReviews = query(reviewsRef, where('agentId', '==', agentId));
 
     const unsubscribe = onSnapshot(qReviews, async (snapshot) => {
-      let rData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review));
+      let rData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Review));
       
       // Sort client-side by createdAt descending to ensure correct ordering without composite index
       rData.sort((a, b) => {
@@ -535,7 +535,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
         </div>
       </nav>
 
-      <main className="w-full max-w-full px-[15px] pt-[15px] pb-12 space-y-12 mx-0">
+      <main className="w-full max-w-full px-[15px] pt-[15px] pb-[15px] space-y-12 mx-0">
         {/* Combined Agent Profile Card: Redesigned based on Image */}
         <section className="bg-white dark:bg-[#0c111e] rounded-[32px] p-[15px] border border-slate-200 dark:border-[#1e293b] shadow-2xl relative transition-all duration-300">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8">

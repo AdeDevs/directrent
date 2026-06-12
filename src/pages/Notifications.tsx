@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import HamburgerButton from '../components/HamburgerButton';
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Bell, 
@@ -29,6 +30,7 @@ import HeaderPortal from "../components/HeaderPortal";
 
 type FilterType = 'all' | 'unread' | 'alerts';
 
+
 const Notifications = () => {
   const { user, setActiveTab } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -44,15 +46,26 @@ const Notifications = () => {
     const nRef = collection(db, "notifications");
     const q = query(
       nRef,
-      where("userId", "==", user.id),
-      orderBy("createdAt", "desc")
+      where("userId", "==", user.id)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        id: doc.id
       })) as Notification[];
+      
+      // Sort client-side by createdAt descending to bypass database indexes
+      docs.sort((a, b) => {
+        const timeA = a.createdAt?.seconds 
+          ? a.createdAt.seconds * 1000 
+          : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdAt?.seconds 
+          ? b.createdAt.seconds * 1000 
+          : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
+      });
+
       setNotifications(docs);
       setIsLoading(false);
     }, (err) => {
@@ -176,8 +189,9 @@ const Notifications = () => {
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 flex flex-col transition-colors duration-300">
       
       {/* Visual Editorial Header with sticky blur */}
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 lg:hidden px-4 h-16 flex items-center justify-between">
+      <header className={`sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 lg:hidden px-4 h-16 flex items-center justify-between`}>
         <div className="flex items-center gap-2.5">
+          <HamburgerButton />
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Activity Feed</span>
             <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5 flex items-center gap-2">
@@ -247,7 +261,7 @@ const Notifications = () => {
       </div>
 
       {/* Main notification lists feed */}
-      <main className="w-full max-w-none px-4 pt-[15px] pb-0 flex-1 flex flex-col">
+      <main className="w-full max-w-none px-4 pt-[15px] pb-[15px] flex-1 flex flex-col">
         <div className="space-y-3 flex-1">
           <AnimatePresence mode="popLayout">
             {filteredNotifications.length === 0 ? (

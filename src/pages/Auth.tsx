@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Home, X, Users, Handshake, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, Shield, FileText, Lock } from 'lucide-react';
+import { Home, X, Users, Handshake, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, Shield, FileText, Lock, Scale, Hammer, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { LegalTermsDoc, PrivacyPolicyDoc } from '../components/LegalDocs';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { UserRole, User } from '../types';
@@ -34,6 +35,7 @@ const Auth = () => {
   const [resetMethod, setResetMethod] = useState<'email' | 'sms'>('email');
   const [resetPhone, setResetPhone] = useState('');
   const [resetSent, setResetSent] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
   
   // Real SMS Flow Variables
   const [signupStep, setSignupStep] = useState(1);
@@ -167,7 +169,7 @@ const Auth = () => {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    const specialCharRegex = /[!@#$%^&*(),.?":{}|<>]/;
+    const specialCharRegex = /[^a-zA-Z0-9]/;
     const uppercaseRegex = /[A-Z]/;
     const numberRegex = /[0-9]/;
     const ninRegex = /^\d{11}$/;
@@ -181,6 +183,10 @@ const Auth = () => {
     }
 
     if (authMode === 'signup') {
+      if (!agreedToTerms) {
+        newErrors.form = 'Please agree to the Terms of Use and Privacy Policy.';
+      }
+
       if (signupStep === 1) {
         if (!formData.firstName) newErrors.firstName = 'First name is required';
         if (!formData.lastName) newErrors.lastName = 'Last name is required';
@@ -200,8 +206,6 @@ const Auth = () => {
             newErrors.phoneNumber = 'Phone number is required';
           } else if (formData.phoneNumber.length < 10) {
             newErrors.phoneNumber = 'Invalid phone number';
-          } else if (!phoneVerified) {
-            newErrors.phoneNumber = 'Verify phone number';
           }
         }
       }
@@ -237,7 +241,7 @@ const Auth = () => {
     const ninRegex = /^\d{11}$/;
     const uppercaseRegex = /[A-Z]/;
     const numberRegex = /[0-9]/;
-    const specialCharRegex = /[!@#$%^&*(),.?":{}|<>]/;
+    const specialCharRegex = /[^a-zA-Z0-9]/;
 
     const emailValid = formData.email && emailRegex.test(formData.email);
     const passwordValid = formData.password && (authMode === 'login' || (
@@ -252,7 +256,7 @@ const Auth = () => {
     }
 
     if (signupStep === 1) {
-      const basicFields = formData.firstName && formData.lastName && emailValid && passwordValid && formData.password === formData.confirmPassword;
+      const basicFields = formData.firstName && formData.lastName && emailValid && passwordValid && formData.password === formData.confirmPassword && agreedToTerms;
       if (role === 'agent') return !!basicFields;
       // For tenant, we also need phone verified on step 1
       return !!(basicFields && formData.phoneNumber && formData.phoneNumber.length >= 10 && (ignoreVerification || phoneVerified));
@@ -269,7 +273,8 @@ const Auth = () => {
       (ignoreVerification || phoneVerified) &&
       formData.nin && ninRegex.test(formData.nin) &&
       passwordValid &&
-      formData.password === formData.confirmPassword
+      formData.password === formData.confirmPassword &&
+      agreedToTerms
     );
   };
 
@@ -987,10 +992,22 @@ To authorize it, follow these steps:
         </div>
 
         <div className="relative z-10 flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setView('landing')}>
-          <div className="w-9 h-9 p-1.5 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/20">
-            <Home className="text-white w-5 h-5" />
-          </div>
-          <span className="font-display font-black tracking-tight text-white text-lg leading-none">DirectRent</span>
+          {!logoFailed ? (
+            <img 
+              src="/logo-dark.png" 
+              onError={() => setLogoFailed(true)}
+              className="h-11 w-auto object-contain max-w-[150px]"
+              alt="DirectRent"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <>
+              <div className="w-9 h-9 p-1.5 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/20">
+                <Home className="text-white w-5 h-5" />
+              </div>
+              <span className="font-display font-black tracking-tight text-white text-lg leading-none">DirectRent</span>
+            </>
+          )}
         </div>
 
         {/* Dynamic Contextual Text & Interactive Card Overlay */}
@@ -1049,10 +1066,22 @@ To authorize it, follow these steps:
           
           {/* Logo on Mobile/Tablet only */}
           <div className="flex items-center gap-1.5 lg:hidden cursor-pointer" onClick={() => setView('landing')}>
-            <div className="w-7 h-7 bg-primary-600 rounded-lg flex items-center justify-center">
-              <Home className="text-white w-4 h-4" />
-            </div>
-            <span className="font-display font-black text-sm text-slate-900 dark:text-white leading-none">DirectRent</span>
+            {!logoFailed ? (
+              <img 
+                src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'} 
+                onError={() => setLogoFailed(true)}
+                className="h-9 w-auto object-contain max-w-[130px]"
+                alt="DirectRent"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <>
+                <div className="w-7 h-7 bg-primary-600 rounded-lg flex items-center justify-center">
+                  <Home className="text-white w-4 h-4" />
+                </div>
+                <span className="font-display font-black text-sm text-slate-900 dark:text-white leading-none">DirectRent</span>
+              </>
+            )}
           </div>
 
           <div className="w-10 lg:hidden" />
@@ -1336,8 +1365,8 @@ To authorize it, follow these steps:
                        <span className={`text-[9px] font-bold uppercase tracking-tight ${/[0-9]/.test(formData.password) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Number</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                       <CheckCircle2 className={`w-3 h-3 ${/[!@#$%^&*(),.?":{}|<>]/.test(formData.password) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
-                       <span className={`text-[9px] font-bold uppercase tracking-tight ${/[!@#$%^&*(),.?":{}|<>]/.test(formData.password) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
+                       <CheckCircle2 className={`w-3 h-3 ${/[^a-zA-Z0-9]/.test(formData.password) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                       <span className={`text-[9px] font-bold uppercase tracking-tight ${/[^a-zA-Z0-9]/.test(formData.password) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
                     </div>
                   </div>
 
@@ -1695,8 +1724,8 @@ To authorize it, follow these steps:
                            <span className={`text-[9px] font-bold uppercase tracking-tight ${/[0-9]/.test(newResetPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Number</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                           <CheckCircle2 className={`w-3 h-3 ${/[!@#$%^&*(),.?":{}|<>]/.test(newResetPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
-                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[!@#$%^&*(),.?":{}|<>]/.test(newResetPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
+                           <CheckCircle2 className={`w-3 h-3 ${/[^a-zA-Z0-9]/.test(newResetPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[^a-zA-Z0-9]/.test(newResetPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
                         </div>
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">Create a new secure password</p>
@@ -1737,14 +1766,33 @@ To authorize it, follow these steps:
             {/* Password fields removed from here as they are moved to signupStep === 1 */}
           </div>
 
+          {/* Consolidated Error Display near the Submit Button */}
+          {Object.keys(errors).length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 rounded-xl flex items-start gap-3"
+            >
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-red-700 dark:text-red-400 mb-1">Could not continue</p>
+                <ul className="text-xs text-red-600 dark:text-red-300 list-disc list-inside space-y-1">
+                  {Object.entries(errors).map(([key, msg]) => (
+                    <li key={key}>{msg as string}</li>
+                  ))}
+                </ul>
+              </div>
+            </motion.div>
+          )}
+
           {smsStep !== 'done' && (
             <button 
               type="submit" 
-              disabled={isLoading || resetSent || !isReady}
+              disabled={isLoading || resetSent}
               className={`w-full py-4 rounded-xl font-bold mt-6 transition-all flex items-center justify-center gap-2 
                 ${isReady && !isLoading && !resetSent
                   ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-xl shadow-primary-200/50 dark:shadow-none active:scale-[0.98]' 
-                  : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 opacity-80'}`}
+                  : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 opacity-80 cursor-pointer'}`}
             >
               {isLoading && <Loader2 className="w-5 h-5 animate-spin" />}
               {isLoading 
@@ -1847,81 +1895,9 @@ To authorize it, follow these steps:
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto py-5 pr-1 space-y-5 text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
               {modalContent === 'terms' ? (
-                <>
-                  <p>
-                    Welcome to <strong>DirectRent</strong>. By requesting or publishing properties inside our workspace, you commit to these unified engagement rules.
-                  </p>
-                  
-                  <div className="space-y-4">
-                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
-                        <Shield className="w-4 h-4 text-primary-500" />
-                        <span>1. User Veracity & Profile Conduct</span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        All tenants and agents must provide accurate and lawful information. Fraudulent listings, identity spoofing, duplicate profiles, or harassment will result in an immediate and permanent suspension from the network.
-                      </p>
-                    </div>
-
-                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
-                        <Lock className="w-4 h-4 text-primary-500" />
-                        <span>2. Listing Verification Responsibility</span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Property postings must maintain genuine pricing, precise locations, and active status updates. Suspended listings lose direct interactive capabilities immediately.
-                      </p>
-                    </div>
-
-                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
-                        <CheckCircle2 className="w-4 h-4 text-primary-500" />
-                        <span>3. Independent Transaction Warnings</span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        DirectRent is an interactive platform connecting tenants. We strongly encourage meeting in secure designated physical locations. Never send deposits or legal payments before satisfactory physical property tour inspections.
-                      </p>
-                    </div>
-                  </div>
-                </>
+                <LegalTermsDoc />
               ) : (
-                <>
-                  <p>
-                    At <strong>DirectRent</strong>, we prioritize the secure encryption and integrity of user verification profiles.
-                  </p>
-
-                  <div className="space-y-4">
-                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
-                        <Lock className="w-4 h-4 text-emerald-500" />
-                        <span>Identity Lock & NIN Encryption</span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        National Identification Numbers (NIN) and private contact details are processed securely during registration to establish real identity. These details are stored with military-grade standard key hashes and never shared with third parties.
-                      </p>
-                    </div>
-
-                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
-                        <Shield className="w-4 h-4 text-emerald-500" />
-                        <span>Data Rights & Privacy Access</span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Users maintain complete authority over their active listings and chats. Requesting account termination completely purges all sensitive personal keys, historic conversations, and active profiles permanently.
-                      </p>
-                    </div>
-
-                    <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 dark:text-white">
-                        <FileText className="w-4 h-4 text-emerald-500" />
-                        <span>Secure Messaging Archives</span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Chat communications and support flags are archived under local, isolated sandboxes to protect negotiations and preserve rental contracts.
-                      </p>
-                    </div>
-                  </div>
-                </>
+                <PrivacyPolicyDoc />
               )}
             </div>
 

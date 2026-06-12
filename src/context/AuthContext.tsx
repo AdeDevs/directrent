@@ -43,7 +43,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { theme, setTheme } = useTheme();
   const [view, setView] = useState<ViewState>(() => {
-    if (window.location.pathname === '/admin') return 'admin-auth';
+    const p = window.location.pathname;
+    if (p === '/admin' || p.startsWith('/admin/')) return 'admin-auth';
+    if (p === '/login' || p === '/auth') return 'auth';
+    if (p === '/terms') return 'legal';
     return 'landing';
   });
 
@@ -66,13 +69,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const lastFirestoreTheme = React.useRef<string | null>(null);
 
   const [preselectedRole, setPreselectedRole] = useState<UserRole>('tenant');
-  const [currentListing, setCurrentListing] = useState<Listing | null>(null);
+  const [currentListing, setCurrentListingState] = useState<Listing | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<(string | number)[]>([]);
+  const tabList: AppTab[] = ['home', 'chat', 'profile', 'favorites', 'create', 'mylistings', 'notifications', 'terms', 'faq'];
+  
   const [activeTab, setActiveTabState] = useState<AppTab>(() => {
     const pathname = window.location.pathname;
-    const cleanPath = pathname.replace(/^\//, '');
-    const tabList: AppTab[] = ['home', 'chat', 'profile', 'favorites', 'create', 'mylistings', 'notifications', 'terms', 'faq'];
+    let cleanPath = pathname.replace(/^\//, '');
+    
+    // Handle admin sub-paths
+    if (cleanPath.startsWith('admin/')) {
+        cleanPath = cleanPath.split('/')[1];
+    }
+    
     if (tabList.includes(cleanPath as AppTab)) {
       return cleanPath as AppTab;
     }
@@ -80,7 +90,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return (saved && tabList.includes(saved)) ? saved : 'home';
   });
 
+  const setCurrentListing = (listing: Listing | null) => {
+    if (listing === null) {
+      const targetPath = `/${activeTab}`;
+      const newState = {
+        view,
+        activeTab,
+        currentListing: null,
+        selectedAgentId
+      };
+      window.history.replaceState(newState, "", targetPath);
+    }
+    setCurrentListingState(listing);
+  };
+
   const setActiveTab = (tab: AppTab) => {
+    const targetPath = `/${tab}`;
+    const newState = {
+      view,
+      activeTab: tab,
+      currentListing: null,
+      selectedAgentId: null
+    };
+    window.history.pushState(newState, "", targetPath);
+
     setActiveTabState(tab);
     localStorage.setItem('last_active_tab', tab);
   };
@@ -120,35 +153,79 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const initialState = {
+      view,
       activeTab: activeTab,
       currentListing: currentListing,
       selectedAgentId: selectedAgentId
     };
     
-    const initialPath = selectedAgentId 
-      ? `/agent/${selectedAgentId}` 
-      : (currentListing 
-        ? `/listings/${currentListing.id}` 
-        : (activeTab === 'home' ? '/home' : `/${activeTab}`)
-      );
+    let initialPath = '/';
+    if (view === 'admin') {
+      initialPath = activeTab === 'home' ? '/admin/home' : `/admin/${activeTab}`;
+    } else if (view === 'admin-auth') {
+      initialPath = '/admin';
+    } else if (view === 'landing') {
+      initialPath = '/';
+    } else if (view === 'auth') {
+      initialPath = '/login';
+    } else if (view === 'legal') {
+      initialPath = '/terms';
+    } else {
+      initialPath = selectedAgentId 
+        ? `/agent/${selectedAgentId}` 
+        : (currentListing 
+          ? `/property/${currentListing.id}` 
+          : `/${activeTab}`
+        );
+    }
+
+    if (window.location.pathname !== initialPath && window.location.pathname !== '/') {
+        // preserve external deep links if any
+        initialPath = window.location.pathname;
+    }
+
     window.history.replaceState(initialState, "", initialPath);
 
     const handlePopState = (event: PopStateEvent) => {
+      isPopStateRef.current = true;
       if (event.state) {
-        isPopStateRef.current = true;
         // Apply historical states back into React
+        if (event.state.view !== undefined) {
+          setView(event.state.view);
+        }
         if (event.state.activeTab !== undefined) {
           setActiveTabState(event.state.activeTab);
           localStorage.setItem('last_active_tab', event.state.activeTab);
         }
         setCurrentListing(event.state.currentListing || null);
         setSelectedAgentId(event.state.selectedAgentId || null);
-        
-        // Reset popstate flag shortly after React render
-        setTimeout(() => {
-          isPopStateRef.current = false;
-        }, 50);
+      } else {
+        // Fallback: Parse URL pathname on browser gesture back/forward transitions if State is null
+        const p = window.location.pathname;
+        if (p === '/admin' || p.startsWith('/admin/')) {
+          setView('admin-auth');
+        } else if (p === '/login' || p === '/auth') {
+          setView('auth');
+        } else if (p === '/terms' || p === '/legal') {
+          setView('legal');
+        } else if (p === '/' || p === '/home') {
+          setView('landing');
+          setActiveTabState('home');
+          setCurrentListing(null);
+          setSelectedAgentId(null);
+        } else {
+          let cleanPath = p.replace(/^\//, '');
+          const tabList: AppTab[] = ['home', 'chat', 'profile', 'favorites', 'create', 'mylistings', 'notifications', 'terms', 'faq'];
+          if (tabList.includes(cleanPath as AppTab)) {
+            setView('app');
+            setActiveTabState(cleanPath as AppTab);
+          }
+        }
       }
+      // Reset popstate flag shortly after React render
+      setTimeout(() => {
+        isPopStateRef.current = false;
+      }, 50);
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -164,22 +241,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Build current state representation
     const newState = {
+      view,
       activeTab,
       currentListing,
       selectedAgentId
     };
 
-    const targetPath = selectedAgentId 
-      ? `/agent/${selectedAgentId}` 
-      : (currentListing 
-        ? `/listings/${currentListing.id}` 
-        : (activeTab === 'home' ? '/home' : `/${activeTab}`)
-      );
+    let targetPath = '/';
+    if (view === 'admin') {
+      targetPath = activeTab === 'home' ? '/admin/home' : `/admin/${activeTab}`;
+    } else if (view === 'admin-auth') {
+      targetPath = '/admin';
+    } else if (view === 'landing') {
+      targetPath = '/';
+    } else if (view === 'auth') {
+      targetPath = '/login';
+    } else if (view === 'legal') {
+      targetPath = '/terms';
+    } else {
+      targetPath = selectedAgentId 
+        ? `/agent/${selectedAgentId}` 
+        : (currentListing 
+          ? `/property/${currentListing.id}` 
+          : `/${activeTab}`
+        );
+    }
 
     // Only push if the state is actually different from the stored history state to prevent redundant entries
     const historyState = window.history.state;
     const isDifferent = !historyState ||
       historyState.activeTab !== activeTab ||
+      historyState.view !== view ||
       JSON.stringify(historyState.currentListing) !== JSON.stringify(currentListing) ||
       historyState.selectedAgentId !== selectedAgentId ||
       window.location.pathname !== targetPath;
@@ -187,7 +279,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (isDifferent) {
       window.history.pushState(newState, "", targetPath);
     }
-  }, [activeTab, currentListing, selectedAgentId]);
+  }, [view, activeTab, currentListing, selectedAgentId]);
 
   useEffect(() => {
     if (!user) {
@@ -203,7 +295,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return /^\d+$/.test(doc.id) ? parseInt(doc.id) : doc.id;
       });
       setFavorites(favIds);
-    }, (error) => {
+    }, (error: any) => {
+      if (error?.code === 'permission-denied' || error?.message?.includes('permission')) return;
       console.error("Favorites subcollection subscription error:", error);
     });
 
@@ -301,7 +394,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.log("User profile document does not exist.");
           }
           setIsLoading(false);
-        }, (error) => {
+        }, (error: any) => {
+          if (error?.code === 'permission-denied' || error?.message?.includes('permission')) return;
           console.error("User profile document subscription error:", error);
           setIsLoading(false);
         });
@@ -309,10 +403,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         setView(prev => (prev === "app" || prev === "admin") ? "landing" : prev);
         
-        // If logged out and on a protected path (non-listing), redirect to root
+        // If logged out and on a protected path (non-listing, non-terms), redirect to root
         const p = window.location.pathname;
         const isListPath = p.startsWith('/listings/') || p.startsWith('/property/');
-        if (!isListPath && p !== '/' && p !== '/admin' && p !== '/admin-auth') {
+        if (!isListPath && p !== '/' && p !== '/admin' && p !== '/admin-auth' && p !== '/terms') {
           window.history.replaceState(null, "", "/");
         }
         setIsLoading(false);

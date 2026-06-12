@@ -10,9 +10,10 @@ interface LocationPickerProps {
     placeId: string;
   }) => void;
   initialValue?: string;
+  disabled?: boolean;
 }
 
-export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect, initialValue }) => {
+export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect, initialValue, disabled }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const placesLib = useMapsLibrary('places');
   const [loading, setLoading] = useState(false);
@@ -211,7 +212,8 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect
           onFocus={() => setIsFocused(true)}
           onBlur={() => setTimeout(() => setIsFocused(false), 200)} // Allow click to execute before closing
           placeholder={manualMode ? "Type property address manually..." : "Search property address..."}
-          className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-2xl py-3.5 pl-12 pr-12 text-sm font-medium focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all text-slate-900 dark:text-white placeholder-slate-400"
+          disabled={disabled}
+          className={`w-full border border-slate-200 dark:border-white/10 rounded-2xl py-3.5 pl-12 pr-12 text-sm font-medium outline-none transition-all placeholder-slate-400 ${disabled ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500'}`}
         />
 
         {loading && (

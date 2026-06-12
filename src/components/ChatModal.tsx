@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, FileText, CreditCard, ChevronRight, CheckCircle2, ArrowRight, MessageCircle, Play, Pause, Volume2, Trash2, Check, AlertTriangle } from 'lucide-react';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { X, Send, User, Loader2, MessageSquare, ShieldCheck, Paperclip, Mic, FileText, CreditCard, ChevronRight, CheckCircle2, ArrowRight, MessageCircle, Play, Pause, Volume2, Trash2, Check, AlertTriangle, Calendar, CalendarPlus, Download, CalendarRange, Clock } from 'lucide-react';
+import { db, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import SafeImage from './SafeImage';
 import { 
   collection, 
@@ -15,10 +15,12 @@ import {
   setDoc, 
   doc, 
   getDoc,
+  getDocs,
   updateDoc,
   increment
 } from 'firebase/firestore';
-import { Listing, User as AppUser, VerificationLevel, UserRole } from '../types';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { Listing, User as AppUser, VerificationLevel, UserRole, Message, MessageType } from '../types';
 import { useAuth } from '../context/AuthContext';
 import VerificationBadge from './VerificationBadge';
 import { createNotification } from '../lib/notifications';
@@ -32,19 +34,7 @@ interface ChatModalProps {
   overrideConversationId?: string;
 }
 
-type ConversationStatus = 'inquiry' | 'negotiating' | 'contract_requested' | 'contract_sent' | 'paid' | 'completed';
-
-interface Message {
-  id: string;
-  content: string;
-  senderId: string;
-  tenantId: string;
-  agentId: string;
-  type?: 'text' | 'action' | 'audio';
-  duration?: number; // Optional duration for audio
-  actionType?: string;
-  createdAt: any;
-}
+type ConversationStatus = 'inquiry' | 'tour_requested' | 'tour_confirmed' | 'contract_sent' | 'escrow_locked' | 'disputed' | 'completed';
 
 const AudioPlayer: React.FC<{ src: string; isOwn: boolean }> = ({ src, isOwn }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -173,10 +163,6 @@ const AudioPlayer: React.FC<{ src: string; isOwn: boolean }> = ({ src, isOwn }) 
 
 export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, currentUser, overrideConversationId }) => {
   const { setSelectedAgentId, setCurrentListing } = useAuth();
-  const [showPaymentCheckout, setShowPaymentCheckout] = useState(false);
-  const [paymentOption, setPaymentOption] = useState<'card' | 'bank_transfer' | 'secured_escrow'>('secured_escrow');
-  const [paymentStep, setPaymentStep] = useState<'checkout' | 'processing' | 'success'>('checkout');
-  const [paymentProgress, setPaymentProgress] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -190,25 +176,77 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
   const animationFrameRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isTourFormOpen, setIsTourFormOpen] = useState(false);
+  const [tourDate, setTourDate] = useState('');
+  const [tourTime, setTourTime] = useState('');
+  const [tourNote, setTourNote] = useState('');
+
+  const [counterFormMsgId, setCounterFormMsgId] = useState<string | null>(null);
+  const [counterDate, setCounterDate] = useState('');
+  const [counterTime, setCounterTime] = useState('');
+  const [counterNote, setCounterNote] = useState('');
+
   const [convStatus, setConvStatus] = useState<ConversationStatus>('inquiry');
   const [convData, setConvData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showWhatsAppDisclaimer, setShowWhatsAppDisclaimer] = useState(false);
+  const [showBillingSlip, setShowBillingSlip] = useState(false);
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(true);
   const [otherUser, setOtherUser] = useState<{ name: string; avatarUrl?: string; verificationLevel?: VerificationLevel; role: UserRole; phoneNumber?: string; isSuspended?: boolean } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [realtimeListingStatus, setRealtimeListingStatus] = useState<string | null>(null);
+  const [realtimePriceValue, setRealtimePriceValue] = useState<number | null>(null);
+  const [realtimePriceString, setRealtimePriceString] = useState<string | null>(null);
+
+  const loadPaystack = () => {
+    return new Promise<void>((resolve, reject) => {
+      if ((window as any).PaystackPop) {
+        resolve();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject();
+      document.head.appendChild(script);
+    });
+  };
+
+  const parsePriceToValue = (priceString: string | number | undefined): number => {
+    if (!priceString) return 0;
+    if (typeof priceString === 'number') return priceString;
+    const cleaned = priceString.replace(/[₦,$/a-zA-Z\s\-]/g, '');
+    const parsed = parseInt(cleaned, 10);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const getListingPriceValue = (): number => {
+    if (realtimePriceValue !== null) return realtimePriceValue;
+    if (listing?.priceValue) return Number(listing.priceValue);
+    if (!listing?.price) return 0;
+    return parsePriceToValue(listing.price);
+  };
 
   const isChatSuspended = realtimeListingStatus === 'suspended' || (currentUser as any)?.isSuspended || otherUser?.isSuspended;
+  const isCompletedBySomeoneElse = realtimeListingStatus === 'completed' && 
+    (currentUser.role === 'tenant' && convData?.status !== 'completed' && convData?.status !== 'escrow_locked');
 
-  // Live status tracking for suspended listings
+  // Live status tracking for suspended listings & real-time updates
   useEffect(() => {
     if (!isOpen || !listing?.id) return;
     const unsub = onSnapshot(doc(db, 'listings', listing.id.toString()), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         setRealtimeListingStatus(data.status || null);
+        if (data.priceValue !== undefined) {
+          setRealtimePriceValue(Number(data.priceValue));
+        }
+        if (data.price !== undefined) {
+          setRealtimePriceString(data.price);
+        }
       }
+    }, (error) => {
+      console.warn("Chat listings error:", error);
     });
     return () => unsub();
   }, [isOpen, listing?.id]);
@@ -324,45 +362,378 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
     };
   }, [isOpen, conversationId, currentUser.id, currentUser.role]);
 
-  const handleInitiateDummyPayment = () => {
-    setPaymentStep('processing');
-    setPaymentProgress(0);
-    const interval = setInterval(() => {
-      setPaymentProgress((p) => {
-        if (p >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            const txPayload = {
-              transactionId: `DR-TXN-${Math.floor(100000 + Math.random() * 900000)}`,
-              listingId: listing.id,
-              propertyTitle: listing.title,
-              price: listing.price,
-              platformEscrowFee: "₦15,000",
-              totalSettlementAmount: listing.price,
-              tenantId: currentUser.id,
-              tenantEmail: currentUser.email || '',
-              agentId: listing.agent?.id || convData?.agentId || 'unknown',
-              agentName: listing.agent?.name || '',
-              paymentGateway: "DirectRent Escrow Pipeline",
-              method: paymentOption,
-              initiatedAt: new Date().toISOString()
-            };
-            console.log("=== SECURE ESCROW TRANSACTION TRANSMITTED TO PAYMENT GATEWAY ===");
-            console.log(JSON.stringify(txPayload, null, 2));
-            console.log("=================================================================");
-            setPaymentStep('success');
-          }, 600);
-          return 100;
-        }
-        return p + 20;
-      });
-    }, 200);
+  const handleInitiatePayment = () => {
+    setShowBillingSlip(true);
   };
 
-  const handleCompletePaymentFlow = async () => {
-    setShowPaymentCheckout(false);
-    setPaymentStep('checkout');
-    await handleAction('paid', `Security deposit transaction securely resolved on DirectRent Escrow Custody [Method: ${paymentOption === 'secured_escrow' ? 'Instant Escrow Bank Transfer' : 'Direct Credit Card Network'}]. Protocol signed off successfully.`, 'paid');
+  const processPayment = async () => {
+    await loadPaystack();
+    const handler = (window as any).PaystackPop.setup({
+      key: (import.meta as any).env?.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_4d1af99ee88278c56911355296411efe956a7b98',
+      email: currentUser?.email || 'user@directrent.com',
+      amount: (getListingPriceValue() + 15000) * 100, // Amount in kobo, plus 15k fee
+      reference: `DR-TXN-${(new Date()).getTime()}-${Math.floor(Math.random() * 100000)}`,
+      callback: async (reference: any) => {
+        try {
+          const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
+          const agentId = listing.agent?.id || convData?.agentId || 'unknown';
+          const tenantName = convData?.tenantName || (currentUser.role === 'tenant' ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() : 'Tenant');
+          
+          const propertyRent = getListingPriceValue();
+          const escrowFee = 15000;
+          const gatewayFee = Math.min((propertyRent + escrowFee) * 0.015, 2000);
+
+          let deadline = new Date();
+          deadline.setDate(deadline.getDate() + 7);
+
+          await addDoc(collection(db, 'transactions'), {
+            id: reference.reference || `DR-TXN-${(new Date()).getTime()}`,
+            reference: reference.reference || `DR-TXN-${(new Date()).getTime()}`,
+            listingId: listing.id.toString(),
+            propertyTitle: listing.title || 'Property',
+            rentAmount: propertyRent,
+            platformFee: escrowFee,
+            gatewayFee: gatewayFee,
+            totalPaid: propertyRent + escrowFee + gatewayFee,
+            tenantId: tenantId,
+            tenantName: tenantName,
+            agentId: agentId,
+            agentName: listing.agent?.name || convData?.agentName || 'Agent',
+            status: 'locked',
+            escrowDeadline: deadline,
+            date: new Date(),
+            createdAt: new Date()
+          });
+        } catch(e) {
+          console.error("Failed to save transaction: ", e);
+        }
+        setShowBillingSlip(false);
+        await handleAction('escrow_locked', `Security deposit securely locked in DirectRent Escrow [Tx: ${reference.reference}].`, 'escrow_locked');
+      },
+      onClose: () => {
+        // User closed modal
+      }
+    });
+
+    handler.openIframe();
+  };
+
+  const downloadIcsFile = (date: string, time: string, title: string, address: string) => {
+    const startDay = date.replace(/-/g, '');
+    const [hh, mm] = time.split(':');
+    const startHourStr = hh.padStart(2, '0');
+    const startMinStr = mm.padStart(2, '0');
+    
+    const startTime = `${startHourStr}${startMinStr}00`;
+    const endHourObj = (parseInt(hh, 10) + 1);
+    const endHourStr = (endHourObj >= 24 ? 23 : endHourObj).toString().padStart(2, '0');
+    const endTime = `${endHourStr}${startMinStr}00`;
+    
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'CALSCALE:GREGORIAN',
+      'BEGIN:VEVENT',
+      `SUMMARY:Inspection: ${title}`,
+      `DESCRIPTION:Inspection tour for property: ${title}. Let's meet on site.`,
+      `LOCATION:${address || 'Property Address'}`,
+      `DTSTART:${startDay}T${startTime}`,
+      `DTEND:${startDay}T${endTime}`,
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `inspection_tour_${date}.ics`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const getGoogleCalendarUrl = (date: string, time: string, title: string, address: string) => {
+    const startDay = date.replace(/-/g, '');
+    const [hh, mm] = time.split(':');
+    const startHourStr = hh.padStart(2, '0');
+    const startMinStr = mm.padStart(2, '0');
+    
+    const startTime = `${startHourStr}${startMinStr}00`;
+    const endHourObj = (parseInt(hh, 10) + 1);
+    const endHourStr = (endHourObj >= 24 ? 23 : endHourObj).toString().padStart(2, '0');
+    const endTime = `${endHourStr}${startMinStr}00`;
+    
+    const dates = `${startDay}T${startTime}/${startDay}T${endTime}`;
+    const details = encodeURIComponent(`Inspection tour for property: ${title}. Let's meet on site.`);
+    const loc = encodeURIComponent(address || 'Property Address');
+    const text = encodeURIComponent(`Inspection: ${title}`);
+    
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dates}&details=${details}&location=${loc}`;
+  };
+
+  const handleRequestTour = async () => {
+    if (!tourDate || !tourTime) {
+      setError("Please select both a date and time.");
+      return;
+    }
+    setIsSending(true);
+    setError(null);
+    try {
+      const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
+      const agentId = listing.agent?.id || convData?.agentId || 'unknown';
+      const convRef = doc(db, 'conversations', conversationId);
+
+      const payload = {
+        type: 'tour_requested',
+        date: tourDate,
+        time: tourTime,
+        note: tourNote || '',
+        status: 'pending',
+        proposedBy: 'tenant'
+      };
+
+      const convDoc = await getDoc(convRef);
+      if (!convDoc.exists()) {
+        let agentImage = '';
+        if (agentId !== 'unknown') {
+          const agentDoc = await getDoc(doc(db, 'users', agentId));
+          if (agentDoc.exists()) {
+            agentImage = agentDoc.data().avatarUrl || '';
+          }
+        }
+
+        await setDoc(convRef, {
+          id: conversationId,
+          tenantId: currentUser.id,
+          agentId: agentId,
+          listingId: listing.id.toString(),
+          tenantName: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'User',
+          agentName: listing.agent?.name || 'Agent',
+          tenantImage: currentUser.avatarUrl || '',
+          agentImage: agentImage,
+          listingTitle: listing.title,
+          listingImage: listing.image,
+          listingPrice: listing.price,
+          listingPriceValue: getListingPriceValue(),
+          status: 'tour_requested',
+          updatedAt: serverTimestamp(),
+          lastMessage: `Tour proposed: ${tourDate} at ${tourTime}`,
+          unreadCount_tenant: currentUser.role === 'tenant' ? 0 : 1,
+          unreadCount_agent: currentUser.role === 'agent' ? 0 : 1
+        });
+
+        const listingDocRef = doc(db, 'listings', listing.id.toString());
+        await setDoc(listingDocRef, { 
+          inquiryCount: increment(1),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+      } else {
+        await updateDoc(convRef, {
+          status: 'tour_requested',
+          lastMessage: `Tour proposed: ${tourDate} at ${tourTime}`,
+          updatedAt: serverTimestamp(),
+          unreadCount_agent: increment(1)
+        }).catch(err => handleFirestoreError(err, OperationType.UPDATE, `conversations/${conversationId}`));
+      }
+
+      await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
+        content: JSON.stringify(payload),
+        senderId: currentUser.id,
+        tenantId: tenantId,
+        agentId: agentId,
+        type: 'action',
+        actionType: 'tour_requested',
+        createdAt: serverTimestamp()
+      }).catch(err => handleFirestoreError(err, OperationType.CREATE, `conversations/${conversationId}/messages`));
+
+      setTourDate('');
+      setTourTime('');
+      setTourNote('');
+      setIsTourFormOpen(false);
+
+      if (agentId && agentId !== 'unknown') {
+        await createNotification(
+          agentId,
+          "Property Tour Requested",
+          `A tenant has requested an inspection tour on ${tourDate} at ${tourTime}.`,
+          'message',
+          'chat',
+          conversationId
+        );
+      }
+    } catch (err) {
+      console.error("Tour request sending issue:", err);
+      setError("Failed to send tour request.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleConfirmTour = async (originalDate: string, originalTime: string, originalNote: string) => {
+    setIsSending(true);
+    setError(null);
+    try {
+      const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
+      const agentId = listing.agent?.id || convData?.agentId || 'unknown';
+      const convRef = doc(db, 'conversations', conversationId);
+
+      const payload = {
+        type: 'tour_confirmed',
+        date: originalDate,
+        time: originalTime,
+        note: originalNote || '',
+        status: 'confirmed'
+      };
+
+      await updateDoc(convRef, {
+        status: 'tour_confirmed',
+        lastMessage: `Tour confirmed: ${originalDate} at ${originalTime}`,
+        updatedAt: serverTimestamp(),
+        [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
+      }).catch(err => handleFirestoreError(err, OperationType.UPDATE, `conversations/${conversationId}`));
+
+      await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
+        content: JSON.stringify(payload),
+        senderId: currentUser.id,
+        tenantId: tenantId,
+        agentId: agentId,
+        type: 'action',
+        actionType: 'tour_confirmed',
+        createdAt: serverTimestamp()
+      }).catch(err => handleFirestoreError(err, OperationType.CREATE, `conversations/${conversationId}/messages`));
+
+      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown') {
+        await createNotification(
+          recipientId,
+          "Property Tour Confirmed",
+          `Great news! Your property tour on ${originalDate} at ${originalTime} has been confirmed.`,
+          'message',
+          'chat',
+          conversationId
+        );
+      }
+    } catch (err) {
+      console.error("Tour confirmation issue:", err);
+      setError("Failed to confirm tour.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleDeclineTour = async () => {
+    setIsSending(true);
+    setError(null);
+    try {
+      const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
+      const agentId = listing.agent?.id || convData?.agentId || 'unknown';
+      const convRef = doc(db, 'conversations', conversationId);
+
+      const payload = {
+        type: 'tour_declined',
+        status: 'declined'
+      };
+
+      // Reset conversation status back to inquiry so the process starts again
+      await updateDoc(convRef, {
+        status: 'inquiry',
+        lastMessage: `Tour proposal was declined. Ready to reschedule.`,
+        updatedAt: serverTimestamp(),
+        [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
+      }).catch(err => handleFirestoreError(err, OperationType.UPDATE, `conversations/${conversationId}`));
+
+      await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
+        content: JSON.stringify(payload),
+        senderId: currentUser.id,
+        tenantId: tenantId,
+        agentId: agentId,
+        type: 'action',
+        actionType: 'tour_declined',
+        createdAt: serverTimestamp()
+      }).catch(err => handleFirestoreError(err, OperationType.CREATE, `conversations/${conversationId}/messages`));
+
+      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown') {
+        await createNotification(
+          recipientId,
+          "Tour Request Declined",
+          `The scheduled tour session was declined. You can propose a new schedule.`,
+          'message',
+          'chat',
+          conversationId
+        );
+      }
+    } catch (err) {
+      console.error("Tour decline issue:", err);
+      setError("Failed to decline tour.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleSendCounterProposal = async () => {
+    if (!counterDate || !counterTime) {
+      setError("Please select proposed date and time.");
+      return;
+    }
+    setIsSending(true);
+    setError(null);
+    try {
+      const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
+      const agentId = listing.agent?.id || convData?.agentId || 'unknown';
+      const convRef = doc(db, 'conversations', conversationId);
+
+      const payload = {
+        type: 'tour_counter',
+        date: counterDate,
+        time: counterTime,
+        note: counterNote || '',
+        status: 'pending',
+        proposedBy: currentUser.role
+      };
+
+      // Keep status as tour_requested
+      await updateDoc(convRef, {
+        status: 'tour_requested',
+        lastMessage: `Counter-proposal: ${counterDate} at ${counterTime}`,
+        updatedAt: serverTimestamp(),
+        [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
+      }).catch(err => handleFirestoreError(err, OperationType.UPDATE, `conversations/${conversationId}`));
+
+      await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
+        content: JSON.stringify(payload),
+        senderId: currentUser.id,
+        tenantId: tenantId,
+        agentId: agentId,
+        type: 'action',
+        actionType: 'tour_counter',
+        createdAt: serverTimestamp()
+      }).catch(err => handleFirestoreError(err, OperationType.CREATE, `conversations/${conversationId}/messages`));
+
+      setCounterDate('');
+      setCounterTime('');
+      setCounterNote('');
+      setCounterFormMsgId(null);
+
+      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown') {
+        await createNotification(
+          recipientId,
+          "Tour Counter Proposed",
+          `A counter-proposal was submitted for ${counterDate} at ${counterTime}.`,
+          'message',
+          'chat',
+          conversationId
+        );
+      }
+    } catch (err) {
+      console.error("Counter proposal send error:", err);
+      setError("Failed to send counter proposal.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleAction = async (actionType: string, content: string, nextStatus: ConversationStatus) => {
@@ -381,8 +752,28 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
         [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
       }).catch(err => handleFirestoreError(err, OperationType.UPDATE, `conversations/${conversationId}`));
 
-      // If completing or paid, increment agent's success count and update listing status
-      if ((nextStatus === 'completed' || nextStatus === 'paid') && agentId !== 'unknown') {
+      if (nextStatus === 'completed' || nextStatus === 'disputed') {
+        try {
+          const txQuery = query(collection(db, 'transactions'), 
+            where('listingId', '==', listing.id.toString()), 
+            where('tenantId', '==', tenantId),
+            where('status', '==', 'locked')
+          );
+          const txSnapshot = await getDocs(txQuery);
+          if (!txSnapshot.empty) {
+            for (const docSnapshot of txSnapshot.docs) {
+              await updateDoc(doc(db, 'transactions', docSnapshot.id), {
+                status: nextStatus === 'completed' ? 'released' : 'disputed'
+              });
+            }
+          }
+        } catch (e) {
+          console.error("Failed to update transaction status:", e);
+        }
+      }
+
+      // If completing, increment agent's success count and update listing status
+      if (nextStatus === 'completed' && agentId !== 'unknown') {
         const agentDocRef = doc(db, 'users', agentId);
         await updateDoc(agentDocRef, {
           completedTxns: increment(1),
@@ -395,25 +786,6 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
             status: 'completed',
             updatedAt: serverTimestamp()
           }).catch(err => console.error("Failed to update listing to completed status:", err));
-        }
-
-        if (nextStatus === 'paid') {
-          // Write real persistent transaction document to Firestore
-          const txId = `DR-TXN-${Math.floor(100000 + Math.random() * 900000)}`;
-          await addDoc(collection(db, 'transactions'), {
-            id: txId,
-            listingId: listing.id.toString(),
-            propertyTitle: listing.title || 'Property',
-            amount: listing.price || '₦0',
-            priceValue: listing.priceValue || 0,
-            tenantId: tenantId,
-            tenantName: convData?.tenantName || (currentUser.role === 'tenant' ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() : 'Tenant'),
-            agentId: agentId,
-            agentName: listing.agent?.name || convData?.agentName || 'Agent',
-            status: 'completed',
-            paymentMethod: paymentOption === 'secured_escrow' ? 'Escrow Lock' : 'Card Channel',
-            createdAt: serverTimestamp()
-          }).catch(err => console.error("Failed to store transaction history record:", err));
         }
       }
 
@@ -448,30 +820,148 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
     }
   };
 
-  const handleWhatsAppTransition = () => {
-    const phoneNumber = otherUser?.phoneNumber || convData?.agentPhone;
-    if (!phoneNumber) {
-      setError("Agent's contact number is not available yet.");
+  const handleSendDocument = async (file: File) => {
+    if (realtimeListingStatus === 'suspended' || (currentUser as any)?.isSuspended || otherUser?.isSuspended) {
+      setError("Conversation is currently suspended.");
       return;
     }
-    setShowWhatsAppDisclaimer(true);
-  };
 
-  const confirmWhatsApp = () => {
-    const phoneNumber = otherUser?.phoneNumber || convData?.agentPhone;
-    if (!phoneNumber) return;
-
-    // Clean phone number: remove non-digits, ensure 234 prefix for Nigeria if needed
-    let cleanPhone = phoneNumber.replace(/\D/g, '');
-    if (cleanPhone.startsWith('0')) {
-      cleanPhone = '234' + cleanPhone.substring(1);
-    } else if (!cleanPhone.startsWith('234')) {
-      cleanPhone = '234' + cleanPhone;
+    if (file.size > 10 * 1024 * 1024) {
+      setError("File is too large. Maximum file size is 10MB.");
+      return;
     }
 
-    const message = encodeURIComponent(`Hi, I'm interested in your listing: ${listing.title} on DirectRent. Listing Ref: ${listing.id}`);
-    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
-    setShowWhatsAppDisclaimer(false);
+    setIsSending(true);
+    setError(null);
+    try {
+      const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
+      const agentId = listing.agent?.id || 'unknown';
+
+      // Upload file to Firebase Storage
+      const fileRef = ref(storage, `conversations/${conversationId}/${Date.now()}_${file.name}`);
+      await uploadBytes(fileRef, file);
+      const fileUrl = await getDownloadURL(fileRef);
+
+      // Format file size
+      const formattedSize = file.size > 1024 * 1024 
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+        : `${(file.size / 1024).toFixed(0)} KB`;
+
+      // Check if conversation exists, if not create metadata
+      const convRef = doc(db, 'conversations', conversationId);
+      const convDoc = await getDoc(convRef);
+      
+      const nextStatus = (currentUser.role === 'agent' && convStatus === 'tour_confirmed') ? 'contract_sent' : convStatus;
+      const notificationTitle = currentUser.role === 'agent' ? "Tenancy Contract Sent" : "Document Attachment";
+      const notificationBody = `Uploaded file: ${file.name}`;
+
+      if (!convDoc.exists()) {
+        let agentImage = '';
+        if (agentId !== 'unknown') {
+          const agentDoc = await getDoc(doc(db, 'users', agentId));
+          if (agentDoc.exists()) {
+            agentImage = agentDoc.data().avatarUrl || '';
+          }
+        }
+
+        await setDoc(convRef, {
+          id: conversationId,
+          tenantId: currentUser.role === 'tenant' ? currentUser.id : tenantId,
+          agentId: agentId,
+          listingId: listing.id.toString(),
+          tenantName: currentUser.role === 'tenant' ? (`${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'User') : (convData?.tenantName || 'Tenant'),
+          agentName: listing.agent?.name || 'Agent',
+          tenantImage: currentUser.role === 'tenant' ? (currentUser.avatarUrl || '') : (convData?.tenantImage || ''),
+          agentImage: agentImage,
+          listingTitle: listing.title,
+          listingImage: listing.image,
+          listingPrice: listing.price,
+          listingPriceValue: getListingPriceValue(),
+          status: nextStatus,
+          updatedAt: serverTimestamp(),
+          lastMessage: `Document: ${file.name}`,
+          unreadCount_tenant: currentUser.role === 'tenant' ? 0 : 1,
+          unreadCount_agent: currentUser.role === 'agent' ? 0 : 1
+        });
+
+        const listingDocRef = doc(db, 'listings', listing.id.toString());
+        await setDoc(listingDocRef, { 
+          inquiryCount: increment(1),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } else {
+        await updateDoc(convRef, {
+          status: nextStatus,
+          lastMessage: `Document: ${file.name}`,
+          updatedAt: serverTimestamp(),
+          [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
+        });
+      }
+
+      // Add file to messages
+      const msgData = {
+        content: fileUrl, // Store Firebase Storage download URL
+        fileName: file.name,
+        fileSize: formattedSize,
+        fileType: file.type,
+        senderId: currentUser.id,
+        tenantId: tenantId,
+        agentId: agentId,
+        type: 'document',
+        createdAt: serverTimestamp()
+      };
+      
+      console.log("[DIAGNOSTIC LOG - sendMessage (document)]");
+      console.log("Firestore Path:", `conversations/${conversationId}/messages`);
+      console.log("User Auth Object:", currentUser);
+      console.log("Document Data Payload:", JSON.stringify({
+        ...msgData,
+        createdAt: "serverTimestamp()"
+      }, null, 2));
+
+      try {
+        await addDoc(collection(db, 'conversations', conversationId, 'messages'), msgData);
+      } catch (err) {
+        console.error("Failed to add msgData: ", err);
+        throw err;
+      }
+
+      // Create extra system message if the agent sent a tenancy agreement transitioning the conversation
+      if (currentUser.role === 'agent' && convStatus === 'tour_confirmed') {
+        const actionMsg = {
+          content: `Tenancy agreement "${file.name}" sent for review. Please proceed to lease review and deposit resolution.`,
+          senderId: currentUser.id,
+          tenantId: tenantId,
+          agentId: agentId,
+          type: 'action',
+          actionType: 'contract_sent',
+          createdAt: serverTimestamp()
+        };
+        try {
+          await addDoc(collection(db, 'conversations', conversationId, 'messages'), actionMsg);
+        } catch (err) {
+          console.error("Failed to add actionMsg: ", err);
+          throw err;
+        }
+      }
+
+      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown') {
+        await createNotification(
+          recipientId,
+          notificationTitle,
+          notificationBody,
+          'message',
+          'chat',
+          conversationId
+        );
+      }
+    } catch (err) {
+      console.error("Failed to send document: ", err);
+      setError("Failed to send document.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const startRecording = async () => {
@@ -564,16 +1054,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
     setIsSending(true);
     setError(null);
     try {
-      // Convert blob to base64
-      const reader = new FileReader();
-      const base64Data = await new Promise<string>((resolve) => {
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      });
-
       const convRef = doc(db, 'conversations', conversationId);
       const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
       const agentId = listing.agent?.id || 'unknown';
+
+      // Upload audio to Firebase Storage
+      const fileRef = ref(storage, `conversations/${conversationId}/${Date.now()}_audio.webm`);
+      await uploadBytes(fileRef, blob);
+      const fileUrl = await getDownloadURL(fileRef);
 
       // Check if conversation exists, if not create metadata
       const convDoc = await getDoc(convRef);
@@ -598,6 +1086,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
           listingTitle: listing.title,
           listingImage: listing.image,
           listingPrice: listing.price,
+          listingPriceValue: getListingPriceValue(),
           status: 'inquiry',
           updatedAt: serverTimestamp(),
           lastMessage: "Audio message",
@@ -619,14 +1108,24 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       }
 
       // Send as message directly to Firestore (embedded)
-      await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
-        content: base64Data,
+      const msgData = {
+        content: fileUrl,
         senderId: currentUser.id,
         tenantId: tenantId,
         agentId: agentId,
         type: 'audio',
         createdAt: serverTimestamp()
-      });
+      };
+      
+      console.log("[DIAGNOSTIC LOG - sendMessage (audio)]");
+      console.log("Firestore Path:", `conversations/${conversationId}/messages`);
+      console.log("User Auth Object:", currentUser);
+      console.log("Document Data Payload:", JSON.stringify({
+        ...msgData,
+        createdAt: "serverTimestamp()"
+      }, null, 2));
+
+      await addDoc(collection(db, 'conversations', conversationId, 'messages'), msgData);
       
       // Send notification
       const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
@@ -688,6 +1187,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
           listingTitle: listing.title,
           listingImage: listing.image,
           listingPrice: listing.price,
+          listingPriceValue: getListingPriceValue(),
           status: 'inquiry',
           updatedAt: serverTimestamp(),
           lastMessage: newMessage.trim(),
@@ -713,14 +1213,24 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       // Add message to subcollection with metadata fields for relational rules
       const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
       
-      await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
+      const msgData = {
         content: newMessage.trim(),
         senderId: currentUser.id,
         tenantId: tenantId, 
         agentId: agentId,
         type: 'text',
         createdAt: serverTimestamp()
-      });
+      };
+      
+      console.log("[DIAGNOSTIC LOG - sendMessage (text)]");
+      console.log("Firestore Path:", `conversations/${conversationId}/messages`);
+      console.log("User Auth Object:", currentUser);
+      console.log("Document Data Payload:", JSON.stringify({
+        ...msgData,
+        createdAt: "serverTimestamp()"
+      }, null, 2));
+
+      await addDoc(collection(db, 'conversations', conversationId, 'messages'), msgData);
 
       // Send notification to the OTHER user
       const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
@@ -761,191 +1271,74 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
             exit={{ opacity: 0, scale: 0.95 }}
             className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-xl sm:rounded-2xl shadow-2xl flex flex-col h-[90vh] sm:h-[650px] max-h-[95vh] overflow-hidden m-0 sm:m-4 pointer-events-auto border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300"
           >
-            {/* WhatsApp Disclaimer Modal */}
             <AnimatePresence>
-              {showWhatsAppDisclaimer && (
+              {showBillingSlip && (
                 <div className="absolute inset-0 z-[100] flex items-center justify-center p-4">
                   <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    onClick={() => setShowWhatsAppDisclaimer(false)}
+                    onClick={() => setShowBillingSlip(false)}
                     className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
                   />
                   <motion.div 
                     initial={{ opacity: 0, scale: 0.9, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                    className="relative w-full max-w-[320px] bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-2xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300"
+                    className="relative w-full max-w-sm bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-2xl border-[0.5px] border-slate-200 dark:border-[#0f172b]"
                   >
-                    <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-                      <ShieldCheck className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-base font-black text-slate-900 dark:text-white text-center mb-2 tracking-tight">Security Notice</h3>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium text-center mb-6 leading-relaxed">
-                      Finalizing terms on WhatsApp? Note that DirectRent can only protect transactions processed through this app.
-                    </p>
-                    <div className="flex flex-col gap-2">
-                      <button 
-                        onClick={confirmWhatsApp}
-                        className="w-full bg-emerald-600 text-white py-3 rounded-xl font-black text-xs shadow-lg shadow-emerald-500/20"
-                      >
-                        Connect on WhatsApp
-                      </button>
-                      <button 
-                        onClick={() => setShowWhatsAppDisclaimer(false)}
-                        className="w-full py-3 text-slate-400 dark:text-slate-500 font-black text-[10px] uppercase tracking-widest"
-                      >
-                        Keep it Secure
-                      </button>
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-
-            {/* Secure Escrow Payment Checkout Modal */}
-            <AnimatePresence>
-              {showPaymentCheckout && (
-                <div className="absolute inset-0 z-[120] flex items-center justify-center p-4">
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => { if (paymentStep !== 'processing') setShowPaymentCheckout(false); }}
-                    className="absolute inset-0 bg-slate-900/65 backdrop-blur-sm pointer-events-auto"
-                  />
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.92, y: 15 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.92, y: 15 }}
-                    className="relative w-full max-w-[380px] bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-300 space-y-5 pointer-events-auto"
-                  >
-                    <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500 flex items-center justify-center shrink-0">
+                        <ShieldCheck className="w-5 h-5" />
+                      </div>
                       <div>
-                        <span className="text-[9px] font-black uppercase tracking-widest text-primary-600">Secure Billing Network</span>
-                        <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight mt-0.5">Escrow Settlements</h3>
+                        <h3 className="font-black text-slate-900 dark:text-white leading-tight">Escrow Deposit</h3>
+                        <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Secure Payment Request</p>
                       </div>
-                      {paymentStep !== 'processing' && (
-                        <button 
-                          onClick={() => setShowPaymentCheckout(false)}
-                          className="w-7 h-7 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-500 hover:text-rose-500 active:scale-95 transition-all cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
                     </div>
 
-                    {paymentStep === 'checkout' && (
-                      <div className="space-y-4">
-                        {/* Transaction payload billing breakdown */}
-                        <div className="p-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-850 rounded-2xl space-y-2 text-xs font-sans">
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Referenced Rental:</span>
-                            <span className="font-extrabold text-slate-800 dark:text-slate-200 truncate max-w-[160px]">{listing.title}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Due Security Deposit:</span>
-                            <span className="font-extrabold text-slate-800 dark:text-slate-200">{listing.price}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Escrow Agent Service:</span>
-                            <span className="font-semibold text-emerald-600 dark:text-emerald-450">₦15,000 (Incl. VAT)</span>
-                          </div>
-                          <div className="h-[1px] bg-slate-200 dark:bg-slate-850 my-1" />
-                          <div className="flex justify-between text-sm">
-                            <span className="font-black text-slate-900 dark:text-white uppercase text-[10px] tracking-wider">Total Settlement:</span>
-                            <span className="font-mono font-black text-primary-650 dark:text-primary-450">{listing.price}</span>
-                          </div>
-                        </div>
-
-                        {/* Payment choice selector */}
-                        <div className="space-y-1.5">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Select Settlement Protocol</label>
-                          <div className="grid grid-cols-1 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setPaymentOption('secured_escrow')}
-                              className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
-                                paymentOption === 'secured_escrow'
-                                  ? 'bg-primary-50/50 dark:bg-primary-950/20 border-primary-550'
-                                  : 'bg-white dark:bg-slate-950/20 border-slate-200 dark:border-slate-800 hover:border-slate-350'
-                              }`}
-                            >
-                              <ShieldCheck className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
-                              <div>
-                                <h4 className="text-[11px] font-extrabold text-slate-905 dark:text-white uppercase leading-none">Instant Escrow Lock</h4>
-                                <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 font-medium leading-relaxed">DirectRent Escrow holds funds until physical keys and draft are fully executed.</p>
-                              </div>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setPaymentOption('card')}
-                              className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
-                                paymentOption === 'card'
-                                  ? 'bg-primary-50/50 dark:bg-primary-950/20 border-primary-550'
-                                  : 'bg-white dark:bg-slate-950/20 border-slate-200 dark:border-slate-800 hover:border-slate-350'
-                              }`}
-                            >
-                              <CreditCard className="w-4 h-4 text-primary-550 mt-0.5 shrink-0" />
-                              <div>
-                                <h4 className="text-[11px] font-extrabold text-slate-905 dark:text-white uppercase leading-none">Credit / Debit Card Channel</h4>
-                                <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 font-medium leading-relaxed">Settle instantly using standard Visa, Mastercard, or Interswitch network pipelines.</p>
-                              </div>
-                            </button>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={handleInitiateDummyPayment}
-                          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
-                        >
-                          <ShieldCheck className="w-4 h-4" />
-                          <span>Initiate Security Settlement</span>
-                        </button>
+                    <div className="space-y-4 mb-6">
+                      <div className="flex items-center justify-between text-[13px]">
+                        <span className="text-slate-500 font-medium">Property Rent</span>
+                        <span className="font-bold text-slate-900 dark:text-white">₦{getListingPriceValue().toLocaleString()}</span>
                       </div>
-                    )}
-
-                    {paymentStep === 'processing' && (
-                      <div className="py-6 text-center space-y-4">
-                        <Loader2 className="w-8 h-8 animate-spin text-primary-600 mx-auto" />
-                        <div className="space-y-1">
-                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Handshaking Gateway Pipeline</h4>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500">Transmitting payload parameters to Escrow settlements API...</p>
-                        </div>
-                        {/* Progress bar loop */}
-                        <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                          <motion.div 
-                            className="bg-emerald-500 h-full rounded-full"
-                            initial={{ width: '0%' }}
-                            animate={{ width: `${paymentProgress}%` }}
-                            transition={{ ease: "easeInOut" }}
-                          />
-                        </div>
+                      <div className="flex items-center justify-between text-[13px]">
+                        <span className="text-slate-500 font-medium">DirectRent Escrow Fee</span>
+                        <span className="font-bold text-slate-900 dark:text-white">₦15,000</span>
                       </div>
-                    )}
-
-                    {paymentStep === 'success' && (
-                      <div className="py-4 text-center space-y-4">
-                        <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
-                          <Check className="w-6 h-6" />
-                        </div>
-                        <div className="space-y-1">
-                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Escrow Settlement locked</h4>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed font-medium">₦{listing.price} has been securely registered inside DirectRent escrow custody pipeline.</p>
-                        </div>
-                        <button
-                          onClick={handleCompletePaymentFlow}
-                          className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 py-3.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer animate-bounce"
-                        >
-                          Return to Chat Box
-                        </button>
+                      <div className="flex items-center justify-between text-[13px]">
+                        <span className="text-slate-500 font-medium">Gateway Fee (est.)</span>
+                        <span className="font-bold text-slate-900 dark:text-white">₦{Math.min((getListingPriceValue() + 15000) * 0.015, 2000).toLocaleString()}</span>
                       </div>
-                    )}
+                      <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <span className="text-sm font-black text-slate-900 dark:text-white uppercase">Total Amount</span>
+                        <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">₦{(getListingPriceValue() + 15000 + Math.min((getListingPriceValue() + 15000) * 0.015, 2000)).toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 leading-relaxed text-center mb-6 px-4">
+                      Funds are held securely in escrow. They will only be released to the agent upon successful key handoff and your confirmation.
+                    </p>
+
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={() => setShowBillingSlip(false)}
+                        className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={processPayment}
+                        className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"
+                      >
+                        <CreditCard className="w-4 h-4" /> Pay & Lock
+                      </button>
+                    </div>
                   </motion.div>
                 </div>
               )}
             </AnimatePresence>
+
             {/* Header */}
             <div className="px-4 py-4 border-b border-slate-105 dark:border-slate-800/80 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0 shadow-sm">
               <div className="flex items-center gap-3.5 text-left">
@@ -1026,134 +1419,109 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                 </button>
               </div>
               <div className="bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-150/60 dark:border-slate-800/80 shrink-0 shadow-sm">
-                <p className="text-xs font-black text-primary-605 dark:text-primary-450">{listing.price}</p>
+                <p className="text-xs font-black text-primary-605 dark:text-primary-450">{realtimePriceString ?? listing.price}</p>
               </div>
             </div>
 
-            {/* Transaction Action Prompts */}
-            <AnimatePresence>
-              <motion.div 
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 overflow-x-auto shrink-0 scrollbar-hide"
-              >
-                <div className="p-3 flex items-center gap-2 min-w-max">
-                  {currentUser.role === 'tenant' && (
-                    <AnimatePresence mode="popLayout">
-                      {(convStatus === 'inquiry' || convStatus === 'negotiating') && (
-                        <motion.div 
-                          key="tenant-actions"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="flex items-center gap-2"
-                        >
-                          <motion.button 
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            key="request_contract"
-                            onClick={() => !isChatSuspended && handleAction('contract_requested', 'I\'d like to request a formal contract for this property.', 'contract_requested')}
-                            disabled={isChatSuspended}
-                            className={`flex items-center gap-2 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors border border-primary-100 dark:border-primary-800 shadow-sm ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
-                          >
-                            <FileText className="w-3.5 h-3.5" /> Request Contract
-                          </motion.button>
-                          
-                          <motion.button 
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            key="make_payment"
-                            onClick={() => {
-                              if (isChatSuspended) return;
-                              setPaymentStep('checkout');
-                              setPaymentProgress(0);
-                              setShowPaymentCheckout(true);
-                            }}
-                            disabled={isChatSuspended}
-                            className={`flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors border border-emerald-105 dark:border-emerald-800 shadow-sm ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
-                          >
-                            <CreditCard className="w-3.5 h-3.5" /> Make Payment
-                          </motion.button>
-                        </motion.div>
+            {/* Sticky Milestone Header */}
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 sticky top-0 z-10 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 flex items-center justify-between gap-4 overflow-x-auto scrollbar-hide w-full min-w-0">
+                <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 min-w-max pr-1 shrink-0">
+                  <span className={'text-primary-600 dark:text-primary-400'}>1. Inspection</span>
+                  <ChevronRight className="w-3 h-3 opacity-50" />
+                  <span className={convStatus === 'contract_sent' || convStatus === 'escrow_locked' || convStatus === 'disputed' || convStatus === 'completed' ? 'text-primary-600 dark:text-primary-400' : ''}>2. Contract</span>
+                  <ChevronRight className="w-3 h-3 opacity-50" />
+                  <span className={convStatus === 'escrow_locked' || convStatus === 'disputed' || convStatus === 'completed' ? 'text-primary-600 dark:text-primary-400' : ''}>3. Escrow</span>
+                  <ChevronRight className="w-3 h-3 opacity-50" />
+                  <span className={convStatus === 'completed' ? 'text-emerald-500' : ''}>4. Handoff</span>
+                </div>
+                
+                <div className="flex-shrink-0">
+                  {currentUser.role === 'tenant' ? (
+                    <>
+                      {convStatus === 'inquiry' && (
+                        <button onClick={() => !isChatSuspended && setIsTourFormOpen(true)} disabled={isChatSuspended} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-[11px] font-bold shadow-sm whitespace-nowrap flex items-center gap-1">
+                          <CalendarRange className="w-3.5 h-3.5" /> Book Tour
+                        </button>
+                      )}
+                      {convStatus === 'tour_requested' && (
+                        <span className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/15 border border-amber-100 dark:border-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg text-[11px] font-bold whitespace-nowrap animate-pulse flex items-center gap-1">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" /> Tour Pending Approval
+                        </span>
+                      )}
+                      {convStatus === 'tour_confirmed' && (
+                        <span className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/15 border border-emerald-150 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg text-[11px] font-bold whitespace-nowrap flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Tour Confirmed
+                        </span>
                       )}
                       {convStatus === 'contract_sent' && (
-                        <motion.button 
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.9, opacity: 0 }}
-                          key="pay_deposit"
-                          onClick={() => {
-                            if (isChatSuspended) return;
-                            setPaymentStep('checkout');
-                            setPaymentProgress(0);
-                            setShowPaymentCheckout(true);
-                          }}
-                          disabled={isChatSuspended}
-                          className={`flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors border border-emerald-105 dark:border-emerald-800 shadow-sm ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
-                        >
-                          <CreditCard className="w-3.5 h-3.5" /> Pay Deposit
-                        </motion.button>
+                        <button onClick={() => !isChatSuspended && handleInitiatePayment()} disabled={isChatSuspended} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-sm whitespace-nowrap flex items-center gap-1.5">
+                          <CreditCard className="w-3 h-3" /> Review & Pay Deposit
+                        </button>
                       )}
-                    </AnimatePresence>
+                      {convStatus === 'escrow_locked' && (
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => !isChatSuspended && handleAction('disputed', 'I need mediation. The keys were not handed over or terms were violated.', 'disputed')} disabled={isChatSuspended} className="px-3 py-1.5 bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400 rounded-lg text-[11px] font-bold border border-rose-200 dark:border-rose-900/50 shadow-sm whitespace-nowrap">
+                            Dispute
+                          </button>
+                          <button onClick={() => !isChatSuspended && handleAction('completed', 'Keys received! Release the funds to the agent.', 'completed')} disabled={isChatSuspended} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-sm whitespace-nowrap flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3 h-3" /> Confirm Key Handoff
+                          </button>
+                        </div>
+                      )}
+                      {convStatus === 'disputed' && (
+                        <span className="px-3 py-1.5 bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400 rounded-lg text-[11px] font-bold whitespace-nowrap">
+                          In Mediation
+                        </span>
+                      )}
+                      {convStatus === 'completed' && (
+                        <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 rounded-lg text-[11px] font-bold whitespace-nowrap flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Settled
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {convStatus === 'inquiry' && (
+                        <span className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-lg text-[11px] font-bold whitespace-nowrap">
+                          Awaiting Request
+                        </span>
+                      )}
+                      {convStatus === 'tour_requested' && (
+                        <span className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/15 border border-amber-100 dark:border-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg text-[11px] font-bold whitespace-nowrap animate-pulse">
+                          Pending Tour Schedule
+                        </span>
+                      )}
+                      {convStatus === 'tour_confirmed' && (
+                        <button onClick={() => !isChatSuspended && fileInputRef.current?.click()} disabled={isChatSuspended} className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-bold shadow-sm whitespace-nowrap flex items-center gap-1">
+                          <FileText className="w-3 h-3" /> Send Contract
+                        </button>
+                      )}
+                      {convStatus === 'contract_sent' && (
+                        <span className="px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg text-[11px] font-bold whitespace-nowrap">
+                          Waiting for Deposit
+                        </span>
+                      )}
+                      {convStatus === 'escrow_locked' && (
+                        <span className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-[11px] font-bold whitespace-nowrap">
+                          Awaiting Handoff
+                        </span>
+                      )}
+                      {convStatus === 'disputed' && (
+                        <span className="px-3 py-1.5 bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400 rounded-lg text-[11px] font-bold whitespace-nowrap">
+                          Disputed
+                        </span>
+                      )}
+                      {convStatus === 'completed' && (
+                        <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 rounded-lg text-[11px] font-bold whitespace-nowrap flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Released to Wallet
+                        </span>
+                      )}
+                    </>
                   )}
-
-                  {currentUser.role === 'agent' && (
-                    <AnimatePresence mode="popLayout">
-                      {convStatus === 'contract_requested' && (
-                        <motion.button 
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.9, opacity: 0 }}
-                          key="send_contract"
-                          onClick={() => !isChatSuspended && handleAction('contract_sent', 'I have prepared and sent the draft contract for your review.', 'contract_sent')}
-                          disabled={isChatSuspended}
-                          className={`flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-xs font-bold whitespace-nowrap hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/20 ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
-                        >
-                          <FileText className="w-3.5 h-3.5" /> Send Contract
-                        </motion.button>
-                      )}
-                      {convStatus === 'paid' && (
-                        <motion.button 
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.9, opacity: 0 }}
-                          key="close_txn"
-                          onClick={() => !isChatSuspended && handleAction('completed', 'Transaction completed successfully. Welcome to your new home!', 'completed')}
-                          disabled={isChatSuspended}
-                          className={`flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold whitespace-nowrap hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-500/20 ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Close Transaction
-                        </motion.button>
-                      )}
-                    </AnimatePresence>
-                  )}
-                  
-                  <button 
-                    onClick={() => {/* Custom Negotiation Logic */}}
-                    disabled={isChatSuspended}
-                    className={`flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700 ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
-                  >
-                    Negotiate Rent
-                  </button>
-
-                  <button 
-                    onClick={(e) => {
-                      if (isChatSuspended) {
-                        e.preventDefault();
-                        return;
-                      }
-                      handleWhatsAppTransition();
-                    }}
-                    disabled={isChatSuspended}
-                    className={`flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold whitespace-nowrap hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-colors border border-emerald-100 dark:border-emerald-800/50 ${isChatSuspended ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" /> Continue on WhatsApp
-                  </button>
                 </div>
-              </motion.div>
-            </AnimatePresence>
+              </div>
+            </div>
 
             {/* Privacy Disclosure Banner */}
             <AnimatePresence>
@@ -1180,7 +1548,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
             </AnimatePresence>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-50/30 dark:bg-slate-950/30 space-y-3 sm:space-y-4">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-50/30 dark:bg-slate-950/30 space-y-4 sm:space-y-5">
               {error && (
                 <div className="p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-900 rounded-xl text-rose-600 dark:text-rose-400 text-[11px] font-bold text-center uppercase tracking-wide">
                   {error}
@@ -1205,20 +1573,308 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                 messages.map((msg) => (
                   <div 
                     key={msg.id}
-                    className={`flex ${msg.type === 'action' ? 'justify-center my-4 sm:my-6' : msg.senderId === currentUser.id ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${
+                      msg.type === 'action'
+                        ? (msg.actionType?.startsWith('tour_')
+                          ? (msg.senderId === currentUser.id ? 'justify-end' : 'justify-start')
+                          : 'justify-center')
+                        : (msg.senderId === currentUser.id ? 'justify-end' : 'justify-start')
+                    }`}
                   >
                     {msg.type === 'action' ? (
-                      <div className="bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100/50 dark:border-indigo-500/20 py-2 sm:py-3 px-4 sm:px-5 rounded-2xl shadow-sm flex flex-col items-center text-center max-w-[95%] sm:max-w-[80%] backdrop-blur-sm">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white dark:bg-slate-900 flex items-center justify-center mb-2 sm:mb-3 text-indigo-600 dark:text-indigo-400 shadow-sm">
-                          {msg.actionType === 'paid' ? <CreditCard className="w-4 h-4 sm:w-5 sm:h-5" /> : <FileText className="w-4 h-4 sm:w-5 sm:h-5" />}
-                        </div>
-                        <p className="text-[10px] sm:text-xs font-display font-black text-indigo-600 dark:text-indigo-400 mb-0.5 leading-tight uppercase tracking-[0.2em]">Update</p>
-                        <p className="text-[11px] sm:text-xs font-sans text-slate-800 dark:text-slate-200 font-medium leading-relaxed">"{msg.content}"</p>
-                        <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 font-display font-black uppercase tracking-widest">Verified Property Block</p>
-                      </div>
+                      (() => {
+                        const isTourAction = msg.actionType && msg.actionType.startsWith('tour_');
+                        let tourDetails: any = null;
+                        
+                        if (isTourAction && msg.content) {
+                          if (msg.content.trim().startsWith('{')) {
+                            try {
+                              tourDetails = JSON.parse(msg.content);
+                            } catch (e) {
+                              // Non-JSON
+                            }
+                          }
+                          
+                          if (!tourDetails) {
+                            tourDetails = {
+                              type: msg.actionType,
+                              date: '',
+                              time: '',
+                              note: msg.content,
+                              status: msg.actionType === 'tour_confirmed' ? 'confirmed' : msg.actionType === 'tour_declined' ? 'declined' : 'pending',
+                              proposedBy: msg.actionType === 'tour_requested' ? 'tenant' : 'agent'
+                            };
+                          }
+                        }
+
+                        if (isTourAction && tourDetails) {
+                          const latestTourAction = [...messages]
+                            .reverse()
+                            .find(m => m.type === 'action' && m.actionType && m.actionType.startsWith('tour_'));
+                          const isLatestProposal = latestTourAction && latestTourAction.id === msg.id;
+                          const isStaleProposal = (msg.actionType === 'tour_requested' || msg.actionType === 'tour_counter') && !isLatestProposal;
+
+                          const msgIndex = messages.findIndex(m => m.id === msg.id);
+                          const subsequentTourAction = msgIndex !== -1 
+                            ? messages.slice(msgIndex + 1).find(m => m.type === 'action' && m.actionType && m.actionType.startsWith('tour_'))
+                            : null;
+
+                          const isConfirmed = tourDetails.status === 'confirmed';
+                          const isDeclined = tourDetails.status === 'declined';
+                          const isCounter = tourDetails.type === 'tour_counter';
+                          
+                          const proposedByCurrent = tourDetails.proposedBy === currentUser.role;
+
+                          let displayStatus = tourDetails.status;
+                          let badgeColorClasses = 'bg-amber-50 text-amber-600 dark:bg-amber-950/25 dark:text-amber-400';
+
+                          if (isConfirmed || (subsequentTourAction && subsequentTourAction.actionType === 'tour_confirmed')) {
+                            displayStatus = 'confirmed';
+                            badgeColorClasses = 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/25 dark:text-emerald-400';
+                          } else if (isDeclined || (subsequentTourAction && subsequentTourAction.actionType === 'tour_declined')) {
+                            displayStatus = 'declined';
+                            badgeColorClasses = 'bg-rose-50 text-rose-600 dark:bg-rose-950/25 dark:text-rose-400';
+                          } else if (subsequentTourAction && subsequentTourAction.actionType === 'tour_counter') {
+                            displayStatus = 'countered';
+                            badgeColorClasses = 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
+                          } else if (isStaleProposal) {
+                            displayStatus = 'closed';
+                            badgeColorClasses = 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
+                          } else {
+                            displayStatus = tourDetails.status;
+                            badgeColorClasses = 'bg-amber-50 text-amber-600 dark:bg-amber-950/25 dark:text-amber-400';
+                          }
+
+                          return (
+                            <div className={`w-full max-w-[345px] sm:max-w-sm border p-3.5 shadow-sm space-y-3 font-sans text-left font-normal transition-all ${
+                              msg.senderId === currentUser.id
+                                ? 'bg-indigo-50/15 dark:bg-slate-900/95 border-indigo-150/60 dark:border-indigo-900/40 rounded-[22px] rounded-br-[4px] shadow-indigo-500/5'
+                                : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 rounded-[22px] rounded-bl-[4px] shadow-black/5'
+                            }`}>
+                              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <Calendar className={`w-3.5 h-3.5 shrink-0 ${displayStatus === 'confirmed' ? 'text-emerald-500' : displayStatus === 'declined' ? 'text-rose-500' : 'text-indigo-500 dark:text-indigo-400'}`} />
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-750 dark:text-slate-300 truncate">
+                                    {displayStatus === 'confirmed' ? 'Tour Confirmed' : displayStatus === 'declined' ? 'Tour Declined' : isCounter ? 'Tour Counter-Proposal' : 'Tour Request'}
+                                  </span>
+                                </div>
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0 ${badgeColorClasses}`}>
+                                  {displayStatus}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-350 bg-slate-50 dark:bg-slate-950/40 px-2.5 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800/80 text-[11px] font-medium leading-none">
+                                <Calendar className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 shrink-0" />
+                                <span className="font-semibold">{new Date(tourDetails.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                <span className="text-slate-300 dark:text-slate-700 font-light">|</span>
+                                <Clock className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 shrink-0" />
+                                <span className="font-semibold">{(() => {
+                                  if (!tourDetails.time) return '';
+                                  const [hh, mm] = tourDetails.time.split(':');
+                                  const h = parseInt(hh, 10);
+                                  const ampm = h >= 12 ? 'PM' : 'AM';
+                                  const displayH = h % 12 || 12;
+                                  return `${displayH}:${mm} ${ampm}`;
+                                })()}</span>
+                              </div>
+
+                              {tourDetails.note && (
+                                <div className="bg-indigo-50/5 dark:bg-indigo-950/5 p-2 border-l-2 border-indigo-400 dark:border-indigo-600 text-[11px] text-left font-normal leading-relaxed text-slate-600 dark:text-slate-300">
+                                  <span className="font-semibold text-[9px] text-indigo-500 dark:text-indigo-400 uppercase tracking-wider block mb-0.5">Note from sender</span>
+                                  <p className="italic font-sans">"{tourDetails.note}"</p>
+                                </div>
+                              )}
+
+                              {/* Action Options */}
+                              {tourDetails.status === 'pending' && !isStaleProposal && (
+                                <div className="pt-1 text-left font-normal">
+                                  {proposedByCurrent ? (
+                                    <div className="text-center py-1.5 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest animate-pulse bg-slate-50/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 rounded-xl">
+                                      Waiting for response...
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <button 
+                                          onClick={() => handleConfirmTour(tourDetails.date, tourDetails.time, tourDetails.note)}
+                                          disabled={isSending}
+                                          className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[9px] sm:text-[10px] uppercase tracking-wider rounded-xl shadow-xs transition-colors flex-1 cursor-pointer"
+                                        >
+                                          Accept
+                                        </button>
+                                        <button 
+                                          onClick={() => {
+                                            setCounterFormMsgId(msg.id);
+                                            setCounterDate(tourDetails.date || '');
+                                            setCounterTime(tourDetails.time || '');
+                                            setCounterNote('');
+                                          }}
+                                          disabled={isSending}
+                                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[9px] sm:text-[10px] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-extrabold uppercase tracking-wider rounded-xl transition-colors flex-1 cursor-pointer"
+                                        >
+                                          Counter
+                                        </button>
+                                        <button 
+                                          onClick={() => handleDeclineTour()}
+                                          disabled={isSending}
+                                          className="px-2 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 dark:text-rose-450 dark:hover:bg-rose-900/30 text-[9px] sm:text-[10px] text-rose-600 font-extrabold uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
+                                        >
+                                          Decline
+                                        </button>
+                                      </div>
+
+                                      {/* Counter Proposal Form Inline */}
+                                      {counterFormMsgId === msg.id && (
+                                        <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/60 space-y-2.5 rounded-xl p-2.5 bg-slate-50 dark:bg-slate-850/40">
+                                          <p className="text-[9px] uppercase font-black tracking-widest text-indigo-600 dark:text-indigo-400 font-sans">Propose Counter Time</p>
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                              <label className="text-[8.5px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wider mb-0.5 block">New Date</label>
+                                              <input 
+                                                type="date"
+                                                min={new Date().toISOString().split('T')[0]}
+                                                value={counterDate}
+                                                onChange={(e) => setCounterDate(e.target.value)}
+                                                className="w-full text-[10.5px] p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-indigo-550 font-semibold text-slate-800 dark:text-slate-100"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="text-[8.5px] font-bold text-slate-455 dark:text-slate-500 uppercase tracking-wider mb-0.5 block">New Time</label>
+                                              <input 
+                                                type="time"
+                                                value={counterTime}
+                                                onChange={(e) => setCounterTime(e.target.value)}
+                                                className="w-full text-[10.5px] p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-indigo-550 font-semibold text-slate-800 dark:text-slate-100"
+                                              />
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <label className="text-[8.5px] font-bold text-slate-455 dark:text-slate-500 uppercase tracking-wider mb-0.5 block">Note</label>
+                                            <textarea
+                                              placeholder="Why counters? Leave preferences..."
+                                              value={counterNote}
+                                              onChange={(e) => setCounterNote(e.target.value)}
+                                              className="w-full text-[10.5px] p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-indigo-550 text-slate-800 dark:text-slate-100 focus:outline-none"
+                                              rows={2}
+                                            />
+                                          </div>
+                                          <div className="flex items-center gap-1.5 justify-end">
+                                            <button 
+                                              type="button"
+                                              onClick={() => setCounterFormMsgId(null)}
+                                              className="px-2 py-1 rounded-lg text-[9px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800/80 uppercase tracking-widest cursor-pointer"
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button 
+                                              type="button"
+                                              onClick={() => handleSendCounterProposal()}
+                                              disabled={!counterDate || !counterTime}
+                                              className="px-3 py-1 rounded-lg text-[9px] font-extrabold bg-indigo-650 hover:bg-indigo-700 text-white shadow-sm uppercase tracking-widest disabled:opacity-50 cursor-pointer"
+                                            >
+                                              Submit
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {tourDetails.status === 'confirmed' && (
+                                <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                                  <a
+                                    href={getGoogleCalendarUrl(tourDetails.date, tourDetails.time, listing.title, listing.location)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-300 dark:hover:bg-indigo-900/40 transition-all rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider flex-1 text-center cursor-pointer"
+                                  >
+                                    <CalendarPlus className="w-3.5 h-3.5" /> Google Calendar
+                                  </a>
+                                  <button
+                                    onClick={() => downloadIcsFile(tourDetails.date, tourDetails.time, listing.title, listing.location)}
+                                    className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80 transition-all rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider flex-1 cursor-pointer"
+                                  >
+                                    <Download className="w-3.5 h-3.5" /> iCal (.ics)
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
+                                         // Standard fall-through action message formatting
+                        let displayLabel = msg.content;
+                        if (msg.actionType === 'contract_sent') {
+                          displayLabel = currentUser.role === 'agent' 
+                            ? 'Lease contract sent. Awaiting review...' 
+                            : 'Contract sent. Please review & sign.';
+                        } else if (msg.actionType === 'escrow_locked' || msg.actionType === 'paid') {
+                          displayLabel = currentUser.role === 'tenant'
+                            ? 'Deposit successfully paid & locked in escrow.'
+                            : 'Deposit locked in escrow. Safe to finalize handoff.';
+                        } else if (msg.actionType === 'completed') {
+                          displayLabel = 'Lease finalized & keys handed over successfully!';
+                        }
+
+                        return (
+                          <div className="bg-indigo-50/20 dark:bg-indigo-950/20 border border-indigo-150/45 dark:border-indigo-900/40 px-4 py-2 rounded-full text-[11px] font-sans font-medium text-slate-705 dark:text-slate-300 flex items-center justify-center gap-2 max-w-[95%] sm:max-w-[80%] shadow-xs animate-fade-in">
+                            {msg.actionType === 'paid' || msg.actionType === 'escrow_locked' ? (
+                              <CreditCard className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            ) : (
+                              <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            )}
+                            <span className="truncate">{displayLabel}</span>
+                          </div>
+                        );
+                      })()
                     ) : msg.type === 'audio' ? (
                       <div className="flex flex-col gap-1">
                         <AudioPlayer src={msg.content} isOwn={msg.senderId === currentUser.id} />
+                      </div>
+                    ) : msg.type === 'document' ? (
+                      <div className={`flex flex-col gap-1 max-w-[85%] ${msg.senderId === currentUser.id ? 'items-end' : 'items-start'}`}>
+                        <div 
+                          className={`flex items-start gap-3 p-3.5 rounded-[22px] text-[13px] sm:text-sm shadow-sm transition-colors border font-sans tracking-tight leading-normal ${
+                            msg.senderId === currentUser.id 
+                              ? 'bg-indigo-600 text-white border-indigo-500 rounded-br-none shadow-indigo-500/10' 
+                              : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700 rounded-bl-none shadow-black/5'
+                          }`}
+                        >
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+                            msg.senderId === currentUser.id 
+                              ? 'bg-indigo-700/50 text-indigo-100' 
+                              : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500'
+                          }`}>
+                            <FileText className="w-5 h-5 pointer-events-none" />
+                          </div>
+                          
+                          <div className="flex-1 min-w-0 text-left">
+                            <p className="font-bold text-[12px] sm:text-[13px] truncate leading-tight pr-4">
+                              {msg.fileName || 'document.pdf'}
+                            </p>
+                            <p className={`text-[9.5px] mt-0.5 uppercase tracking-wider font-extrabold ${
+                              msg.senderId === currentUser.id ? 'text-indigo-200' : 'text-slate-400 dark:text-slate-500'
+                            }`}>
+                              {msg.fileSize || 'Unknown Size'} • Tenancy Agreement
+                            </p>
+                            <div className="mt-2.5 flex items-center gap-2">
+                              <a 
+                                href={msg.content} 
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all shadow-sm ${
+                                  msg.senderId === currentUser.id
+                                    ? 'bg-white/10 hover:bg-white/20 text-white'
+                                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950/80'
+                                }`}
+                              >
+                                {msg.content?.startsWith('data:') ? 'Download' : 'View Document'}
+                              </a>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <div 
@@ -1256,6 +1912,85 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
               </div>
             ) : (
               <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+                <AnimatePresence>
+                  {isTourFormOpen && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0, scale: 0.98 }} 
+                      animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                      exit={{ opacity: 0, height: 0, scale: 0.98 }}
+                      className="mb-3.5 p-4 bg-indigo-50/50 dark:bg-slate-950/40 border border-indigo-100/50 dark:border-indigo-900/20 rounded-2xl shadow-sm space-y-3.5 backdrop-blur-sm overflow-hidden"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CalendarRange className="w-4 h-4 text-indigo-500" />
+                          <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Schedule Property Tour</p>
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => setIsTourFormOpen(false)}
+                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-850"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Preferred Date</label>
+                          <input 
+                            type="date" 
+                            value={tourDate}
+                            min={new Date().toISOString().split('T')[0]}
+                            onChange={(e) => setTourDate(e.target.value)}
+                            required
+                            className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-bold text-slate-800 dark:text-slate-100"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Preferred Time</label>
+                          <input 
+                            type="time" 
+                            value={tourTime}
+                            onChange={(e) => setTourTime(e.target.value)}
+                            required
+                            className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-bold text-slate-800 dark:text-slate-100"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Optional Note to Agent</label>
+                        <textarea 
+                          placeholder="Introduce yourself or state any preferred visual slots..." 
+                          value={tourNote}
+                          onChange={(e) => setTourNote(e.target.value)}
+                          rows={2}
+                          className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 focus:ring-1 focus:ring-indigo-500 focus:outline-none text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button 
+                          type="button"
+                          onClick={() => setIsTourFormOpen(false)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={handleRequestTour}
+                          disabled={!tourDate || !tourTime || isSending}
+                          className="px-4 py-2 rounded-lg text-xs font-black bg-indigo-650 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-1.5 uppercase tracking-wider disabled:opacity-50 transition-all cursor-pointer"
+                        >
+                          {isSending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                          Send Tour Proposal
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <div className="relative group flex items-center gap-3">
                   <div className="relative flex-1">
                     {isRecording ? (
@@ -1307,9 +2042,31 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                 </div>
                 
                 <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleSendDocument(file);
+                      }
+                      e.target.value = ''; // Reset
+                    }} 
+                    className="hidden" 
+                    accept=".pdf,.doc,.docx,.jpg,.png,.jpeg" 
+                  />
                   <AnimatePresence mode="wait">
                     {!isRecording ? (
                       <div className="flex items-center gap-1">
+                        <button 
+                          type="button" 
+                          onClick={() => fileInputRef.current?.click()} 
+                          className="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full transition-colors"
+                          title="Attach document/contract"
+                          disabled={isSending}
+                        >
+                          <Paperclip className="w-5 h-5" />
+                        </button>
                         <button type="button" onClick={startRecording} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors">
                           <Mic className="w-5 h-5" />
                         </button>

@@ -65,7 +65,7 @@
         "listingPrice": { "type": "string" },
         "status": { 
           "type": "string", 
-          "enum": ["inquiry", "negotiating", "contract_requested", "contract_sent", "paid", "completed"],
+          "enum": ["inquiry", "negotiating", "contract_requested", "contract_sent", "paid", "completed", "tour_requested", "tour_confirmed", "escrow_locked", "disputed"],
           "default": "inquiry"
         },
         "unreadCount_tenant": { "type": "number", "default": 0 },
@@ -83,7 +83,7 @@
         "senderId": { "type": "string" },
         "tenantId": { "type": "string" },
         "agentId": { "type": "string" },
-        "type": { "type": "string", "enum": ["text", "action"], "default": "text" },
+        "type": { "type": "string", "enum": ["text", "action", "audio"], "default": "text" },
         "actionType": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },

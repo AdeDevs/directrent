@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import HamburgerButton from '../components/HamburgerButton';
 import { motion } from 'motion/react';
 import { 
   Building2, 
@@ -18,7 +19,7 @@ import {
 import SafeImage from '../components/SafeImage';
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, doc, updateDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { Listing } from '../types';
 import NotificationBadge from '../components/NotificationBadge';
 import HeaderPortal from '../components/HeaderPortal';
@@ -51,8 +52,8 @@ export default function MyListings() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched = snapshot.docs
         .map(doc => ({
-          id: doc.id,
-          ...doc.data()
+          ...doc.data(),
+          id: doc.id
         } as Listing))
         .filter(l => String(l.agent?.id) === String(user.id))
         .sort((a, b) => {
@@ -70,27 +71,7 @@ export default function MyListings() {
     return () => unsubscribe();
   }, [user]);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    const q = query(
-      collection(db, 'transactions'),
-      where('agentId', '==', user.id)
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetched = snapshot.docs.map(doc => ({
-        docId: doc.id,
-        ...doc.data()
-      })).sort((a: any, b: any) => {
-        const dateA = a.createdAt?.seconds || 0;
-        const dateB = b.createdAt?.seconds || 0;
-        return dateB - dateA;
-      });
-      setTransactions(fetched);
-    }, (error) => {
-      console.error("Failed to load transactions:", error);
-    });
-    return () => unsubscribe();
-  }, [user]);
+  // Transaction history removed from dashboard
 
   const filteredListings = listings.filter(l => {
     if (activeFilter === 'approved') return l.isApproved === true && l.status !== 'suspended' && l.status !== 'completed';
@@ -146,11 +127,14 @@ export default function MyListings() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-[0] transition-colors">
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center justify-between lg:hidden">
-        <div>
-          <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Agent Panel</span>
-          <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">My Listings</h1>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-0 transition-colors">
+      <header className={`sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center justify-between lg:hidden`}>
+        <div className="flex items-center gap-2">
+          <HamburgerButton />
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Agent Panel</span>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">My Listings</h1>
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           <button 
@@ -188,7 +172,7 @@ export default function MyListings() {
         </div>
       </HeaderPortal>
 
-      <main className="w-full px-[15px] pt-[15px] pb-0 mb-0 space-y-6 sm:space-y-10">
+      <main className="w-full px-[15px] pt-[15px] pb-[15px] mb-0 space-y-6 sm:space-y-10">
         {/* Stats Grid */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
           {stats.map((stat, i) => (
@@ -277,9 +261,11 @@ export default function MyListings() {
                   </div>
 
                   <div className="flex items-center justify-between mt-1 sm:mt-2">
-                    <p className="text-sm font-bold text-indigo-600 leading-none">
-                      {listing.price} <span className="text-[10px] text-slate-400 font-normal tracking-tight">/ yr</span>
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-bold text-indigo-600 leading-none">
+                        {listing.price} <span className="text-[10px] text-slate-400 font-normal tracking-tight">/ yr</span>
+                      </p>
+                    </div>
                     <div className="flex items-center gap-2 sm:gap-3 text-slate-400">
                       {listing.status === 'suspended' ? (
                         <button
@@ -322,61 +308,6 @@ export default function MyListings() {
               >
                 Post your first listing
               </button>
-            </div>
-          )}
-        </section>
-        {/* Transaction History Section */}
-        <section className="border-t border-slate-200 dark:border-slate-800 pt-[15px] sm:pt-10 pb-16 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-violet-50 dark:bg-violet-950/20 text-violet-600 dark:text-violet-400 flex items-center justify-center">
-              <CreditCard className="w-4 h-4 sm:w-5 sm:h-5! " />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-display font-black text-slate-900 dark:text-white tracking-tight">Transaction History</h2>
-              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest block mt-0.5">Verified escrow ledger settlements</span>
-            </div>
-          </div>
-
-          {transactions.length > 0 ? (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/50 dark:bg-slate-950/30 border-b border-slate-150 dark:border-slate-850">
-                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Transaction ID</th>
-                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Property</th>
-                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Buyer</th>
-                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Settlement</th>
-                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Method</th>
-                      <th className="p-3.5 sm:p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {transactions.map((tx, idx) => (
-                      <tr key={`tx-${tx.id || idx}`} className="hover:bg-slate-50/40 dark:hover:bg-slate-950/20 transition-all font-sans text-xs">
-                        <td className="p-3.5 sm:p-4 font-mono font-bold text-slate-600 dark:text-slate-400 uppercase tracking-tight whitespace-nowrap">{tx.id || 'DR-TXN-UNKNOWN'}</td>
-                        <td className="p-3.5 sm:p-4 font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px] whitespace-nowrap">{tx.propertyTitle}</td>
-                        <td className="p-3.5 sm:p-4 text-slate-500 font-medium whitespace-nowrap">{tx.tenantName || 'Verified Buyer'}</td>
-                        <td className="p-3.5 sm:p-4 font-extrabold text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap">{tx.amount}</td>
-                        <td className="p-3.5 sm:p-4 text-[10px] text-slate-400 uppercase font-bold tracking-wider whitespace-nowrap">{tx.paymentMethod}</td>
-                        <td className="p-3.5 sm:p-4 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 font-black text-[9px] uppercase tracking-wider text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">
-                            Success
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 sm:p-12 rounded-3xl text-center space-y-2">
-              <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800/40 rounded-full flex items-center justify-center mx-auto text-slate-300">
-                <CreditCard className="w-6 h-6" />
-              </div>
-              <p className="text-slate-550 dark:text-slate-400 font-medium text-xs">No settlements resolved yet.</p>
-              <p className="text-[10px] text-slate-400 leading-normal">Rentals successfully paid via our dummy escrow pipeline will establish dynamic logs here.</p>
             </div>
           )}
         </section>

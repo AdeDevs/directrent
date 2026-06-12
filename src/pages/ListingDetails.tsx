@@ -12,7 +12,6 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Listing } from '../types';
 import ListingCard from '../components/ListingCard';
 import { ChatModal } from '../components/ChatModal';
-import { FEATURED_LISTINGS } from '../data';
 import { useAuth } from '../context/AuthContext';
 import { addDoc, collection, serverTimestamp, query, where, getCountFromServer, doc, onSnapshot } from 'firebase/firestore';
 import { purgeListingData } from '../utils/adminCleanup';
@@ -692,8 +691,25 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
     fetchStats();
   }, [listing.id, user, isOwnListing, isAdmin]);
   
-  // Recommended listings (exclude current, pick 3)
-  const recommended = FEATURED_LISTINGS.filter(l => l.id !== listing.id).slice(0, 3);
+  // Recommended listings (fetch from db or hide for now)
+  const [recommended, setRecommended] = useState<Listing[]>([]);
+
+  useEffect(() => {
+    const fetchRecommended = async () => {
+      try {
+        const { collection, query, limit, getDocs } = await import('firebase/firestore');
+        const listingsRef = collection(db, 'listings');
+        // Simple default query, should exclude current listing but for simple mock we just take length
+        const q = query(listingsRef, limit(4));
+        const snap = await getDocs(q);
+        const fetched = snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Listing)).filter(l => l.id !== listing.id).slice(0, 3);
+        setRecommended(fetched);
+      } catch (e) {
+        console.error("Error fetching recommended", e);
+      }
+    };
+    fetchRecommended();
+  }, [listing.id]);
   
   // Scroll to top when a new listing is selected
   useEffect(() => {
@@ -1698,7 +1714,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
 
       {/* Recommended Section / Insights Dashboard */}
       <div className="w-full border-t border-slate-200 dark:border-slate-800 mt-4 md:mt-8 flex-1 flex flex-col transition-colors duration-300">
-        <div className="px-[15px] pt-10 pb-0 w-full flex-1">
+        <div className="px-[15px] pt-10 pb-8 w-full flex-1">
           {canManageListing ? (
             <div className="space-y-12">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

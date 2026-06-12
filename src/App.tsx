@@ -9,6 +9,8 @@ import ScrollToTop from './components/ScrollToTop';
 import { ShieldAlert } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
+import TermsOfUse from './pages/TermsOfUse';
+
 // Lazy load components for code splitting
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminAuth = lazy(() => import('./pages/admin/AdminAuth'));
@@ -28,39 +30,44 @@ const LoadingScreen = ({ message = "Initializing app..." }) => (
 );
 
 const ListingPreviewHandler = () => {
-  const [listing, setListing] = useState<Listing | null>(null);
+  const { setCurrentListing, currentListing, view, setView } = useAuth();
   const [err, setErr] = useState(false);
   const pathParts = window.location.pathname.split('/');
   const listingId = pathParts[2];
+  const isTargetListingLoaded = currentListing && currentListing.id.toString() === listingId;
 
   useEffect(() => {
+    // If the listing is already in context, just switch to app mode mapped
+    if (isTargetListingLoaded) {
+      if (view !== 'app') setView('app');
+      return;
+    }
+
+    let isMounted = true;
     const fetchListing = async () => {
       if (!listingId) return;
       try {
         const docSnap = await getDoc(doc(db, 'listings', listingId));
-        if (docSnap.exists()) {
-          setListing({ ...docSnap.data(), id: docSnap.id } as Listing);
-        } else {
+        if (docSnap.exists() && isMounted) {
+          const fetchedListing = { ...docSnap.data(), id: docSnap.id } as Listing;
+          setView('app');
+          setCurrentListing(fetchedListing);
+        } else if (isMounted) {
           setErr(true);
         }
       } catch (e) {
-        setErr(true);
+        if (isMounted) setErr(true);
       }
     };
     fetchListing();
-  }, [listingId]);
+    
+    return () => { isMounted = false; };
+  }, [listingId, isTargetListingLoaded, setView, view, setCurrentListing]);
 
   if (err) return <Navigate to="/" />;
-  if (!listing) return <LoadingScreen message="Fetching listing details..." />;
-
-  return (
-    <ListingDetails 
-      listing={listing} 
-      onBack={() => {
-        window.location.href = '/';
-      }} 
-    />
-  );
+  
+  // Just show the loader. Once `setCurrentListing` fires, `AppContent` evaluates the if-condition and renders `AppLayout` natively.
+  return <LoadingScreen message="Fetching property details..." />;
 };
 
 const SuspendedScreen = ({ onLogout, userId }: { onLogout: () => void; userId: string }) => {
@@ -117,7 +124,7 @@ const SuspendedScreen = ({ onLogout, userId }: { onLogout: () => void; userId: s
 };
 
 const AppContent = () => {
-  const { view, isLoading, user, logout } = useAuth();
+  const { view, isLoading, user, logout, currentListing } = useAuth();
   const path = window.location.pathname;
 
   // Track if path is listing detail
@@ -140,6 +147,8 @@ const AppContent = () => {
         return <AdminAuth />;
       case 'admin':
         return <AdminDashboard />;
+      case 'legal':
+        return <TermsOfUse />;
       case 'app':
         return <AppLayout />;
       default:
@@ -157,7 +166,8 @@ const AppContent = () => {
   }
 
   // Priority: If path is listing detail, show it or prompt to register if not signed in
-  if (isListingPath) {
+  // ONLY if not already handled by AppLayout internally (currentListing is not set)
+  if (isListingPath && !currentListing) {
     if (!user) {
       return (
         <Suspense fallback={<LoadingScreen message="Prompting account creation..." />}>

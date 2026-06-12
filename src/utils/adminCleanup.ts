@@ -149,6 +149,28 @@ export const purgeAllTours = async () => {
   }
 };
 
+export const purgeAllTransactions = async () => {
+  try {
+    const txQuery = await getDocs(collection(db, 'transactions'));
+    if (txQuery.docs.length > 0) {
+      let count = 0;
+      let batch = writeBatch(db);
+      for (const tDoc of txQuery.docs) {
+        batch.delete(doc(db, 'transactions', tDoc.id));
+        count++;
+        if (count === 450) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+      if (count > 0) await batch.commit();
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'transactions');
+  }
+};
+
 export const resetAllAnalytics = async () => {
   try {
     const analyticsQuery = await getDocs(collection(db, 'analytics'));
@@ -169,17 +191,23 @@ export const resetAllAnalytics = async () => {
       }
     }
 
-    // Also zero out counts on listings
+    // Also zero out counts on listings, and revert of completed listings back to active
     const listingsQuery = await getDocs(collection(db, 'listings'));
     if (listingsQuery.docs.length > 0) {
       let count = 0;
       let tBatch = writeBatch(db);
       for (const listing of listingsQuery.docs) {
-        tBatch.update(doc(db, 'listings', listing.id), {
+        const data = listing.data();
+        const updatePayload: any = {
           viewCount: 0,
           favoritesCount: 0,
           inquiryCount: 0
-        });
+        };
+        // Reset completed listing status back to active so transactions go back to default available status!
+        if (data.status === 'completed') {
+          updatePayload.status = 'active';
+        }
+        tBatch.update(doc(db, 'listings', listing.id), updatePayload);
         count++;
         if (count === 450) {
           await tBatch.commit();

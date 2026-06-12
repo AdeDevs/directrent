@@ -46,8 +46,8 @@ export interface Listing {
   inquiryCount?: number;
 }
 
-export type ViewState = 'landing' | 'auth' | 'app' | 'admin' | 'admin-auth';
-export type AppTab = 'home' | 'chat' | 'profile' | 'favorites' | 'create' | 'mylistings' | 'notifications' | 'terms' | 'faq';
+export type ViewState = 'landing' | 'auth' | 'app' | 'admin' | 'admin-auth' | 'legal';
+export type AppTab = 'home' | 'chat' | 'profile' | 'favorites' | 'create' | 'mylistings' | 'notifications' | 'terms' | 'faq' | 'wallet';
 
 export interface Notification {
   id: string;
@@ -99,13 +99,42 @@ export interface User {
   theme?: 'light' | 'dark';
   listingsCount?: number;
   hasPassword?: boolean;
+  completedTxns?: number;
+  userVerificationReason?: string | null;
+  bankAccounts?: Array<{
+    id: string;
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+  }>;
   agent?: {
     verificationReason?: string | null;
     isVerified?: boolean;
   };
 }
 
-export type ConversationStatus = 'inquiry' | 'negotiating' | 'contract_requested' | 'contract_sent' | 'paid' | 'completed';
+export type ConversationStatus = 'inquiry' | 'tour_requested' | 'tour_confirmed' | 'contract_sent' | 'escrow_locked' | 'disputed' | 'completed';
+
+export type EscrowStatus = 'locked' | 'released' | 'refunded' | 'disputed';
+
+export interface Transaction {
+  id: string;
+  reference: string;
+  listingId: string;
+  propertyTitle: string;
+  rentAmount: number;
+  platformFee: number;
+  gatewayFee: number;
+  totalPaid: number;
+  tenantId: string;
+  tenantName: string;
+  agentId: string;
+  agentName: string;
+  date: any;
+  status: 'locked' | 'released' | 'refunded' | 'disputed';
+  escrowDeadline?: any;
+}
+
 
 export interface Review {
   id: string;
@@ -135,4 +164,21 @@ export interface Verification {
   updatedAt?: any;
   createdAt?: any;
   rejectionReason?: string;
+}
+
+export type MessageType = 'text' | 'action' | 'audio' | 'document';
+
+export interface Message {
+  id: string;
+  content: string;
+  senderId: string;
+  tenantId: string;
+  agentId: string;
+  type?: MessageType;
+  duration?: number;
+  fileName?: string;
+  fileSize?: string;
+  fileType?: string;
+  actionType?: string;
+  createdAt: any;
 }

@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useEffect } from "react";
+import HamburgerButton from '../components/HamburgerButton';
 import { motion } from "motion/react";
 import { Bookmark, ArrowRight, Bell, Heart, Star } from "lucide-react";
 import { db } from "../lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { FEATURED_LISTINGS } from "../data";
 import { Listing } from "../types";
 import SafeImage from "../components/SafeImage";
 import NotificationBadge from "../components/NotificationBadge";
@@ -111,10 +111,12 @@ const FavoritesPage = () => {
     const listingsRef = collection(db, 'listings');
     const unsubscribe = onSnapshot(listingsRef, (snapshot) => {
       const fetched = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        id: doc.id
       } as Listing));
       setDbListings(fetched);
+    }, (error) => {
+      console.warn("Favorites listings error:", error);
     });
 
     return () => unsubscribe();
@@ -135,6 +137,8 @@ const FavoritesPage = () => {
         return /^\d+$/.test(id) ? parseInt(id) : id;
       });
       setActiveChatListingIds(Array.from(new Set(listingIds)));
+    }, (error) => {
+      console.warn("Favorites conversations error:", error);
     });
 
     return () => {
@@ -144,17 +148,7 @@ const FavoritesPage = () => {
   }, [user]);
 
   const savedListings = useMemo(() => {
-    const allAvailable = [...dbListings, ...FEATURED_LISTINGS].filter(l => l.status !== 'suspended');
-    // Deduplicate by ID
-    const seenIds = new Set();
-    const uniqueListings = allAvailable.filter(l => {
-      if (seenIds.has(String(l.id))) return false;
-      seenIds.add(String(l.id));
-      return true;
-    });
-    return uniqueListings.filter((listing) =>
-      favorites.includes(listing.id)
-    );
+    return dbListings.filter(l => l.status !== 'suspended' && favorites.includes(l.id));
   }, [favorites, dbListings]);
 
   return (
@@ -168,6 +162,7 @@ const FavoritesPage = () => {
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 lg:hidden">
         <div className="w-full max-w-none px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
+            <HamburgerButton />
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Your Bookmarks</span>
               <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
@@ -208,7 +203,7 @@ const FavoritesPage = () => {
       </HeaderPortal>
 
       {/* Grid Content */}
-      <main className="w-full max-w-none px-4 pb-0 mb-0 flex-1 flex flex-col" style={{ paddingTop: '15px' }}>
+      <main className="w-full max-w-none px-4 pb-[15px] mb-0 flex-1 flex flex-col" style={{ paddingTop: '15px' }}>
         {savedListings.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-6 sm:gap-8">
             {savedListings.map((listing) => (

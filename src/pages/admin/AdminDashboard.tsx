@@ -63,6 +63,7 @@ import AdminProfile from './AdminProfile';
 import Maintenance from './Maintenance';
 import Reports from './Reports';
 import DropdownPortal from '../../components/admin/DropdownPortal';
+import DeferredChart from '../../components/DeferredChart';
 
 type AdminTab = 'dashboard' | 'listings' | 'users' | 'approvals' | 'reports' | 'maintenance' | 'profile';
 
@@ -366,7 +367,10 @@ const AdminDashboard = () => {
           setReports(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
           reportsResolved = true;
           if (listingsResolved) setLoading(false);
-        }, (error) => {
+        }, (error: any) => {
+          if (error.code === 'permission-denied' && !auth.currentUser) {
+            return; // Suppress expected error on logout
+          }
           console.error("Reports snapshot error:", error);
           reportsResolved = true;
         });
@@ -594,6 +598,7 @@ const AdminDashboard = () => {
         <div className="flex-1 h-full px-4 md:px-8 flex items-center justify-between">
           <div className="flex items-center gap-2 md:gap-4">
             <button 
+              type="button"
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-none transition-colors text-slate-500 dark:text-slate-400 hidden md:block"
               title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
@@ -604,6 +609,7 @@ const AdminDashboard = () => {
             {/* Mobile Header Brand & Drawer Burger */}
             <div className="flex items-center gap-3 md:hidden">
               <button 
+                type="button"
                 onClick={() => setIsMobileMenuOpen(true)}
                 className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-none transition-colors text-slate-500 dark:text-slate-400"
               >
@@ -977,58 +983,60 @@ const AdminDashboard = () => {
                         </AnimatePresence>
                       </div>
                     </div>
-                    <div id="listing-chart-container" className="w-full h-[320px] mt-6">
+                    <div id="listing-chart-container" className="w-full h-[320px] mt-6 min-w-0 min-h-0">
                       {chartData && chartData.length > 0 ? (
-                        <ResponsiveContainer key={`chart-${timeRange}`} width="100%" height="100%">
-                          <BarChart 
-                            data={chartData} 
-                            margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
-                            style={{ outline: 'none' }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#1E293B' : '#F0F0F0'} />
-                            <XAxis 
-                              dataKey="name" 
-                              axisLine={false} 
-                              tickLine={false} 
-                              tick={{ fill: '#94A3B8', fontSize: 10, fontWeight: 500 }}
-                              dy={15}
-                            />
-                            <YAxis 
-                              axisLine={false}
-                              tickLine={false}
-                              hide
-                            />
-                            <Tooltip 
-                              cursor={false}
-                              contentStyle={{ 
-                                backgroundColor: theme === 'dark' ? '#0F172A' : '#FFF',
-                                borderRadius: '0px', 
-                                border: theme === 'dark' ? '1px solid #1E293B' : '1px solid #EEE', 
-                                boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', 
-                                fontSize: '11px',
-                                color: theme === 'dark' ? '#FFF' : '#000',
-                                outline: 'none'
-                              }}
-                            />
-                            <Bar 
-                              dataKey="value" 
-                              radius={[0, 0, 0, 0]}
-                              barSize={40}
-                              activeBar={{
-                                fill: theme === 'dark' ? '#334155' : '#E2E8F0',
-                                stroke: 'none'
-                              }}
+                        <DeferredChart>
+                          <ResponsiveContainer key={`chart-${timeRange}`} width="100%" height="100%">
+                            <BarChart 
+                              data={chartData} 
+                              margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+                              style={{ outline: 'none' }}
                             >
-                              {chartData.map((entry, index) => (
-                                <Cell 
-                                  key={`admin-dash-cell-${index}`} 
-                                  className="transition-all duration-200 cursor-pointer outline-none"
-                                  fill={entry.highlighted ? (theme === 'dark' ? '#FFF' : '#0F172A') : (theme === 'dark' ? '#1E293B' : '#F1F5F9')}
-                                />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#1E293B' : '#F0F0F0'} />
+                              <XAxis 
+                                dataKey="name" 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fill: '#94A3B8', fontSize: 10, fontWeight: 500 }}
+                                dy={15}
+                              />
+                              <YAxis 
+                                axisLine={false}
+                                tickLine={false}
+                                hide
+                              />
+                              <Tooltip 
+                                cursor={false}
+                                contentStyle={{ 
+                                  backgroundColor: theme === 'dark' ? '#0F172A' : '#FFF',
+                                  borderRadius: '0px', 
+                                  border: theme === 'dark' ? '1px solid #1E293B' : '1px solid #EEE', 
+                                  boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', 
+                                  fontSize: '11px',
+                                  color: theme === 'dark' ? '#FFF' : '#000',
+                                  outline: 'none'
+                                }}
+                              />
+                              <Bar 
+                                dataKey="value" 
+                                radius={[0, 0, 0, 0]}
+                                barSize={40}
+                                activeBar={{
+                                  fill: theme === 'dark' ? '#334155' : '#E2E8F0',
+                                  stroke: 'none'
+                                }}
+                              >
+                                {chartData.map((entry, index) => (
+                                  <Cell 
+                                    key={`admin-dash-cell-${index}`} 
+                                    className="transition-all duration-200 cursor-pointer outline-none"
+                                    fill={entry.highlighted ? (theme === 'dark' ? '#FFF' : '#0F172A') : (theme === 'dark' ? '#1E293B' : '#F1F5F9')}
+                                  />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </DeferredChart>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-bold uppercase tracking-widest bg-slate-50/50 dark:bg-slate-900/50 border border-dashed border-slate-200 dark:border-slate-800">
                           Collecting Insight Data...

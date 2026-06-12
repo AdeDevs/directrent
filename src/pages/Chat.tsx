@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import HamburgerButton from '../components/HamburgerButton';
 import { motion, AnimatePresence } from "motion/react";
 import {
   MessageSquare,
@@ -53,6 +54,11 @@ const useParticipant = (userId: string | undefined) => {
           role: data.role as UserRole || 'tenant'
         });
       }
+    }, (error: any) => {
+      if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
+        return;
+      }
+      console.warn("Chat participant error:", error);
     });
   }, [userId]);
 
@@ -215,14 +221,16 @@ interface Conversation {
   tenantImage?: string;
   agentImage?: string;
   listingPrice: string;
+  listingPriceValue?: number;
   unreadCount_tenant?: number;
   unreadCount_agent?: number;
   status:
     | "inquiry"
-    | "negotiating"
-    | "contract_requested"
+    | "tour_requested"
+    | "tour_confirmed"
     | "contract_sent"
-    | "paid"
+    | "escrow_locked"
+    | "disputed"
     | "completed";
 }
 
@@ -235,20 +243,30 @@ const Inbox = () => {
 
   const getStatusConfig = (status: string) => {
     switch (status) {
-      case "contract_requested":
+      case "tour_requested":
         return {
-          label: "Contract Requested",
-          color: "text-primary-705 bg-primary-50/50 dark:bg-primary-950/20 border-primary-100/60 dark:border-primary-900/40 text-primary-700 dark:text-primary-400",
+          label: "Tour Requested",
+          color: "text-blue-705 bg-blue-50/50 dark:bg-blue-900/20 border-blue-100/60 dark:border-blue-800/40 text-blue-700 dark:text-blue-400",
+        };
+      case "tour_confirmed":
+        return {
+          label: "Tour Confirmed",
+          color: "text-indigo-705 bg-indigo-50/50 dark:bg-indigo-900/20 border-indigo-100/60 dark:border-indigo-800/40 text-indigo-700 dark:text-indigo-400",
         };
       case "contract_sent":
         return {
-          label: "Review Contract",
+          label: "Contract Sent",
           color: "text-amber-705 bg-amber-50/50 dark:bg-amber-955/20 border-amber-100/60 dark:border-amber-950/40 text-amber-700 dark:text-amber-450",
         };
-      case "paid":
+      case "escrow_locked":
         return {
-          label: "Deposit Paid",
+          label: "Escrow Locked",
           color: "text-emerald-705 bg-emerald-50/50 dark:bg-emerald-955/20 border-emerald-100/60 dark:border-emerald-905/30 text-emerald-700 dark:text-emerald-400",
+        };
+      case "disputed":
+        return {
+          label: "Disputed",
+          color: "text-red-705 bg-red-50/50 dark:bg-red-955/20 border-red-100/60 dark:border-red-905/30 text-red-700 dark:text-red-400",
         };
       case "completed":
         return { 
@@ -287,7 +305,10 @@ const Inbox = () => {
         setConversations(convs);
         setLoading(false);
       },
-      (err) => {
+      (err: any) => {
+        if (err?.code === 'permission-denied' || err?.message?.includes('permission')) {
+          return;
+        }
         console.error("Inbox listener error:", err);
         setLoading(false);
       }
@@ -335,11 +356,14 @@ const Inbox = () => {
     <div className="min-h-screen bg-slate-50/30 dark:bg-slate-950 transition-colors duration-300">
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 lg:hidden">
         <div className="w-full max-w-none px-4 h-16 flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-450 leading-none">Your Chats</span>
-            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-              Messages
-            </h1>
+          <div className="flex items-center gap-2">
+            <HamburgerButton />
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-450 leading-none">Your Chats</span>
+              <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                Messages
+              </h1>
+            </div>
           </div>
           
           <button 
@@ -363,7 +387,7 @@ const Inbox = () => {
         </div>
       </HeaderPortal>
 
-      <main className="w-full max-w-none px-[15px] pt-[15px] pb-0 mb-0">
+      <main className="w-full max-w-none px-[15px] pt-[15px] pb-[15px] mb-0">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -382,7 +406,7 @@ const Inbox = () => {
           </div>
 
           {/* Chat List */}
-          <div className="space-y-3.5 pb-0">
+          <div className="space-y-3.5 pb-8">
             <AnimatePresence mode="popLayout">
               {filteredConversations.length === 0 ? (
                 <motion.div
@@ -434,6 +458,13 @@ const Inbox = () => {
                 id: isNaN(Number(selectedConv.listingId)) ? selectedConv.listingId : parseInt(selectedConv.listingId),
                 title: selectedConv.listingTitle,
                 price: selectedConv.listingPrice,
+                priceValue: (() => {
+                  if (selectedConv.listingPriceValue) return Number(selectedConv.listingPriceValue);
+                  if (!selectedConv.listingPrice) return 0;
+                  const cleaned = String(selectedConv.listingPrice).replace(/[₦,$/a-zA-Z\s\-]/g, '');
+                  const parsed = parseInt(cleaned, 10);
+                  return isNaN(parsed) ? 0 : parsed;
+                })(),
                 image: selectedConv.listingImage,
                 agent: {
                   id: selectedConv.agentId,

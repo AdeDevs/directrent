@@ -64,7 +64,7 @@ interface ApprovalsProps {
 }
 
 const Approvals: React.FC<ApprovalsProps> = () => {
-  const [activeTab, setActiveTab] = useState<'listings' | 'agents'>('listings');
+  const [activeTab, setActiveTab] = useState<'listings' | 'agents' | 'tenants'>('listings');
   const [statusFilter, setStatusFilter] = useState<'pending' | 'rejected'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [regionFilter, setRegionFilter] = useState('All Regions');
@@ -74,7 +74,9 @@ const Approvals: React.FC<ApprovalsProps> = () => {
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [agentsFromColl, setAgentsFromColl] = useState<Verification[]>([]);
   const [agentsFromUsers, setAgentsFromUsers] = useState<Verification[]>([]);
+  const [tenantsFromUsers, setTenantsFromUsers] = useState<Verification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tenantCurrentPage, setTenantCurrentPage] = useState(1);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Verification | null>(null);
   const [selectedListingForReview, setSelectedListingForReview] = useState<Listing | null>(null);
@@ -543,6 +545,33 @@ const Approvals: React.FC<ApprovalsProps> = () => {
     return filteredAgents.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredAgents, agentCurrentPage]);
 
+  const filteredTenants = useMemo(() => {
+    return tenantsFromUsers.filter(tenant => {
+      const statusMatch = statusFilter === 'pending' 
+        ? tenant.status?.toLowerCase() === 'pending'
+        : tenant.status?.toLowerCase() === 'rejected';
+      
+      if (!statusMatch) return false;
+
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery || 
+        tenant.name?.toLowerCase().includes(searchLower) || 
+        (tenant as any).email?.toLowerCase().includes(searchLower) ||
+        tenant.userId?.toString().includes(searchLower);
+      
+      if (!matchesSearch) return false;
+
+      if (regionFilter !== 'All Regions' && !tenant.location?.toLowerCase().includes(regionFilter.toLowerCase())) return false;
+
+      return true;
+    });
+  }, [tenantsFromUsers, statusFilter, searchQuery, regionFilter]);
+
+  const paginatedTenants = useMemo(() => {
+    const startIndex = (tenantCurrentPage - 1) * itemsPerPage;
+    return filteredTenants.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredTenants, tenantCurrentPage]);
+
   // Reset pagination when filters change
   useEffect(() => {
     setListingCurrentPage(1);
@@ -550,6 +579,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
 
   useEffect(() => {
     setAgentCurrentPage(1);
+    setTenantCurrentPage(1);
   }, [searchQuery, statusFilter, regionFilter, activeTab]);
 
   // Scroll to top when page changes
@@ -558,7 +588,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
     if (container) {
       container.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  }, [listingCurrentPage, agentCurrentPage]);
+  }, [listingCurrentPage, agentCurrentPage, tenantCurrentPage]);
 
   useEffect(() => {
     // Only fetch data if we have an authenticated user in the Firebase SDK
@@ -636,10 +666,47 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       handleFirestoreError(err, OperationType.LIST, 'users');
     });
 
+    const tenantsQuery = query(
+      collection(db, 'users'),
+      where('role', '==', 'tenant'),
+      where('verificationStatus', 'in', ['pending', 'none'])
+    );
+
+    const unsubscribeUserTenants = onSnapshot(tenantsQuery, (snapshot) => {
+      const data = snapshot.docs.map(doc => {
+        const userData = doc.data();
+        const status = userData.verificationStatus === 'pending' 
+          ? 'pending' 
+          : (userData.userVerificationReason ? 'rejected' : 'none');
+          
+        return {
+          id: doc.id,
+          userId: doc.id,
+          name: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.name || 'Anonymous Tenant',
+          email: userData.email,
+          avatarUrl: userData.avatarUrl,
+          status: status,
+          rejectionReason: userData.userVerificationReason,
+          location: userData.city || userData.location,
+          govtIdUrl: userData.govtIdUrl,
+          selfieUrl: userData.selfieUrl,
+          idType: userData.govtIdType || 'NIN Slip',
+          idNumber: userData.nin || userData.idNumber,
+          submittedAt: userData.createdAt,
+          dob: userData.dob,
+          isFromUsers: true
+        } as unknown as Verification;
+      }).filter(a => a.status === 'pending' || a.status === 'rejected');
+      setTenantsFromUsers(data);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'users');
+    });
+
     return () => {
       unsubscribeListings();
       unsubscribeAgents();
       unsubscribeUserAgents();
+      unsubscribeUserTenants();
     };
   }, [auth.currentUser]); // Re-run when currentUser changes from null to something else
 
@@ -814,7 +881,71 @@ const Approvals: React.FC<ApprovalsProps> = () => {
     }
   };
 
-  const handleResetVerification = async (userId: string) => {
+  const handleApproveTenant = async (id: string, userId: string) => {
+    setProcessingId(id);
+    const toastId = toast.loading("Approving tenant verification...");
+    try {
+      await logModeratorAction('approve', 'tenant', userId);
+      
+      const targetUserId = userId || id;
+      await updateDoc(doc(db, 'users', targetUserId), {
+        verificationLevel: 'verified',
+        verificationStatus: 'verified',
+        userVerificationReason: null, // Clear reason on approval
+        updatedAt: serverTimestamp()
+      });
+
+      await createNotification(
+        targetUserId,
+        'Identity Verified',
+        'Congratulations! Your identity has been verified. You can now use all platform features securely.',
+        'verification'
+      );
+      
+      toast.success("Tenant verification approved successfully", { id: toastId });
+      setShowSuccessModal({ show: true, type: 'approval' });
+    } catch (err) {
+      console.error("Error approving tenant:", err);
+      toast.error("Error approving tenant verification", { id: toastId });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRejectTenant = async (id: string, userId: string, reason: string) => {
+    setProcessingId(id);
+    const toastId = toast.loading("Declining tenant verification...");
+    try {
+      await logModeratorAction('reject', 'tenant', userId, { reason: reason });
+      
+      const targetUserId = userId || id;
+      await updateDoc(doc(db, 'users', targetUserId), {
+        verificationStatus: 'none',
+        govtIdUrl: null, // Clear documents on rejection to reset form
+        selfieUrl: null,
+        govtIdType: null,
+        userVerificationReason: reason,
+        updatedAt: serverTimestamp()
+      });
+
+      await createNotification(
+        targetUserId,
+        'Verification Declined',
+        `Verification was declined: ${reason}. Please update your documents and try again.`,
+        'verification'
+      );
+
+      toast.success("Tenant verification declined successfully", { id: toastId });
+      setShowSuccessModal({ show: true, type: 'rejection' });
+    } catch (err) {
+      console.error("Error rejecting tenant:", err);
+      toast.error("Error declining tenant verification", { id: toastId });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleResetVerificationAgent = async (userId: string) => {
     const toastId = toast.loading("Resetting agent verification status...");
     try {
       await updateDoc(doc(db, 'users', userId), {
@@ -829,6 +960,27 @@ const Approvals: React.FC<ApprovalsProps> = () => {
       toast.error("Error resetting verification status", { id: toastId });
     }
   };
+
+  const handleResetVerificationTenant = async (userId: string) => {
+    const toastId = toast.loading("Resetting verification status...");
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        verificationStatus: 'pending',
+        userVerificationReason: null,
+        updatedAt: serverTimestamp()
+      });
+      toast.success("Verification status successfully reset", { id: toastId });
+      setSelectedAgent(null);
+    } catch (err) {
+      console.error("Error resetting verification:", err);
+      toast.error("Error resetting verification status", { id: toastId });
+    }
+  };
+
+  const activeUsers = activeTab === 'agents' ? filteredAgents : filteredTenants;
+  const activePaginatedUsers = activeTab === 'agents' ? paginatedAgents : paginatedTenants;
+  const activeCurrentPage = activeTab === 'agents' ? agentCurrentPage : tenantCurrentPage;
+  const setActiveCurrentPage = activeTab === 'agents' ? setAgentCurrentPage : setTenantCurrentPage;
 
   return (
     <div className="space-y-8">
@@ -884,6 +1036,26 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 ).length}
               </span>
               {activeTab === 'agents' && (
+                <motion.div layoutId="activeTabBadge" className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary-600 dark:bg-primary-400" />
+              )}
+            </button>
+            <button 
+              onClick={() => {
+                setActiveTab('tenants');
+                setSelectedAgent(null);
+                setSelectedListingForReview(null);
+              }}
+              className={`pb-4 text-sm font-bold flex items-center gap-2 relative transition-colors flex-shrink-0 ${
+                activeTab === 'tenants' ? 'text-slate-900 dark:text-white' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+            >
+              <span>Tenant Applications</span>
+              <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] px-2 py-0.5 rounded-full">
+                {tenantsFromUsers.filter((a, i, self) => 
+                  self.findIndex(t => t.userId === a.userId) === i && a.status === 'pending'
+                ).length}
+              </span>
+              {activeTab === 'tenants' && (
                 <motion.div layoutId="activeTabBadge" className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary-600 dark:bg-primary-400" />
               )}
             </button>
@@ -1168,15 +1340,15 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                 </div>
               )
             ) : (
-              filteredAgents.length > 0 ? (
+              activeUsers.length > 0 ? (
                 <>
                   <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    {paginatedAgents.map((agent, idx) => (
-                      <div key={`agent-approvals-mobile-${agent.userId || agent.id}-${idx}`} className="p-4 space-y-4">
+                    {activePaginatedUsers.map((agent, idx) => (
+                      <div key={`user-approvals-mobile-${agent.userId || agent.id}-${idx}`} className="p-4 space-y-4">
                         <div className="flex gap-4">
                           <div className="w-16 h-16 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 relative flex-shrink-0">
                             <img 
-                              src={(agent as any).avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(agent.name || 'Agent')}&background=000&color=fff`} 
+                              src={(agent as any).avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(agent.name || 'User')}&background=000&color=fff`} 
                               alt="" 
                               className="w-full h-full object-cover"
                             />
@@ -1228,20 +1400,20 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                     <table className="w-full text-left min-w-[800px]">
                       <thead>
                         <tr className="bg-slate-50/30 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
-                          <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Agent Identity</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">User Identity</th>
                           <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Submitted Date</th>
                           <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Status</th>
                           <th className="px-6 py-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {paginatedAgents.map((agent, idx) => (
-                          <tr key={`desktop-agent-${agent.userId || agent.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all group">
+                        {activePaginatedUsers.map((agent, idx) => (
+                          <tr key={`desktop-user-${agent.userId || agent.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all group">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-4">
                                 <div className="w-9 h-9 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-200 dark:border-slate-700">
                                   <img 
-                                    src={(agent as any).avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(agent.name || 'Agent')}&background=000&color=fff`} 
+                                    src={(agent as any).avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(agent.name || 'User')}&background=000&color=fff`} 
                                     alt="" 
                                     className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500" 
                                   />
@@ -1286,32 +1458,32 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                     </table>
                   </div>
 
-                  {/* Pagination for Agents */}
+                  {/* Pagination for Users */}
                   <div className="px-4 py-4 bg-slate-50 dark:bg-slate-800/30 border-x border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium text-center sm:text-left">
-                      Showing <span className="font-bold text-slate-900 dark:text-white">{(agentCurrentPage - 1) * itemsPerPage + 1} – {Math.min(agentCurrentPage * itemsPerPage, filteredAgents.length)}</span> of <span className="font-bold text-slate-900 dark:text-white">{filteredAgents.length}</span>
+                      Showing <span className="font-bold text-slate-900 dark:text-white">{(activeCurrentPage - 1) * itemsPerPage + 1} – {Math.min(activeCurrentPage * itemsPerPage, activeUsers.length)}</span> of <span className="font-bold text-slate-900 dark:text-white">{activeUsers.length}</span>
                     </div>
                     
                     <div className="flex items-center gap-1 sm:gap-2">
                       <button 
-                        disabled={agentCurrentPage === 1}
-                        onClick={() => setAgentCurrentPage(prev => prev - 1)}
+                        disabled={activeCurrentPage === 1}
+                        onClick={() => setActiveCurrentPage(prev => prev - 1)}
                         className="p-2 rounded-none border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                       >
                         <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>
                       
                       <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
-                        {Array.from({ length: Math.ceil(filteredAgents.length / itemsPerPage) }).map((_, i) => {
+                        {Array.from({ length: Math.ceil(activeUsers.length / itemsPerPage) }).map((_, i) => {
                           const pageNum = i + 1;
-                          if (Math.abs(pageNum - agentCurrentPage) > 2 && pageNum !== 1 && pageNum !== Math.ceil(filteredAgents.length / itemsPerPage)) return null;
+                          if (Math.abs(pageNum - activeCurrentPage) > 2 && pageNum !== 1 && pageNum !== Math.ceil(activeUsers.length / itemsPerPage)) return null;
                           
                           return (
                             <button
                               key={pageNum}
-                              onClick={() => setAgentCurrentPage(pageNum)}
+                              onClick={() => setActiveCurrentPage(pageNum)}
                               className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-none text-xs sm:text-sm font-bold transition-all flex-shrink-0 ${
-                                agentCurrentPage === pageNum 
+                                activeCurrentPage === pageNum 
                                   ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md' 
                                   : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
                               }`}
@@ -1323,8 +1495,8 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                       </div>
                       
                       <button 
-                        disabled={agentCurrentPage === Math.ceil(filteredAgents.length / itemsPerPage) || filteredAgents.length === 0}
-                        onClick={() => setAgentCurrentPage(prev => prev + 1)}
+                        disabled={activeCurrentPage === Math.ceil(activeUsers.length / itemsPerPage) || activeUsers.length === 0}
+                        onClick={() => setActiveCurrentPage(prev => prev + 1)}
                         className="p-2 rounded-none border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                       >
                         <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1335,7 +1507,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                   <User className="w-12 h-12 mb-4 opacity-20" />
-                  <p className="text-sm font-medium">No {statusFilter} agent applications.</p>
+                  <p className="text-sm font-medium">No {statusFilter} applications found in this category.</p>
                 </div>
               )
             )}
@@ -1686,11 +1858,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
             <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                  {selectedAgent.status === 'rejected' ? 'Rejected Application Review' : 'Verify Agent Identity'}
+                  {selectedAgent.status === 'rejected' ? 'Rejected Application Review' : 'Verify User Identity'}
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
                   {selectedAgent.status === 'rejected' 
-                    ? 'Reviewing the rejection details for this agent application.'
+                    ? 'Reviewing the rejection details for this application.'
                     : 'Cross-check profile information with the submitted government document.'}
                 </p>
               </div>
@@ -2051,7 +2223,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                       <button 
                         onClick={() => {
                           if (!rejectionReason.trim()) return alert("Please provide a reason.");
-                          handleRejectAgent(selectedAgent.id, (selectedAgent as any).userId, rejectionReason, (selectedAgent as any).isFromUsers);
+                          if (activeTab === 'agents') {
+                            handleRejectAgent(selectedAgent.id, (selectedAgent as any).userId, rejectionReason, (selectedAgent as any).isFromUsers);
+                          } else {
+                            handleRejectTenant(selectedAgent.id, (selectedAgent as any).userId, rejectionReason);
+                          }
                           setSelectedAgent(null);
                           setChecklist({});
                           setShowRejectionReason(false);
@@ -2074,7 +2250,11 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                     </button>
                     <button 
                       onClick={() => {
-                        handleApproveAgent(selectedAgent.id, (selectedAgent as any).userId, (selectedAgent as any).isFromUsers);
+                        if (activeTab === 'agents') {
+                          handleApproveAgent(selectedAgent.id, (selectedAgent as any).userId, (selectedAgent as any).isFromUsers);
+                        } else {
+                          handleApproveTenant(selectedAgent.id, (selectedAgent as any).userId);
+                        }
                         setSelectedAgent(null);
                         setChecklist({});
                       }}
@@ -2087,7 +2267,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                     >
                       <Check className="w-5 h-5 sm:w-4 sm:h-4" />
                       <span className="hidden sm:inline text-center lowercase">
-                        {Object.values(checklist).filter(v => v).length < 4 ? `Complete Checklist (${Object.values(checklist).filter(v => v).length}/4)` : 'Confirm & Verify Agent'}
+                        {Object.values(checklist).filter(v => v).length < 4 ? `Complete Checklist (${Object.values(checklist).filter(v => v).length}/4)` : 'Confirm & Verify Application'}
                       </span>
                     </button>
                   </div>
