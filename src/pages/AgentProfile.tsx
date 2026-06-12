@@ -177,7 +177,7 @@ const ReportModal = ({ isOpen, onClose, agentId, userId }: { isOpen: boolean, on
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -186,10 +186,10 @@ const ReportModal = ({ isOpen, onClose, agentId, userId }: { isOpen: boolean, on
         className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
       />
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl relative z-10 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300"
+        initial={{ opacity: 0, y: 100 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 100 }}
+        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
       >
         {isSuccess ? (
           <div className="text-center py-8">
@@ -913,14 +913,14 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
         {showReviewModal && (
           <div 
             onClick={() => setShowReviewModal(false)}
-            className="fixed inset-0 z-[1000] bg-slate-950/80 backdrop-blur-3xl flex items-center justify-center p-4 cursor-pointer"
+            className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-3xl flex items-end sm:items-center justify-center p-0 sm:p-4 cursor-pointer"
           >
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              initial={{ scale: 0.92, opacity: 0, y: 15 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.92, opacity: 0, y: 15 }}
-              className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[32px] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 cursor-default"
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 cursor-default pb-safe sm:pb-0"
             >
               <div className="p-6 md:p-8 space-y-6">
                 <div className="flex items-center justify-between">

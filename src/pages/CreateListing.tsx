@@ -521,29 +521,6 @@ export default function CreateListing() {
         </div>
       </HeaderPortal>
 
-      {publishingProgress !== null && (
-        <div className="sticky top-16 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-primary-500/20 p-4 transition-all duration-300">
-          <div className="max-w-3xl mx-auto space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-              <span className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
-                </span>
-                {publishingStatus}
-              </span>
-              <span className="font-extrabold text-primary-600 dark:text-primary-400 font-mono">{publishingProgress}%</span>
-            </div>
-            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div 
-                className="bg-primary-600 h-full rounded-full transition-all duration-300 ease-out shadow-lg shadow-primary-500/20"
-                style={{ width: `${publishingProgress}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
       <main className="w-full px-[15px] pt-4 pb-[15px] mb-0 space-y-8 lg:space-y-12">
         {atLimit && (
           <motion.div 

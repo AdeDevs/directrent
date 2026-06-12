@@ -274,10 +274,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       historyState.view !== view ||
       JSON.stringify(historyState.currentListing) !== JSON.stringify(currentListing) ||
       historyState.selectedAgentId !== selectedAgentId ||
-      window.location.pathname !== targetPath;
+      (window.location.pathname !== targetPath && window.location.pathname !== '/');
+      
+    const currentPath = window.location.pathname;
+    const isDeepLink = currentPath.startsWith('/property/') || currentPath.startsWith('/agent/') || currentPath.startsWith('/listings/');
 
-    if (isDifferent) {
-      window.history.pushState(newState, "", targetPath);
+    if (isDifferent && (!isDeepLink || currentListing || selectedAgentId || view === 'landing')) {
+      // Don't overwrite the deep link if we haven't loaded the target yet, unless we're on landing
+      if (view === 'landing' && isDeepLink) {
+        // Leave the deep link alone while landing page figures out auth
+      } else {
+        window.history.pushState(newState, "", targetPath);
+      }
     }
   }, [view, activeTab, currentListing, selectedAgentId]);
 

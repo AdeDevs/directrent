@@ -122,6 +122,11 @@ Once the agent’s account state is verified by an admin, the "Create Listing" t
 * Located in the "My Listings" tab, agents view their listings categorized by status: Active, Pending, Rejected, or Suspended.
 * Agents can edit properties, update rental prices, or delete inactive offerings permanently.
 
+### Wallet and Withdrawal Security
+* Agents interact with a built-in virtual Wallet that accumulates funds released from successful rent escrow transactions.
+* **Withdrawal PIN Check**: For hardline security against unauthorized account takeovers on active sessions, agents must map a custom 4-digit Withdrawal PIN. Every withdrawal transaction strictly halts until this verified numerical PIN is supplied bridging the gateway.
+* **Intelligent Modals**: Key transaction portals (Adding destination Bank accounts, and submitting withdrawal requests) leverage bottom-sheet slider architectural flows on mobile web, avoiding intrusive pop-outs and optimizing the single-hand reachability paradigm.
+
 ---
 
 ## 6. Admin Command Console and the AI Detective Center

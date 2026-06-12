@@ -1,6 +1,9 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import { Home as HomeIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { toast } from 'react-hot-toast';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import BottomNav from "../components/BottomNav";
 import MobileDrawer from "../components/MobileDrawer";
 import DesktopSidebar from "../components/DesktopSidebar";
@@ -51,6 +54,31 @@ const AppLayout = () => {
   const handleToggleCollapse = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
+
+  useEffect(() => {
+    const path = window.location.pathname;
+    const isListingPath = path.startsWith('/property/') || path.startsWith('/listings/');
+    if (isListingPath && !currentListing) {
+      const parts = path.split('/');
+      const listingId = parts[2] || parts[1];
+      if (listingId) {
+        getDoc(doc(db, "listings", listingId)).then((docSnap) => {
+          if (docSnap.exists()) {
+            const listing = { id: docSnap.id, ...docSnap.data() } as any;
+            if (user?.role === 'agent' && listing.agentId !== user.id) {
+                toast.error("You do not have access to view this listing as it belongs to another agent.");
+                window.history.replaceState(null, "", "/home");
+                setActiveTab('home');
+            } else {
+                setCurrentListing(listing);
+            }
+          }
+        }).catch(err => {
+          console.error("Failed to fetch shared listing:", err);
+        });
+      }
+    }
+  }, [user, currentListing, setCurrentListing, setActiveTab]);
 
   useEffect(() => {
     window.scrollTo({
@@ -131,7 +159,7 @@ const AppLayout = () => {
         {/* Persistent left sidebar on desktop view ports */}
         <DesktopSidebar isCollapsed={isCollapsed} onToggleCollapse={handleToggleCollapse} />
 
-        <main className={`w-full max-w-full px-0 ${user?.role === 'agent' ? 'pb-0' : 'pb-24'} lg:pb-12 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-72'} flex-1 relative transition-all duration-300 min-w-0`}>
+        <main className={`w-full max-w-full px-0 ${user?.role === 'agent' ? 'pb-5' : 'pb-24'} lg:pb-12 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-72'} flex-1 relative transition-all duration-300 min-w-0`}>
           {publishingProgress !== null && (
             <div className="sticky top-0 lg:top-0 z-[120] w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-primary-500/10 p-4 transition-all duration-300 shadow-sm">
               <div className="max-w-4xl mx-auto space-y-2 px-4">

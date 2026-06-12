@@ -111,6 +111,8 @@ export interface User {
     verificationReason?: string | null;
     isVerified?: boolean;
   };
+  hasWalletPin?: boolean;
+  walletPin?: string;
 }
 
 export type ConversationStatus = 'inquiry' | 'tour_requested' | 'tour_confirmed' | 'contract_sent' | 'escrow_locked' | 'disputed' | 'completed';

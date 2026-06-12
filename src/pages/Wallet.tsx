@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import HamburgerButton from '../components/HamburgerButton';
 import { motion } from 'motion/react';
 import { 
@@ -27,7 +27,16 @@ const Wallet = () => {
   const [banksList, setBanksList] = useState<any[]>([]);
   const [isResolving, setIsResolving] = useState(false);
   const [accountToRemove, setAccountToRemove] = useState<string | null>(null);
-  
+
+  const [isSetupPinModalOpen, setIsSetupPinModalOpen] = useState(false);
+  const [pin, setPin] = useState(['', '', '', '']);
+  const [confirmPin, setConfirmPin] = useState(['', '', '', '']);
+  const [pinError, setPinError] = useState('');
+  const [setupStep, setSetupStep] = useState<'create' | 'confirm'>('create');
+  const [isPinVerifying, setIsPinVerifying] = useState(false);
+  const pinInputRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
+  const confirmPinInputRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
+
   const BankLogo = ({ bankName }: { bankName: string }) => {
     const [useFallback, setUseFallback] = useState(false);
     const n = bankName.toLowerCase();
@@ -163,9 +172,36 @@ const Wallet = () => {
     }
   }, [accountNumber, bankCode, banksList]);
 
+  const handleWithdrawClick = () => {
+    setPinError('');
+    setPin(['', '', '', '']);
+    if (!user?.hasWalletPin) {
+      setSetupStep('create');
+      setConfirmPin(['', '', '', '']);
+      setIsSetupPinModalOpen(true);
+    } else {
+      setIsWithdrawModalOpen(true);
+    }
+  };
+
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!withdrawAmount || !selectedBankAccountId || !user) return;
+    
+    const enteredPin = pin.join('');
+    if (!enteredPin || enteredPin.length < 4) {
+      setPinError("Please enter your 4-digit PIN.");
+      return;
+    }
+    
+    if (enteredPin !== user.walletPin) {
+      setPinError("Incorrect PIN. Please try again.");
+      setPin(['', '', '', '']);
+      pinInputRefs[0]?.current?.focus();
+      return;
+    }
+
+    setPinError('');
     setIsWithdrawing(true);
     try {
       const response = await fetch('/api/withdraw', {
@@ -179,6 +215,7 @@ const Wallet = () => {
       });
       const data = await response.json();
       if (data.status) {
+        setPin(['', '', '', '']);
         setIsWithdrawModalOpen(false);
         setWithdrawAmount('');
         setSelectedBankAccountId('');
@@ -190,6 +227,87 @@ const Wallet = () => {
       console.error("Failed to withdraw", error);
     } finally {
       setIsWithdrawing(false);
+    }
+  };
+
+  const handlePinChange = (index: number, value: string) => {
+    setPinError('');
+    if (value.length > 1) value = value.slice(-1);
+    if (!/^\d*$/.test(value)) return;
+    const newPin = [...pin];
+    newPin[index] = value;
+    setPin(newPin);
+    if (value && index < 3) {
+      pinInputRefs[index + 1]?.current?.focus();
+    }
+  };
+
+  const handlePinKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !pin[index] && index > 0) {
+      pinInputRefs[index - 1]?.current?.focus();
+    }
+  };
+
+  const handleConfirmPinChange = (index: number, value: string) => {
+    setPinError('');
+    if (value.length > 1) value = value.slice(-1);
+    if (!/^\d*$/.test(value)) return;
+    const newPin = [...confirmPin];
+    newPin[index] = value;
+    setConfirmPin(newPin);
+    if (value && index < 3) {
+      confirmPinInputRefs[index + 1]?.current?.focus();
+    }
+  };
+
+  const handleConfirmPinKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !confirmPin[index] && index > 0) {
+      confirmPinInputRefs[index - 1]?.current?.focus();
+    }
+  };
+
+  const handleSetupPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (setupStep === 'create') {
+      if (pin.some(p => !p)) {
+        setPinError("Please enter a 4-digit PIN.");
+        return;
+      }
+      setSetupStep('confirm');
+      setPinError('');
+      setTimeout(() => confirmPinInputRefs[0]?.current?.focus(), 100);
+      return;
+    }
+
+    if (confirmPin.some(p => !p)) {
+      setPinError("Please confirm your PIN.");
+      return;
+    }
+
+    if (pin.join('') !== confirmPin.join('')) {
+      setPinError("PINs do not match. Please try again.");
+      setConfirmPin(['', '', '', '']);
+      confirmPinInputRefs[0]?.current?.focus();
+      return;
+    }
+
+    setIsPinVerifying(true);
+    setPinError('');
+    try {
+      await updateProfile({
+        hasWalletPin: true,
+        walletPin: pin.join('')
+      });
+      setIsSetupPinModalOpen(false);
+      setIsWithdrawModalOpen(true);
+      setPin(['', '', '', '']);
+      setConfirmPin(['', '', '', '']);
+      setSetupStep('create');
+    } catch (err) {
+      console.error(err);
+      setPinError('Failed to set PIN. Try again.');
+    } finally {
+      setIsPinVerifying(false);
     }
   };
 
@@ -336,7 +454,7 @@ const Wallet = () => {
             </div>
 
             <div className="flex flex-col gap-3 w-full md:w-auto mt-4 md:mt-0">
-              <button onClick={() => setIsWithdrawModalOpen(true)} className="flex items-center justify-center gap-2 px-8 py-3.5 bg-primary-600 hover:bg-primary-500 text-white rounded-2xl font-bold text-sm transition-colors active:scale-[0.98]">
+              <button onClick={handleWithdrawClick} className="flex items-center justify-center gap-2 px-8 py-3.5 bg-primary-600 hover:bg-primary-500 text-white rounded-2xl font-bold text-sm transition-colors active:scale-[0.98]">
                 <ArrowUpRight className="w-4 h-4" />
                 Withdraw Funds
               </button>
@@ -573,12 +691,13 @@ const Wallet = () => {
       </main>
 
       {isAddAccountModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsAddAccountModalOpen(false)}></div>
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800"
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-black text-slate-900 dark:text-white">Add Bank Account</h3>
@@ -615,13 +734,12 @@ const Wallet = () => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Account Holder Name ({isResolving ? 'Resolving...' : 'Auto-resolved'})</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Account Name</label>
                 <div className="relative">
                   <input 
                     type="text" 
                     value={accountName}
                     readOnly
-                    placeholder="Auto-resolved on input"
                     className={`w-full px-4 py-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium outline-none transition-all dark:text-white uppercase ${isResolving ? 'animate-pulse text-transparent' : ''}`}
                     required
                   />
@@ -653,12 +771,13 @@ const Wallet = () => {
       )}
 
       {accountToRemove && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAccountToRemove(null)}></div>
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 text-center"
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 text-center pb-safe sm:pb-6"
           >
             <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-8 h-8" />
@@ -684,21 +803,115 @@ const Wallet = () => {
         </div>
       )}
 
-      {isWithdrawModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsWithdrawModalOpen(false)}></div>
+      {isSetupPinModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setIsSetupPinModalOpen(false); setPin(['', '', '', '']); }}></div>
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800"
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-black text-slate-900 dark:text-white">Withdraw Funds</h3>
-              <button onClick={() => setIsWithdrawModalOpen(false)} className="w-8 h-8 flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">Create Wallet PIN</h3>
+              <button type="button" onClick={() => { setIsSetupPinModalOpen(false); setPin(['', '', '', '']); }} className="w-8 h-8 flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
                 <Plus className="w-5 h-5 rotate-45" />
               </button>
             </div>
             
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 font-medium">For extra security, you need a 4-digit PIN to withdraw funds from your wallet.</p>
+
+            {pinError && (
+              <div className="bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 p-3 rounded-xl flex items-center gap-2 mb-4 mb-4 text-xs font-bold">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <p>{pinError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSetupPin} className="space-y-4">
+              {setupStep === 'create' ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Set your 4-digit PIN</label>
+                  <div className="flex gap-3 justify-between">
+                    {[0, 1, 2, 3].map((index) => (
+                      <input
+                        key={`setup-pin-${index}`}
+                        type="password"
+                        inputMode="numeric"
+                        ref={pinInputRefs[index]}
+                        value={pin[index]}
+                        onChange={(e) => handlePinChange(index, e.target.value)}
+                        onKeyDown={(e) => handlePinKeyDown(index, e)}
+                        maxLength={1}
+                        className="w-14 h-14 text-center text-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all dark:text-white"
+                        required
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Confirm your PIN</label>
+                  <div className="flex gap-3 justify-between">
+                    {[0, 1, 2, 3].map((index) => (
+                      <input
+                        key={`confirm-pin-${index}`}
+                        type="password"
+                        inputMode="numeric"
+                        ref={confirmPinInputRefs[index]}
+                        value={confirmPin[index]}
+                        onChange={(e) => handleConfirmPinChange(index, e.target.value)}
+                        onKeyDown={(e) => handleConfirmPinKeyDown(index, e)}
+                        maxLength={1}
+                        className="w-14 h-14 text-center text-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all dark:text-white"
+                        required
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <button 
+                type="submit" 
+                disabled={isPinVerifying || (setupStep === 'create' ? pin.some(p => !p) : confirmPin.some(p => !p))}
+                className="w-full mt-6 py-3.5 bg-primary-600 hover:bg-primary-500 text-white rounded-xl font-bold tracking-wide transition-colors active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
+              >
+                {isPinVerifying ? (
+                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                ) : (
+                  <>
+                    {setupStep === 'create' ? 'Next' : <><ShieldCheck className="w-4 h-4" /> Save PIN</>}
+                  </>
+                )}
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {isWithdrawModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setIsWithdrawModalOpen(false); setPin(['', '', '', '']); }}></div>
+          <motion.div 
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">Withdraw Funds</h3>
+              <button type="button" onClick={() => { setIsWithdrawModalOpen(false); setPin(['', '', '', '']); }} className="w-8 h-8 flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
+                <Plus className="w-5 h-5 rotate-45" />
+              </button>
+            </div>
+            
+            {pinError && (
+              <div className="bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 p-3 rounded-xl flex items-center gap-2 mb-4 text-xs font-bold">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <p>{pinError}</p>
+              </div>
+            )}
+
             <form onSubmit={handleWithdraw} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Amount (₦)</label>
@@ -724,6 +937,29 @@ const Wallet = () => {
                     <option key={acc.id} value={acc.id}>{acc.bankName} - ****{String(acc.accountNumber).slice(-4)}</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Confirm with PIN</label>
+                  <button type="button" onClick={() => { setIsWithdrawModalOpen(false); setPin(['', '', '', '']); setConfirmPin(['', '', '', '']); setSetupStep('create'); setIsSetupPinModalOpen(true); }} className="text-xs font-bold text-primary-600 hover:text-primary-500 transition-colors">Forgot PIN?</button>
+                </div>
+                <div className="flex gap-3 justify-between">
+                  {[0, 1, 2, 3].map((index) => (
+                    <input
+                      key={`pin-${index}`}
+                      type="password"
+                      inputMode="numeric"
+                      ref={pinInputRefs[index]}
+                      value={pin[index]}
+                      onChange={(e) => handlePinChange(index, e.target.value)}
+                      onKeyDown={(e) => handlePinKeyDown(index, e)}
+                      maxLength={1}
+                      className="w-14 h-14 text-center text-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all dark:text-white"
+                      required
+                    />
+                  ))}
+                </div>
               </div>
               
               <button 

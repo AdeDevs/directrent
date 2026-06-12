@@ -74,7 +74,7 @@ const SavedListingCard: React.FC<SavedListingCardProps> = ({
           <div className="text-left leading-none">
             <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">rent/year</span>
             <p className="text-xs font-display font-black text-primary-650 dark:text-primary-400 mt-1">
-              ₦{listing.price.toLocaleString()}
+              {listing.price}
             </p>
           </div>
 

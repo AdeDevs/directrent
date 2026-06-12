@@ -55,7 +55,6 @@ import { Listing } from "../types";
 import VerificationBadge from "../components/VerificationBadge";
 import { calculateVerificationLevel, isProfileComplete as checkProfileComplete } from "../lib/verification";
 import KYCVerification from "../components/KYCVerification";
-import TrustVerification from "../components/TrustVerification";
 import NotificationBadge from "../components/NotificationBadge";
 import { createNotification } from "../lib/notifications";
 import HeaderPortal from "../components/HeaderPortal";
@@ -91,7 +90,16 @@ const Profile = () => {
   const [smsStep, setSmsStep] = useState<'phone' | 'otp'>('phone');
   const [phoneError, setPhoneError] = useState("");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
+  const [showKYCModal, setShowKYCModal] = useState(false);
+  const [ninInput, setNinInput] = useState(user?.nin || "");
   const [resendTimer, setResendTimer] = useState(0);
+  const [ninSaved, setNinSaved] = useState(false);
+
+  useEffect(() => {
+    if (user?.nin) {
+      setNinInput(user.nin);
+    }
+  }, [user?.nin]);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -507,11 +515,19 @@ const Profile = () => {
         await verificationId.confirm(otp);
         // On success, update Firestore
         const fullPhone = `+234${phone}`;
-        await updateProfile({
+        const profileUpdates: any = {
           phoneNumber: fullPhone,
           phoneVerified: true,
-          verificationLevel: calculateVerificationLevel({ ...user, phoneVerified: true, phoneNumber: fullPhone })
+        };
+        if (ninInput && ninInput.length === 11) {
+          profileUpdates.nin = ninInput;
+        }
+        profileUpdates.verificationLevel = calculateVerificationLevel({ 
+          ...user, 
+          ...profileUpdates 
         });
+
+        await updateProfile(profileUpdates);
 
         // Trigger notification
         await createNotification(
@@ -923,27 +939,73 @@ const Profile = () => {
               <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
             </button>
 
-            {(user.role === 'agent' || user.role === 'tenant') && (
-              <>
-                <KYCVerification />
-                <TrustVerification onVerifyPhone={() => setShowPhoneInput(true)} />
-              </>
-            )}
 
-            {!user.phoneVerified && (
-               <button 
+
+            {(user.role === 'agent' || user.role === 'tenant') && (
+              <button 
                 onClick={() => setShowPhoneInput(true)}
                 className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
+                id="profile-verify-identity-btn"
               >
-                <div className="w-10 h-10 bg-orange-50 dark:bg-orange-955/40 rounded-2xl flex items-center justify-center text-orange-500 group-active:scale-95 transition-transform border border-orange-100/40 dark:border-orange-900/10">
+                <div className={`w-10 h-10 ${
+                  (user.phoneVerified && user.nin && user.nin.length === 11) ? 
+                  'bg-emerald-50 dark:bg-emerald-955/40 text-emerald-500 border border-emerald-100/40 dark:border-emerald-900/10' :
+                  user.phoneVerified ? 'bg-amber-50 dark:bg-amber-955/40 text-amber-500 border border-amber-100/40 dark:border-amber-900/10' :
+                  'bg-orange-50 dark:bg-orange-955/40 text-orange-500 border border-orange-100/40 dark:border-orange-900/10'
+                } rounded-2xl flex items-center justify-center shrink-0`}>
                   <Fingerprint className="w-5 h-5" />
                 </div>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">Verify Identity</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium font-sans">Add phone number & national NIN credentials</p>
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white truncate">Verify Identity</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium font-sans truncate">
+                    {user.phoneVerified && user.nin && user.nin.length === 11 ? 'Phone & NIN Verified' : user.phoneVerified ? 'Phone Verified, NIN Pending' : 'Verify Mobile OTP & NIN'}
+                  </p>
                 </div>
-                <div className="px-2.5 py-1 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/35 text-rose-600 dark:text-rose-455 rounded-full text-[8.5px] font-black uppercase tracking-wider">Required</div>
-                <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
+                {user.phoneVerified && user.nin && user.nin.length === 11 ? (
+                  <div className="shrink-0 px-2.5 py-1 bg-emerald-50/10 dark:bg-emerald-955/15 border border-emerald-500/20 text-emerald-600 rounded-full text-[8.5px] font-black uppercase tracking-wider">Verified</div>
+                ) : (
+                  <div className="shrink-0 px-2.5 py-1 bg-rose-50 dark:bg-rose-955/15 border border-rose-500/20 text-rose-600 rounded-full text-[8.5px] font-black uppercase tracking-wider">Required</div>
+                )}
+                <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform shrink-0" />
+              </button>
+            )}
+
+            {(user.role === 'agent' || user.role === 'tenant') && (
+              <button 
+                onClick={() => setShowKYCModal(true)}
+                className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group"
+                id="profile-kyc-verification-btn"
+              >
+                <div className={`w-10 h-10 ${
+                  user.verificationStatus === 'verified' ? 'bg-emerald-50 dark:bg-emerald-955/40 text-emerald-500 border border-emerald-100/40 dark:border-emerald-900/10' : 
+                  user.verificationStatus === 'pending' ? 'bg-amber-50 dark:bg-amber-955/40 text-amber-500 border border-amber-100/40 dark:border-amber-900/10' :
+                  (!!(user.role === 'agent' ? user.agent?.verificationReason : user?.userVerificationReason) && user.verificationStatus === 'none') ? 'bg-rose-50 dark:bg-rose-955/40 text-rose-500 border border-rose-100/40 dark:border-rose-900/10' :
+                  'bg-primary-50 dark:bg-primary-955/40 text-primary-500 border border-primary-100/40 dark:border-primary-900/10'
+                } rounded-2xl flex items-center justify-center shrink-0`}>
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white truncate">Govt ID & Liveness</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium font-sans truncate">
+                    {user.verificationStatus === 'verified' ? 'Verified Account' : 
+                     user.verificationStatus === 'pending' ? 'In Review by Mod' : 
+                     (!!(user.role === 'agent' ? user.agent?.verificationReason : user?.userVerificationReason) && user.verificationStatus === 'none') ? 'Re-submission required' : 
+                     'Upload Govt ID & Liveness selfie'}
+                  </p>
+                </div>
+                {user.verificationStatus === 'verified' && (
+                  <div className="shrink-0 px-2.5 py-1 bg-emerald-50/10 dark:bg-emerald-955/15 border border-emerald-500/25 text-emerald-600 rounded-full text-[8.5px] font-black uppercase tracking-wider">Verified</div>
+                )}
+                {user.verificationStatus === 'pending' && (
+                  <div className="shrink-0 px-2.5 py-1 bg-amber-50/10 dark:bg-amber-955/15 border border-amber-500/25 text-amber-600 rounded-full text-[8.5px] font-black uppercase tracking-wider">In review</div>
+                )}
+                {(!!(user.role === 'agent' ? user.agent?.verificationReason : user?.userVerificationReason) && user.verificationStatus === 'none') && (
+                  <div className="shrink-0 px-2.5 py-1 bg-rose-50/10 dark:bg-rose-955/15 border border-rose-500/25 text-rose-600 rounded-full text-[8.5px] font-black uppercase tracking-wider">Update needed</div>
+                )}
+                {(!user.verificationStatus || user.verificationStatus === 'none') && !(user.role === 'agent' ? user.agent?.verificationReason : user?.userVerificationReason) && (
+                  <div className="shrink-0 px-2.5 py-1 bg-rose-50/10 dark:bg-rose-955/15 border border-rose-500/25 text-rose-600 rounded-full text-[8.5px] font-black uppercase tracking-wider">Required</div>
+                )}
+                <ChevronRight className="w-4 h-4 text-slate-350 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform shrink-0" />
               </button>
             )}
 
@@ -1087,14 +1149,14 @@ const Profile = () => {
         <AnimatePresence>
           {showPhoneInput && (
             <div 
-              className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md"
+              className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md"
               onClick={() => setShowPhoneInput(false)}
             >
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-[2rem] shadow-2xl overflow-hidden w-full max-w-sm border border-slate-200 dark:border-slate-800"
+                initial={{ opacity: 0, y: 100 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 100 }}
+                className="bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl overflow-hidden w-full max-w-sm border border-slate-200 dark:border-slate-800 pb-safe sm:pb-0"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="p-4 sm:p-8 space-y-4 sm:space-y-8">
@@ -1111,44 +1173,159 @@ const Profile = () => {
                     </button>
                   </div>
 
-                  {!verificationId ? (
-                    <div className="space-y-4 sm:space-y-8">
+                  {user.phoneVerified ? (
+                    <div className="space-y-4 sm:space-y-6">
                       <div className="text-center space-y-3">
-                         <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-full flex items-center justify-center mb-1 sm:mb-2 ring-4 sm:ring-8 ring-blue-50/50 dark:ring-blue-900/10">
+                        <div className="mx-auto w-12 h-12 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-full flex items-center justify-center ring-4 ring-emerald-50/50 dark:ring-emerald-900/10">
+                          <CheckCircle2 className="w-6 h-6" />
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">Phone Number Verified</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                          {user.phoneNumber || `+234 ${phone}`}
+                        </p>
+                      </div>
+
+                      <div className="border-t border-slate-100 dark:border-slate-800/80 pt-4 space-y-4">
+                        <div className="space-y-2 focus-within:text-primary-600 dark:focus-within:text-primary-400">
+                          <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 transition-colors ml-1">
+                            National Identification Number (NIN)
+                          </label>
+                          <div className="relative">
+                            <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input 
+                              type="text"
+                              maxLength={11}
+                              value={ninInput}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                setNinInput(val);
+                              }}
+                              placeholder="11-digit National NIN"
+                              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-150 dark:border-slate-800 focus:border-primary-500/30 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary-500/10 py-3 pl-11 pr-10 rounded-xl text-sm font-bold text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-350 tracking-wide disabled:opacity-75 disabled:cursor-not-allowed"
+                              disabled={!!(user?.nin && user.nin.length === 11)}
+                            />
+                            {user?.nin && user.nin.length === 11 ? (
+                              <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+                            ) : ninInput.length === 11 && (
+                              <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+                            )}
+                          </div>
+                          {phoneError && (
+                            <p className="text-[10px] text-rose-500 font-bold mt-1 ml-1">{phoneError}</p>
+                          )}
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-1 leading-normal">
+                            {user?.nin && user.nin.length === 11 
+                              ? "Your National Identification Number has been verified and securely saved. Once submitted, it is permanent and cannot be modified."
+                              : "Enter your official 11-digit National Security Number to complete check."}
+                          </p>
+                        </div>
+
+                        <button 
+                          onClick={async () => {
+                            if (!ninInput || ninInput.length !== 11) {
+                              setPhoneError("Please enter a valid 11-digit NIN.");
+                              return;
+                            }
+                            setIsVerifyingPhone(true);
+                            setPhoneError("");
+                            try {
+                              await updateProfile({
+                                nin: ninInput
+                              });
+                              setShowPhoneInput(false);
+                            } catch (e: any) {
+                              setPhoneError(e.message || "Failed to save NIN. Please try again.");
+                            } finally {
+                              setIsVerifyingPhone(false);
+                            }
+                          }}
+                          disabled={isVerifyingPhone || ninInput.length !== 11 || !!(user?.nin && user.nin.length === 11)}
+                          className="w-full bg-primary-600 text-white py-3 rounded-xl text-xs font-black shadow-lg shadow-primary-500/10 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                        >
+                          {isVerifyingPhone ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : user?.nin && user.nin.length === 11 ? (
+                            <span>NIN Verified & Locked</span>
+                          ) : (
+                            <span>Submit NIN Verification</span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ) : !verificationId ? (
+                    <div className="space-y-4 sm:space-y-6">
+                      <div className="text-center space-y-2 sm:space-y-3">
+                         <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-full flex items-center justify-center mb-1 ring-4 sm:ring-8 ring-blue-50/50 dark:ring-blue-900/10">
                            <Smartphone className="w-6 h-6 sm:w-8 sm:h-8" />
                          </div>
-                         <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Verify Phone Number</h4>
-                         <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">We'll send a code to verify your phone number to secure your account and build trust.</p>
+                         <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Verify Phone & National ID</h4>
+                         <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">To keep our community safe and trusted, we verify your phone number via SMS OTP and validate your National Identification Number (NIN).</p>
                       </div>
                       
-                      <div className="space-y-2 focus-within:text-primary-600 dark:focus-within:text-primary-400">
-                        <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 transition-colors ml-1">
-                          Mobile Number
-                        </label>
-                        <div className="relative flex items-center bg-slate-50 dark:bg-slate-800/50 rounded-xl sm:rounded-2xl border-2 border-slate-100 dark:border-slate-800 focus-within:border-primary-500/30 focus-within:bg-white dark:focus-within:bg-slate-900 focus-within:ring-4 focus-within:ring-primary-500/10 transition-all overflow-hidden group">
-                          <div className="flex items-center gap-2 px-3 sm:px-4 py-3 sm:py-4 bg-slate-100/60 dark:bg-slate-800/80 border-r border-slate-200 dark:border-slate-700/50">
-                            <span className="text-lg sm:text-xl leading-none">🇳🇬</span>
-                            <span className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 tracking-tight">+234</span>
+                      <div className="space-y-4">
+                        <div className="space-y-2 focus-within:text-primary-600 dark:focus-within:text-primary-400">
+                          <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 transition-colors ml-1">
+                            Mobile Number
+                          </label>
+                          <div className="relative flex items-center bg-slate-50 dark:bg-slate-800/50 rounded-xl sm:rounded-2xl border-2 border-slate-100 dark:border-slate-800 focus-within:border-primary-500/30 focus-within:bg-white dark:focus-within:bg-slate-900 focus-within:ring-4 focus-within:ring-primary-500/10 transition-all overflow-hidden group">
+                            <div className="flex items-center gap-2 px-3 sm:px-4 py-3 sm:py-4 bg-slate-100/60 dark:bg-slate-800/80 border-r border-slate-200 dark:border-slate-700/50">
+                              <span className="text-lg sm:text-xl leading-none">🇳🇬</span>
+                              <span className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 tracking-tight">+234</span>
+                            </div>
+                            <input 
+                              type="tel"
+                              value={phone}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '');
+                                // Strip leading 0 or 234 if they typed it to keep only 10 digits in state
+                                let clean = val;
+                                if (clean.length > 10) {
+                                  if (clean.startsWith('234')) clean = clean.slice(3);
+                                  else if (clean.startsWith('0')) clean = clean.slice(1);
+                                }
+                                setPhone(clean.slice(0, 10));
+                              }}
+                              placeholder="803 000 0000"
+                              className="w-full bg-transparent border-0 px-3 sm:px-4 py-3 sm:py-4 text-sm sm:text-base font-bold text-slate-900 dark:text-white outline-none placeholder:text-slate-350 dark:placeholder:text-slate-600 tracking-wide"
+                            />
                           </div>
-                          <input 
-                            type="tel"
-                            value={phone}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/\D/g, '');
-                              // Strip leading 0 or 234 if they typed it to keep only 10 digits in state
-                              let clean = val;
-                              if (clean.length > 10) {
-                                if (clean.startsWith('234')) clean = clean.slice(3);
-                                else if (clean.startsWith('0')) clean = clean.slice(1);
-                              }
-                              setPhone(clean.slice(0, 10));
-                            }}
-                            placeholder="803 000 0000"
-                            className="w-full bg-transparent border-0 px-3 sm:px-4 py-3 sm:py-4 text-sm sm:text-base font-bold text-slate-900 dark:text-white outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 tracking-wide"
-                          />
                         </div>
+
+                        <div className="space-y-2 focus-within:text-primary-600 dark:focus-within:text-primary-400">
+                          <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 transition-colors ml-1">
+                            National Identification Number (NIN)
+                          </label>
+                          <div className="relative">
+                            <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                            <input 
+                              type="text"
+                              maxLength={11}
+                              value={ninInput}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                setNinInput(val);
+                                if (ninSaved) setNinSaved(false);
+                              }}
+                              placeholder="11-digit National NIN"
+                              className="w-full bg-slate-50 dark:bg-slate-800/50 border-2 border-slate-100 dark:border-slate-800 focus:border-primary-500/30 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-primary-500/10 py-3 sm:py-4 pl-11 sm:pl-12 pr-10 rounded-xl sm:rounded-2xl text-sm sm:text-base font-bold text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-350 dark:placeholder:text-slate-600 tracking-wide disabled:opacity-75 disabled:cursor-not-allowed"
+                              disabled={!!(user?.nin && user.nin.length === 11)}
+                            />
+                            {user?.nin && user.nin.length === 11 ? (
+                              <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+                            ) : ninInput.length === 11 && (
+                              <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+                            )}
+                          </div>
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium ml-1 leading-normal">
+                            {user?.nin && user.nin.length === 11 
+                              ? "Your National Identification Number has been verified and securely saved. Once submitted, it is permanent and cannot be modified."
+                              : "Enter your official 11-digit National Security Number to complete check."}
+                          </p>
+                        </div>
+
                         {/* Hidden recaptcha container moved inside modal context */}
-                        <div id="recaptcha-container-profile" ref={recaptchaRef} className="mt-2 flex justify-center"></div>
+                        <div id="recaptcha-container-profile" ref={recaptchaRef} className="mt-1 flex justify-center"></div>
+                        
                         {phoneError && (
                           <motion.div 
                             initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
@@ -1158,24 +1335,67 @@ const Profile = () => {
                             <p className="text-[10px] sm:text-[11px] font-bold leading-snug">{phoneError}</p>
                           </motion.div>
                         )}
-                      </div>
-                      <button 
-                        onClick={handleSendOTP} 
-                        disabled={isVerifyingPhone || phone.length !== NIGERIAN_PHONE_LENGTH} 
-                        className="w-full bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-xl shadow-primary-500/20 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 transition-all flex items-center justify-center gap-2"
-                      >
-                        {isVerifyingPhone ? (
-                          <>
-                            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                            <span>Sending...</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>Send Verification Code</span>
-                            <ArrowRight className="w-4 h-4" />
-                          </>
+
+                        {ninSaved && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+                            className="flex items-start gap-1.5 sm:gap-2 text-emerald-600 dark:text-emerald-400 mt-2 bg-emerald-50/50 dark:bg-emerald-900/20 p-2.5 sm:p-3 rounded-lg sm:rounded-xl border border-emerald-100/40 dark:border-emerald-800/40"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-500" />
+                            <p className="text-[10px] sm:text-[11px] font-bold leading-snug">National Identification Number (NIN) saved successfully!</p>
+                          </motion.div>
                         )}
-                      </button>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        {!(user?.nin && user.nin.length === 11) && (
+                          <button 
+                            onClick={async () => {
+                              if (!ninInput || ninInput.length !== 11) {
+                                setPhoneError("Please enter a valid 11-digit NIN.");
+                                return;
+                              }
+                              setIsVerifyingPhone(true);
+                              setPhoneError("");
+                              setNinSaved(false);
+                              try {
+                                await updateProfile({
+                                  nin: ninInput,
+                                  verificationLevel: calculateVerificationLevel({ ...user, nin: ninInput })
+                                });
+                                setNinSaved(true);
+                                setPhoneError("");
+                              } catch (e: any) {
+                                setPhoneError(e.message || "Failed to save NIN. Please try again.");
+                              } finally {
+                                setIsVerifyingPhone(false);
+                              }
+                            }}
+                            disabled={isVerifyingPhone || ninInput.length !== 11 || ninInput === user?.nin}
+                            className="flex-1 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800/80 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:active:scale-100"
+                          >
+                            <span>Save NIN Only</span>
+                          </button>
+                        )}
+
+                        <button 
+                          onClick={handleSendOTP} 
+                          disabled={isVerifyingPhone || phone.length !== NIGERIAN_PHONE_LENGTH || ninInput.length !== 11} 
+                          className={`${(user?.nin && user.nin.length === 11) ? 'w-full' : 'flex-1'} bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs font-black shadow-xl shadow-primary-500/20 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 transition-all flex items-center justify-center gap-2`}
+                        >
+                          {isVerifyingPhone ? (
+                            <>
+                              <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                              <span>Sending...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>Verify Phone (OTP)</span>
+                              <ArrowRight className="w-4 h-4" />
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-4 sm:space-y-8">
@@ -1265,13 +1485,13 @@ const Profile = () => {
         {/* Fullscreen Edit Profile Overlay */}
         <AnimatePresence>
           {isEditing && (
-            <div className="fixed inset-0 z-[110] bg-slate-900/80 dark:bg-slate-950/85 backdrop-blur-xl flex items-center justify-center overflow-y-auto p-3 sm:p-6 cursor-default">
+            <div className="fixed inset-0 z-[9999] bg-slate-900/80 dark:bg-slate-950/85 backdrop-blur-xl flex items-end sm:items-center justify-center p-0 sm:p-6 cursor-default">
               <motion.div 
-                initial={{ opacity: 0, scale: 0.96, y: 30 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96, y: 30 }}
+                initial={{ opacity: 0, y: 100 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 100 }}
                 transition={{ type: "spring", damping: 25, stiffness: 350 }}
-                className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-[0_32px_80px_-20px_rgba(0,0,0,0.18)] dark:shadow-black/80 border border-slate-100 dark:border-slate-800/80 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh] relative my-auto select-none"
+                className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-[0_32px_80px_-20px_rgba(0,0,0,0.18)] dark:shadow-black/80 border border-slate-100 dark:border-slate-800/80 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh] relative mt-10 sm:mt-auto sm:my-auto select-none"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header */}
@@ -1525,41 +1745,26 @@ const Profile = () => {
                             </span>
                           </div>
                         ) : (
-                          <div className="p-4 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-100/50 dark:border-slate-800/60 shadow-sm space-y-3 transition-all duration-300">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-955/20 flex items-center justify-center text-rose-500">
-                                  <Fingerprint className="w-4 h-4" />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 font-sans">National Identity (NIN)</p>
-                                  <p className="text-xs font-bold text-rose-500 leading-none">Unverified ID</p>
-                                </div>
+                          <div className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-100/50 dark:border-slate-800/60 shadow-sm transition-all duration-300">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-955/20 flex items-center justify-center text-rose-500">
+                                <Fingerprint className="w-4 h-4" />
                               </div>
-                              <span className="shrink-0 px-2.5 py-1 bg-rose-50 dark:bg-rose-955/20 border border-rose-100/40 dark:border-rose-900/25 text-[8px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 rounded-lg">
-                                Unverified ID
-                              </span>
+                              <div className="min-w-0">
+                                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 font-sans">National Identity (NIN)</p>
+                                <p className="text-xs font-bold text-rose-500 truncate">Unverified ID</p>
+                              </div>
                             </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider pl-0.5">Link 11-digit National Identity Number</label>
-                              <input
-                                  type="text"
-                                  maxLength={11}
-                                  placeholder="Enter 11-digit NIN to Link"
-                                  value={profileData.nin || ""}
-                                  onChange={(e) => {
-                                    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
-                                    setProfileData((prev) => ({ ...prev, nin: val }));
-                                  }}
-                                  className="w-full bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 py-2.5 px-3 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500/50 dark:focus:border-emerald-500/50 transition-all font-mono"
-                              />
-                            </div>
-                            <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-normal font-medium font-sans">
-                              {user?.role === 'agent'
-                                ? "* Linking your 11-digit NIN verifies your identity as a professional rental agent. Once saved and submitted, it will become permanent and cannot be modified or removed."
-                                : "* Linking your 11-digit NIN verifies your identity in our rental ecosystem. Once saved and submitted, it will become permanent and cannot be modified or removed."}
-                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsEditing(false);
+                                setShowPhoneInput(true);
+                              }}
+                              className="shrink-0 px-2.5 py-1 bg-amber-50 dark:bg-amber-955/20 border border-amber-200 dark:border-amber-900/30 text-[8px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-950/40 transition-colors"
+                            >
+                              Add in Verify Identity
+                            </button>
                           </div>
                         )}
 
@@ -1608,17 +1813,17 @@ const Profile = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[60] overflow-y-auto bg-slate-900/60 backdrop-blur-md"
+              className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md"
             >
               <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="min-h-screen p-4 flex items-center justify-center"
+                initial={{ opacity: 0, y: 100 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 100 }}
+                className="min-h-[100dvh] p-0 sm:p-4 flex items-end sm:items-center justify-center"
                 onClick={() => setIsChangingPassword(false)}
               >
                 <div 
-                  className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-sm shadow-2xl overflow-hidden border border-white/10"
+                  className="bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-xl w-full max-w-sm shadow-2xl overflow-hidden border border-white/10 pb-safe sm:pb-0"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="p-4 sm:p-8 space-y-4 sm:space-y-6">
@@ -1903,6 +2108,9 @@ const Profile = () => {
         </AnimatePresence>
 
         <AnimatePresence>
+          {showKYCModal && (
+            <KYCVerification isOpen={showKYCModal} onClose={() => setShowKYCModal(false)} />
+          )}
         </AnimatePresence>
 
         <AnimatePresence>
@@ -1912,14 +2120,14 @@ const Profile = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+              className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
               onClick={() => setShowLogoutConfirm(false)}
             >
               <motion.div 
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.9, y: 20 }}
-                className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800"
+                initial={{ y: 100 }}
+                animate={{ y: 0 }}
+                exit={{ y: 100 }}
+                className="bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 pb-safe sm:pb-0"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="p-6">
@@ -1956,14 +2164,14 @@ const Profile = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+              className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
               onClick={() => setShowDeletePhotoConfirm(false)}
             >
               <motion.div 
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.9, y: 20 }}
-                className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800"
+                initial={{ y: 100 }}
+                animate={{ y: 0 }}
+                exit={{ y: 100 }}
+                className="bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 pb-safe sm:pb-0"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="p-6">
