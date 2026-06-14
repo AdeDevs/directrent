@@ -124,6 +124,7 @@ const AdminDashboard = () => {
   const [verifications, setVerifications] = useState<any[]>([]);
   const [listings, setListings] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
 
   const notificationsList = React.useMemo(() => {
     const list: { id: string; type: 'report' | 'listing' | 'agent'; title: string; subtitle: string; time: string; raw: any }[] = [];
@@ -185,6 +186,13 @@ const AdminDashboard = () => {
     // Group listings by week/month based on timeframe
     const now = new Date();
     
+    // Helper to extract Date from createdAt
+    const getDate = (val: any) => {
+      if (!val) return null;
+      if (val.seconds !== undefined) return new Date(val.seconds * 1000);
+      return new Date(val);
+    };
+    
     if (timeRange === '7d') {
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       return Array.from({ length: 7 }).map((_, i) => {
@@ -192,11 +200,21 @@ const AdminDashboard = () => {
         d.setDate(now.getDate() - (6 - i));
         const dayName = days[d.getDay()];
         const count = listings.filter(l => {
-          if (!l.createdAt || typeof (l.createdAt as any).seconds === 'undefined') return false;
-          const date = new Date((l.createdAt as any).seconds * 1000);
+          const date = getDate(l.createdAt);
+          if (!date) return false;
           return date.toDateString() === d.toDateString();
         }).length;
-        return { name: dayName, value: count, highlighted: i === 6 };
+        const usersCount = users.filter(u => {
+          const date = getDate(u.createdAt);
+          if (!date) return false;
+          return date.toDateString() === d.toDateString();
+        }).length;
+        const inquiriesCount = conversations.filter(c => {
+          const date = getDate(c.createdAt || c.updatedAt);
+          if (!date) return false;
+          return date.toDateString() === d.toDateString();
+        }).length;
+        return { name: dayName, listings: count, inquiries: inquiriesCount, users: usersCount };
       });
     }
 
@@ -207,11 +225,21 @@ const AdminDashboard = () => {
         d.setMonth(now.getMonth() - (2 - i));
         const monthName = months[d.getMonth()];
         const count = listings.filter(l => {
-          if (!l.createdAt || typeof (l.createdAt as any).seconds === 'undefined') return false;
-          const date = new Date((l.createdAt as any).seconds * 1000);
+          const date = getDate(l.createdAt);
+          if (!date) return false;
           return date.getMonth() === d.getMonth() && date.getFullYear() === d.getFullYear();
         }).length;
-        return { name: monthName, value: count, highlighted: i === 2 };
+        const usersCount = users.filter(u => {
+          const date = getDate(u.createdAt);
+          if (!date) return false;
+          return date.getMonth() === d.getMonth() && date.getFullYear() === d.getFullYear();
+        }).length;
+        const inquiriesCount = conversations.filter(c => {
+          const date = getDate(c.createdAt || c.updatedAt);
+          if (!date) return false;
+          return date.getMonth() === d.getMonth() && date.getFullYear() === d.getFullYear();
+        }).length;
+        return { name: monthName, listings: count, inquiries: inquiriesCount, users: usersCount };
       });
     }
 
@@ -219,14 +247,26 @@ const AdminDashboard = () => {
     return Array.from({ length: 4 }).map((_, i) => {
       const weekLabel = `Wk ${i + 1}`;
       const count = listings.filter(l => {
-        if (!l.createdAt) return false;
-        const date = new Date(l.createdAt.seconds * 1000);
+        const date = getDate(l.createdAt);
+        if (!date) return false;
         const daysDiff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
         return daysDiff <= (4 - i) * 7 && daysDiff > (3 - i) * 7;
       }).length;
-      return { name: weekLabel, value: count, highlighted: i === 3 };
+      const usersCount = users.filter(u => {
+        const date = getDate(u.createdAt);
+        if (!date) return false;
+        const daysDiff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
+        return daysDiff <= (4 - i) * 7 && daysDiff > (3 - i) * 7;
+      }).length;
+      const inquiriesCount = conversations.filter(c => {
+        const date = getDate(c.createdAt || c.updatedAt);
+        if (!date) return false;
+        const daysDiff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
+        return daysDiff <= (4 - i) * 7 && daysDiff > (3 - i) * 7;
+      }).length;
+      return { name: weekLabel, listings: count, inquiries: inquiriesCount, users: usersCount };
     });
-  }, [listings, timeRange]);
+  }, [listings, users, conversations, timeRange]);
 
   const statsCards = React.useMemo(() => {
     const now = new Date();
@@ -326,6 +366,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     let unsubscribeListings: (() => void) | null = null;
     let unsubscribeReports: (() => void) | null = null;
+    let unsubscribeConversations: (() => void) | null = null;
 
     const fetchData = async () => {
       // Only fetch data if we have an authenticated user in the Firebase SDK
@@ -336,6 +377,7 @@ const AdminDashboard = () => {
 
       let reportsResolved = false;
       let listingsResolved = false;
+      let conversationsResolved = false;
 
       setLoading(true);
       try {
@@ -362,11 +404,12 @@ const AdminDashboard = () => {
         // Real-time listener for listings
         const { onSnapshot } = await import('firebase/firestore');
         const listingsQuery = query(collection(db, 'listings'), orderBy('createdAt', 'desc'), limit(200));
+        const conversationsQuery = query(collection(db, 'conversations'), orderBy('updatedAt', 'desc'), limit(500));
         
         unsubscribeReports = onSnapshot(collection(db, 'reports'), (snapshot) => {
           setReports(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
           reportsResolved = true;
-          if (listingsResolved) setLoading(false);
+          if (listingsResolved && conversationsResolved) setLoading(false);
         }, (error: any) => {
           if (error.code === 'permission-denied' && !auth.currentUser) {
             return; // Suppress expected error on logout
@@ -375,11 +418,21 @@ const AdminDashboard = () => {
           reportsResolved = true;
         });
 
+        unsubscribeConversations = onSnapshot(conversationsQuery, (snapshot) => {
+          setConversations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          conversationsResolved = true;
+          if (reportsResolved && listingsResolved) setLoading(false);
+        }, (error: any) => {
+          if (error.code === 'permission-denied' && !auth.currentUser) return;
+          console.error("Conversations snapshot error:", error);
+          conversationsResolved = true;
+        });
+
         unsubscribeListings = onSnapshot(listingsQuery, (snapshot) => {
           const listingsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
           setListings(listingsData);
           listingsResolved = true;
-          if (reportsResolved ) setLoading(false);
+          if (reportsResolved && conversationsResolved) setLoading(false);
 
           // Update selected listing if it's currently open to reflect view/save changes
           setSelectedListing(prev => {
@@ -421,6 +474,7 @@ const AdminDashboard = () => {
         return () => {
           if (unsubscribeListings) unsubscribeListings();
           if (unsubscribeReports) unsubscribeReports();
+          if (unsubscribeConversations) unsubscribeConversations();
         };
 
       } catch (err) {
@@ -808,7 +862,7 @@ const AdminDashboard = () => {
                 title="Admin Profile"
                 className={`w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0 border-2 transition-all ${activeTab === 'profile' ? 'border-primary-500' : 'border-transparent'} ${isSidebarCollapsed ? 'md:hidden' : ''}`}
               >
-                <img src={user?.avatarUrl || (user as any)?.photoURL || `https://ui-avatars.com/api/?name=${user?.firstName || user?.email}&background=000&color=fff`} alt="" />
+                <img src={user?.avatarUrl || (user as any)?.photoURL || `https://ui-avatars.com/api/?name=${user?.firstName || user?.email}&background=000&color=fff`} alt=""  referrerPolicy="no-referrer" />
               </button>
               <div className={`flex-1 min-w-0 pr-2 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>
                 <p className="text-xs font-bold text-[#1A1A1A] dark:text-white truncate cursor-pointer hover:text-primary-600 dark:hover:text-primary-400 transition-colors" onClick={() => setActiveTab('profile')}>
@@ -942,7 +996,7 @@ const AdminDashboard = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                   <div className="lg:col-span-8 bg-white dark:bg-slate-900 px-6 py-6 rounded-none border border-slate-200 dark:border-slate-800 transition-colors duration-300 flex flex-col">
                     <div className="flex items-center justify-between mb-10">
-                      <h3 className="text-xl font-medium text-slate-900 dark:text-white">Listing Activity</h3>
+                      <h3 className="text-xl font-medium text-slate-900 dark:text-white">Platform Activity</h3>
                       <div className="relative">
                         <button 
                           onClick={() => setIsTimeframeOpen(!isTimeframeOpen)}
@@ -1018,22 +1072,26 @@ const AdminDashboard = () => {
                                 }}
                               />
                               <Bar 
-                                dataKey="value" 
-                                radius={[0, 0, 0, 0]}
-                                barSize={40}
-                                activeBar={{
-                                  fill: theme === 'dark' ? '#334155' : '#E2E8F0',
-                                  stroke: 'none'
-                                }}
-                              >
-                                {chartData.map((entry, index) => (
-                                  <Cell 
-                                    key={`admin-dash-cell-${index}`} 
-                                    className="transition-all duration-200 cursor-pointer outline-none"
-                                    fill={entry.highlighted ? (theme === 'dark' ? '#FFF' : '#0F172A') : (theme === 'dark' ? '#1E293B' : '#F1F5F9')}
-                                  />
-                                ))}
-                              </Bar>
+                                dataKey="listings" 
+                                name="Listings Added"
+                                radius={[4, 4, 0, 0]}
+                                barSize={20}
+                                fill={theme === 'dark' ? '#38bdf8' : '#0ea5e9'}
+                              />
+                              <Bar 
+                                dataKey="inquiries" 
+                                name="Inquiries Made"
+                                radius={[4, 4, 0, 0]}
+                                barSize={20}
+                                fill={theme === 'dark' ? '#a78bfa' : '#8b5cf6'}
+                              />
+                              <Bar 
+                                dataKey="users" 
+                                name="New Users"
+                                radius={[4, 4, 0, 0]}
+                                barSize={20}
+                                fill={theme === 'dark' ? '#64748b' : '#94a3b8'}
+                              />
                             </BarChart>
                           </ResponsiveContainer>
                         </DeferredChart>
@@ -1283,7 +1341,7 @@ const AdminDashboard = () => {
                           .map((user) => (
                           <div key={`dash-user-${user.id}`} className="p-4 flex items-center gap-3 group">
                             <div className="w-10 h-10 rounded-none bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 overflow-hidden flex-shrink-0">
-                               <img src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name || user.firstName || 'User'}&background=000&color=fff`} className="w-full h-full object-cover" alt="" />
+                               <img src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name || user.firstName || 'User'}&background=000&color=fff`} className="w-full h-full object-cover" alt=""  referrerPolicy="no-referrer" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="font-bold text-slate-900 dark:text-white text-sm truncate uppercase tracking-tight">{user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Anonymous'}</p>
@@ -1568,7 +1626,7 @@ const AdminDashboard = () => {
                     <div className="flex items-center gap-4 p-4 border border-slate-100 dark:border-slate-800 rounded-none bg-slate-50/50 dark:bg-slate-900/30">
                       <div className="w-12 h-12 rounded-none bg-slate-200 dark:bg-slate-800 overflow-hidden flex items-center justify-center border-2 border-white dark:border-slate-800">
                         {selectedListing.agent?.avatarUrl || selectedListing.agent?.photoURL ? (
-                          <img src={selectedListing.agent.avatarUrl || selectedListing.agent.photoURL} className="w-full h-full object-cover" />
+                          <img src={selectedListing.agent.avatarUrl || selectedListing.agent.photoURL} className="w-full h-full object-cover"  referrerPolicy="no-referrer" />
                         ) : (
                           <User className="w-6 h-6 text-slate-400" />
                         )}

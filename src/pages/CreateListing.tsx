@@ -580,7 +580,7 @@ export default function CreateListing() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {formData.images.map((url, idx) => (
                   <div key={`create-img-${idx}-${url.slice(-20)}`} className="relative aspect-square rounded-2xl overflow-hidden group">
-                    <img src={url} alt={`Listing ${idx}`} className="w-full h-full object-cover" />
+                    <img src={url} alt={`Listing ${idx}`} className="w-full h-full object-cover"  referrerPolicy="no-referrer" />
                     <button
                       type="button"
                       onClick={() => removeImage(idx)}

@@ -52,10 +52,15 @@ function setupEnvironment() {
 
     // Support for setting the key as a JSON string in environment (useful for Vercel secrets)
     if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      const tempPath = path.join("/tmp", "temp-sa-key.json");
-      fs.writeFileSync(tempPath, process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-      process.env.GOOGLE_APPLICATION_CREDENTIALS = tempPath;
-      console.log("[EnvSetup] Created temporary service account key in /tmp from environment variable");
+      try {
+        JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+        const tempPath = path.join("/tmp", "temp-sa-key.json");
+        fs.writeFileSync(tempPath, process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+        process.env.GOOGLE_APPLICATION_CREDENTIALS = tempPath;
+        console.log("[EnvSetup] Created temporary service account key in /tmp from environment variable");
+      } catch (e) {
+        console.error("[EnvSetup] Invalid JSON in FIREBASE_SERVICE_ACCOUNT_JSON variable - ignoring.");
+      }
     }
   } catch (err) {
     console.warn("Env setup handled gracefully:", err);
@@ -223,7 +228,21 @@ app.get("/api/fetch-image", async (req, res) => {
 
   app.get("/api/admin/debug-user/:userId", async (req, res) => {
     try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: "Missing or invalid authorization" });
+      }
+      const idToken = authHeader.split('Bearer ')[1];
+      const adminApp = getAdmin();
+      const decodedToken = await adminApp.auth().verifyIdToken(idToken);
+      
       const db = getDb();
+      const adminDoc = await db.collection("users").doc(decodedToken.uid).get();
+      const isSuperAdmin = ['admin', 'god', 'admin_staff', 'moderator'].includes(adminDoc.data()?.role) || decodedToken.email === 'adeyemiakinyemi01@gmail.com';
+      if (!isSuperAdmin) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
       const doc = await db.collection("users").doc(req.params.userId).get();
       res.json({ exists: doc.exists, data: doc.data() });
     } catch (err: any) {
@@ -278,7 +297,20 @@ app.get("/api/fetch-image", async (req, res) => {
       return res.status(400).json({ status: false, message: "Missing required fields" });
     }
 
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ status: false, message: "Missing or invalid authorization" });
+    }
+
     try {
+      const idToken = authHeader.split('Bearer ')[1];
+      const adminApp = getAdmin();
+      const decodedToken = await adminApp.auth().verifyIdToken(idToken);
+      
+      if (decodedToken.uid !== agentId && decodedToken.email !== 'adeyemiakinyemi01@gmail.com') {
+        return res.status(403).json({ status: false, message: "Forbidden: Not authorized for this agent ID" });
+      }
+
       const db = getDb();
       const transactionsRef = db.collection('transactions');
       
@@ -454,6 +486,42 @@ app.get("/api/fetch-image", async (req, res) => {
     } catch (err: any) {
       console.error("Error checking user existence:", err);
       res.status(500).json({ error: "Failed to check user existence" });
+    }
+  });
+
+  app.get("/api/public/users/:userId", async (req, res) => {
+    try {
+      const db = getDb();
+      const doc = await db.collection("users").doc(req.params.userId).get();
+      if (!doc.exists) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const data = doc.data() || {};
+      const publicData = {
+        id: doc.id,
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        name: data.name || '',
+        avatarUrl: data.avatarUrl || '',
+        role: data.role,
+        verificationLevel: data.verificationLevel,
+        verificationStatus: data.verificationStatus,
+        isSuspended: data.isSuspended || false,
+        about: data.about || '',
+        city: data.city || '',
+        country: data.country || '',
+        listingsCount: data.listingsCount || 0,
+        completedTxns: data.completedTxns || 0,
+        avgRating: data.avgRating || 0,
+        reviewsCount: data.reviewsCount || 0,
+        phoneNumber: data.phoneNumber || '' 
+      };
+      
+      res.json({ data: publicData });
+    } catch (err: any) {
+      console.error(`Error fetching public profile for ${req.params.userId}:`, err);
+      res.status(500).json({ error: "Failed to fetch public profile" });
     }
   });
 

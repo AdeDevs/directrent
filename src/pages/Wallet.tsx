@@ -7,7 +7,7 @@ import {
   Phone, Mail
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import DeferredChart from '../components/DeferredChart';
@@ -211,9 +211,13 @@ const Wallet = () => {
     setPinError('');
     setIsWithdrawing(true);
     try {
+      const token = await auth.currentUser?.getIdToken();
       const response = await fetch('/api/withdraw', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ 
             amount: withdrawAmount, 
             bankAccountId: selectedBankAccountId,

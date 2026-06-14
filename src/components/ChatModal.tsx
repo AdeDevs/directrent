@@ -297,22 +297,26 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
         setConvStatus(data.status || 'inquiry');
         setConvData(data);
 
-        // Fetch other user's verification status with live listener
+        // Fetch other user's verification status
         const otherId = currentUser.role === 'tenant' ? data.agentId : data.tenantId;
         if (otherId && !unsubOther) {
-          unsubOther = onSnapshot(doc(db, 'users', otherId), (userSnap) => {
-            if (userSnap.exists()) {
-              const d = userSnap.data();
-              setOtherUser({
-                name: d.firstName || d.lastName ? `${d.firstName || ''} ${d.lastName || ''}`.trim() : (d.name || "User"),
-                avatarUrl: d.avatarUrl,
-                verificationLevel: d.verificationLevel === 'verified' ? 'verified' : calculateVerificationLevel(d as any),
-                role: d.role,
-                phoneNumber: d.phoneNumber,
-                isSuspended: d.isSuspended || false
-              });
-            }
-          }, (err) => handleFirestoreError(err, OperationType.GET, `users/${otherId}`));
+          unsubOther = () => {}; // Dummy unsubscribe
+          fetch('/api/public/users/' + otherId)
+            .then(res => res.json())
+            .then(json => {
+              if (json.data) {
+                const d = json.data;
+                setOtherUser({
+                  name: d.firstName || d.lastName ? `${d.firstName || ''} ${d.lastName || ''}`.trim() : (d.name || "User"),
+                  avatarUrl: d.avatarUrl,
+                  verificationLevel: d.verificationLevel === 'verified' ? 'verified' : calculateVerificationLevel(d as any),
+                  role: d.role,
+                  phoneNumber: d.phoneNumber,
+                  isSuspended: d.isSuspended || false
+                });
+              }
+            })
+            .catch(err => console.warn("Failed to fetch other user:", err));
         }
       }
     }, (err) => handleFirestoreError(err, OperationType.GET, `conversations/${conversationId}`));
@@ -497,9 +501,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       if (!convDoc.exists()) {
         let agentImage = '';
         if (agentId !== 'unknown') {
-          const agentDoc = await getDoc(doc(db, 'users', agentId));
-          if (agentDoc.exists()) {
-            agentImage = agentDoc.data().avatarUrl || '';
+          const agentRes = await fetch('/api/public/users/' + agentId);
+          if (agentRes.ok) {
+            const agentDoc = await agentRes.json();
+            agentImage = agentDoc.data?.avatarUrl || '';
           }
         }
 
@@ -858,9 +863,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       if (!convDoc.exists()) {
         let agentImage = '';
         if (agentId !== 'unknown') {
-          const agentDoc = await getDoc(doc(db, 'users', agentId));
-          if (agentDoc.exists()) {
-            agentImage = agentDoc.data().avatarUrl || '';
+          const agentRes = await fetch('/api/public/users/' + agentId);
+          if (agentRes.ok) {
+            const agentDoc = await agentRes.json();
+            agentImage = agentDoc.data?.avatarUrl || '';
           }
         }
 
@@ -1068,9 +1074,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       if (!convDoc.exists()) {
         let agentImage = '';
         if (agentId !== 'unknown') {
-          const agentDoc = await getDoc(doc(db, 'users', agentId));
-          if (agentDoc.exists()) {
-            agentImage = agentDoc.data().avatarUrl || '';
+          const agentRes = await fetch('/api/public/users/' + agentId);
+          if (agentRes.ok) {
+            const agentDoc = await agentRes.json();
+            agentImage = agentDoc.data?.avatarUrl || '';
           }
         }
 
@@ -1169,9 +1176,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
         
         // Try to fetch agent's image if not in listing
         if (agentId !== 'unknown') {
-          const agentDoc = await getDoc(doc(db, 'users', agentId));
-          if (agentDoc.exists()) {
-            agentImage = agentDoc.data().avatarUrl || '';
+          const agentRes = await fetch('/api/public/users/' + agentId);
+          if (agentRes.ok) {
+            const agentDoc = await agentRes.json();
+            agentImage = agentDoc.data?.avatarUrl || '';
           }
         }
 

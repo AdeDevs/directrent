@@ -318,13 +318,13 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
       }
 
       // Fetch Real Agent Profile
-      const agentDoc = await getDoc(doc(db, 'users', agentId));
-      if (!agentDoc.exists()) {
+      const response = await fetch('/api/public/users/' + agentId);
+      if (!response.ok) {
         setError("This agent profile is no longer available.");
         setIsLoading(false);
         return;
       }
-      const agentData = agentDoc.data();
+      const { data: agentData } = await response.json();
       setAgent(agentData);
 
       // Fetch Agent's Listings directly to calculate active count dynamically (safe public query)
@@ -433,9 +433,10 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
 
       await Promise.all(tenantIds.map(async (uid) => {
         try {
-          const tenantSnap = await getDoc(doc(db, 'users', uid));
-          if (tenantSnap.exists()) {
-            tenantProfiles[uid] = tenantSnap.data();
+          const tenantRes = await fetch('/api/public/users/' + uid);
+          if (tenantRes.ok) {
+            const { data } = await tenantRes.json();
+            tenantProfiles[uid] = data;
           }
         } catch (e) {
           console.warn(`Failed to dynamically retrieve tenant profile in stream: ${uid}`, e);

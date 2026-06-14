@@ -44,22 +44,24 @@ const useParticipant = (userId: string | undefined) => {
   useEffect(() => {
     if (!userId || userId === 'unknown') return;
 
-    return onSnapshot(doc(db, "users", userId), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
+    let isMounted = true;
+    fetch('/api/public/users/' + userId)
+      .then(res => res.json())
+      .then(json => {
+        if (!isMounted || !json.data) return;
+        const data = json.data;
         setParticipant({
           name: data.firstName || data.lastName ? `${data.firstName || ''} ${data.lastName || ''}`.trim() : (data.name || "User"),
           avatarUrl: data.avatarUrl,
           verificationLevel: data.verificationLevel === 'verified' ? 'verified' : calculateVerificationLevel(data as any),
           role: data.role as UserRole || 'tenant'
         });
-      }
-    }, (error: any) => {
-      if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
-        return;
-      }
-      console.warn("Chat participant error:", error);
-    });
+      })
+      .catch(err => {
+        console.warn("Chat participant fetch error:", err);
+      });
+
+    return () => { isMounted = false; };
   }, [userId]);
 
   return participant;
@@ -112,7 +114,7 @@ const ConversationAvatar = ({
   );
 };
 
-const ConversationRow = ({ 
+const ConversationRow = React.memo(({ 
   conv, 
   user, 
   onClick, 
@@ -205,7 +207,7 @@ const ConversationRow = ({
       </div>
     </motion.div>
   );
-};
+});
 
 interface Conversation {
   id: string;

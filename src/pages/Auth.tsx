@@ -1127,7 +1127,7 @@ To authorize it, follow these steps:
                 disabled={isLoading}
                 className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all group"
               >
-                <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" className="w-5 h-5" alt="Google" />
+                <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" className="w-5 h-5" alt="Google"  referrerPolicy="no-referrer" />
                 <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Continue with Google</span>
               </button>
               

@@ -354,7 +354,7 @@ const KYCVerification: React.FC<KYCVerificationProps> = ({ isOpen, onClose }) =>
                 ) : capturedImage ? (
                   <div className="flex flex-col items-center gap-3 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                     <div className="w-[110px] h-[110px] rounded-full overflow-hidden border-2 border-emerald-500 shadow-md">
-                      <img src={capturedImage} alt="Captured Selfie" className="w-full h-full object-cover" />
+                      <img src={capturedImage} alt="Captured Selfie" className="w-full h-full object-cover"  referrerPolicy="no-referrer" />
                     </div>
                     <div className="flex items-center gap-2 w-full">
                       <button

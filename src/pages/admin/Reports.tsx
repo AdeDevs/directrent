@@ -426,13 +426,13 @@ const Reports: React.FC<ReportsProps> = ({
                           <div className="w-16 h-16 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 relative flex-shrink-0">
                             {report.type === 'listing' || report.listingId ? (
                               listingCache[String(report.listingId)]?.images?.[0] || listingCache[String(report.listingId)]?.image ? (
-                                <img src={listingCache[String(report.listingId)]?.images?.[0] || listingCache[String(report.listingId)]?.image} className="w-full h-full object-cover" alt="" />
+                                <img src={listingCache[String(report.listingId)]?.images?.[0] || listingCache[String(report.listingId)]?.image} className="w-full h-full object-cover" alt=""  referrerPolicy="no-referrer" />
                               ) : (
                                 <Building2 className="w-8 h-8 text-slate-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20" />
                               )
                             ) : (
                               agentCache[report.agentId!]?.avatarUrl ? (
-                                <img src={agentCache[report.agentId!]?.avatarUrl} className="w-full h-full object-cover" alt="" />
+                                <img src={agentCache[report.agentId!]?.avatarUrl} className="w-full h-full object-cover" alt=""  referrerPolicy="no-referrer" />
                               ) : (
                                 <Flag className="w-8 h-8 text-slate-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20" />
                               )
@@ -496,13 +496,13 @@ const Reports: React.FC<ReportsProps> = ({
                                 <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
                                   {report.type === 'listing' || report.listingId ? (
                                     listingCache[String(report.listingId)]?.images?.[0] || listingCache[String(report.listingId)]?.image ? (
-                                      <img src={listingCache[String(report.listingId)]?.images?.[0] || listingCache[String(report.listingId)]?.image} className="w-full h-full object-cover" alt="" />
+                                      <img src={listingCache[String(report.listingId)]?.images?.[0] || listingCache[String(report.listingId)]?.image} className="w-full h-full object-cover" alt=""  referrerPolicy="no-referrer" />
                                     ) : (
                                       <Building2 className="w-4 h-4 text-slate-400" />
                                     )
                                   ) : (
                                     agentCache[report.agentId!]?.avatarUrl ? (
-                                      <img src={agentCache[report.agentId!]?.avatarUrl} className="w-full h-full object-cover" alt="" />
+                                      <img src={agentCache[report.agentId!]?.avatarUrl} className="w-full h-full object-cover" alt=""  referrerPolicy="no-referrer" />
                                     ) : (
                                       <User className="w-4 h-4 text-slate-400" />
                                     )
@@ -523,7 +523,7 @@ const Reports: React.FC<ReportsProps> = ({
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-none bg-slate-100 dark:bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-200 dark:border-slate-700">
                                   {reporter?.avatarUrl ? (
-                                    <img src={reporter.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                    <img src={reporter.avatarUrl} alt="" className="w-full h-full object-cover"  referrerPolicy="no-referrer" />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-slate-400 uppercase">
                                       {reporterName.charAt(0)}
@@ -755,7 +755,7 @@ const Reports: React.FC<ReportsProps> = ({
                               {ownerAg && (
                                 <div className="p-[15px] bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 flex items-center gap-4 sm:gap-6">
                                   <div className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex-shrink-0">
-                                    {ownerAg?.avatarUrl ? <img src={ownerAg.avatarUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-slate-300 font-black text-2xl sm:text-3xl uppercase">{(ownerAg?.firstName || ownerAg?.name || 'A').charAt(0)}</div>}
+                                    {ownerAg?.avatarUrl ? <img src={ownerAg.avatarUrl} className="w-full h-full object-cover" alt=""  referrerPolicy="no-referrer" /> : <div className="w-full h-full flex items-center justify-center text-slate-300 font-black text-2xl sm:text-3xl uppercase">{(ownerAg?.firstName || ownerAg?.name || 'A').charAt(0)}</div>}
                                   </div>
                                   <div className="flex-1 space-y-1.5">
                                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Listing Owner</h4>
@@ -784,7 +784,7 @@ const Reports: React.FC<ReportsProps> = ({
                           return (
                             <div className="p-[15px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-6">
                               <div className="w-24 h-24 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex-shrink-0">
-                                {ag?.avatarUrl ? <img src={ag.avatarUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-slate-300 font-black text-3xl uppercase">{ag?.firstName?.charAt(0) || 'A'}</div>}
+                                {ag?.avatarUrl ? <img src={ag.avatarUrl} className="w-full h-full object-cover" alt=""  referrerPolicy="no-referrer" /> : <div className="w-full h-full flex items-center justify-center text-slate-300 font-black text-3xl uppercase">{ag?.firstName?.charAt(0) || 'A'}</div>}
                               </div>
                               <div className="flex-1 space-y-2">
                                 <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{ag ? `${ag.firstName} ${ag.lastName}` : "Unknown Agent"}</h3>

@@ -1778,7 +1778,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                               <div className="space-y-2">
                                 <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest text-center">New Submission</p>
                                 <div className="aspect-video bg-slate-100 dark:bg-slate-900 border-2 border-emerald-500/30 overflow-hidden relative">
-                                  <img src={selectedListingForReview.image} alt="" className="w-full h-full object-cover" />
+                                  <img src={selectedListingForReview.image} alt="" className="w-full h-full object-cover"  referrerPolicy="no-referrer" />
                                   <div className="absolute top-2 left-2 bg-black/60 px-2 py-1 text-[8px] font-black text-white uppercase">New</div>
                                 </div>
                               </div>
@@ -1786,7 +1786,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                                 <p className="text-[8px] font-black text-rose-500 uppercase tracking-widest text-center">Existing Listing</p>
                                 <div className="aspect-video bg-slate-100 dark:bg-slate-900 border-2 border-rose-500/30 overflow-hidden relative">
                                   {nearbyListings.find(l => String(l.id) === String(duplicateReport.matchedListingId))?.image ? (
-                                    <img src={nearbyListings.find(l => String(l.id) === String(duplicateReport.matchedListingId))?.image} alt="" className="w-full h-full object-cover opacity-80" />
+                                    <img src={nearbyListings.find(l => String(l.id) === String(duplicateReport.matchedListingId))?.image} alt="" className="w-full h-full object-cover opacity-80" referrerPolicy="no-referrer" />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center text-slate-500 text-[8px] uppercase font-black">Image Unavailable</div>
                                   )}
