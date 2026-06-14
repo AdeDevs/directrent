@@ -33,7 +33,7 @@ export const HeaderPortal: React.FC<HeaderPortalProps> = ({ children }) => {
     return createPortal(children, portalTarget);
   }
 
-  return <>{children}</>;
+  return null;
 };
 
 export default HeaderPortal;

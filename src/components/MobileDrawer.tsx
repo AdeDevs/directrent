@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, X, Home as HomeIcon, MessageCircleMore, UserCircle, PlusCircle, LayoutDashboard, LogOut, Wallet, Bell, Sun, Moon } from 'lucide-react';
+import { Menu, X, Home as HomeIcon, MessageCircleMore, UserCircle, PlusCircle, LayoutDashboard, LogOut, Wallet, Bell, Sun, Moon, Bookmark } from 'lucide-react';
 import { AppTab, User } from '../types';
 import InboxBadge from './InboxBadge';
 import NotificationBadge from './NotificationBadge';
@@ -36,7 +36,9 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ activeTab, setActiveTab, us
     }
   };
 
-  const navItems = [
+  const isAgent = user?.role === 'agent';
+  
+  const navItems = isAgent ? [
     { id: 'home', icon: <HomeIcon className="w-5 h-5" />, label: 'Home' },
     { id: 'chat', icon: <MessageCircleMore className="w-5 h-5" />, label: 'Chat', badge: <InboxBadge /> },
     { id: 'create', icon: <PlusCircle className="w-5 h-5" />, label: 'Post Property' },
@@ -44,6 +46,12 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ activeTab, setActiveTab, us
     { id: 'wallet', icon: <Wallet className="w-5 h-5" />, label: 'Wallet & Earnings' },
     { id: 'notifications', icon: <Bell className="w-5 h-5" />, label: 'Notifications', badge: <div className="relative w-4 h-4"><NotificationBadge /></div> },
     { id: 'profile', icon: <UserCircle className="w-5 h-5" />, label: 'Profile' },
+  ] : [
+    { id: 'home', icon: <HomeIcon className="w-5 h-5" />, label: 'Home' },
+    { id: 'favorites', icon: <Bookmark className="w-5 h-5" />, label: 'Saved' },
+    { id: 'chat', icon: <MessageCircleMore className="w-5 h-5" />, label: 'Chat', badge: <InboxBadge /> },
+    { id: 'notifications', icon: <Bell className="w-5 h-5" />, label: 'Notifications', badge: <div className="relative w-4 h-4"><NotificationBadge /></div> },
+    { id: 'profile', icon: <UserCircle className="w-5 h-5" />, label: 'Profile' }
   ];
 
   return (

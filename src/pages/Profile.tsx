@@ -253,16 +253,19 @@ const Profile = () => {
     // setShowVault(false); 
 
     (async () => {
+      let timer: any;
       try {
         const fileName = `vault/${user.id}/${Date.now()}_${file.name}`;
         const storageRef = ref(storage, fileName);
         
         // Progress tick simulation
-        const timer = setInterval(() => {
+        timer = setInterval(() => {
           setPublishingProgress(prev => prev ? Math.min(prev + 5, 80) : 80);
         }, 500);
 
-        await uploadBytes(storageRef, file);
+        const uploadPromise = uploadBytes(storageRef, file);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Document upload timed out")), 30000));
+        await Promise.race([uploadPromise, timeoutPromise]);
         clearInterval(timer);
         setPublishingProgress(90);
 
@@ -285,8 +288,9 @@ const Profile = () => {
         }, 1500);
 
       } catch (err) {
+        clearInterval(timer);
         console.error("Doc upload failed:", err);
-        toast.error("Failed to upload document.");
+        toast.error("Failed to upload document. Please check your network connection.");
         setPublishingProgress(null);
         setPublishingStatus('');
       }
@@ -486,8 +490,8 @@ const Profile = () => {
       console.error("SMS Error:", error);
       if (error.code === 'auth/network-request-failed') {
         setPhoneError("Network Error: Please check your internet connection and try again.");
-      } else if (error.code === 'auth/invalid-app-credential') {
-        setPhoneError("Verification Error: Site domain may not be authorized in Firebase.");
+      } else if (error.code === 'auth/invalid-app-credential' || error.message?.toLowerCase().includes('captcha')) {
+        setPhoneError("Connectivity Error: Please check your internet connection or disable any VPNs/Ad-blockers and try again.");
       } else if (error.code === 'auth/too-many-requests') {
         setPhoneError("Too many attempts. This number has been temporarily blocked.");
       } else if (error.code === 'auth/credential-already-in-use' || error.code === 'auth/account-exists-with-different-credential') {
@@ -798,7 +802,7 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-0 transition-colors duration-300">
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 lg:hidden">
-        <div className="w-full max-w-none px-4 h-16 flex items-center justify-between">
+        <div className="w-full max-w-full sm:max-w-none px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <HamburgerButton />
             <div>
@@ -829,7 +833,7 @@ const Profile = () => {
         </div>
       </HeaderPortal>
 
-      <main className="w-full max-w-none px-[15px] pt-[15px] pb-[15px] mb-0 space-y-6">
+      <main className="w-full max-w-full sm:max-w-none px-[15px] pt-[15px] pb-[15px] mb-0 space-y-6">
         {showSuccess && (
           <motion.div
             initial={{ opacity: 0, y: -15 }}
@@ -1274,7 +1278,11 @@ const Profile = () => {
                             </div>
                             <input 
                               type="tel"
-                              value={phone}
+                              value={
+                                phone.length > 6 ? `${phone.slice(0, 3)} ${phone.slice(3, 6)} ${phone.slice(6)}` :
+                                phone.length > 3 ? `${phone.slice(0, 3)} ${phone.slice(3)}` :
+                                phone
+                              }
                               onChange={(e) => {
                                 const val = e.target.value.replace(/\D/g, '');
                                 // Strip leading 0 or 234 if they typed it to keep only 10 digits in state
@@ -1380,7 +1388,7 @@ const Profile = () => {
 
                         <button 
                           onClick={handleSendOTP} 
-                          disabled={isVerifyingPhone || phone.length !== NIGERIAN_PHONE_LENGTH || ninInput.length !== 11} 
+                          disabled={isVerifyingPhone || phone.length !== NIGERIAN_PHONE_LENGTH} 
                           className={`${(user?.nin && user.nin.length === 11) ? 'w-full' : 'flex-1'} bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs font-black shadow-xl shadow-primary-500/20 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 transition-all flex items-center justify-center gap-2`}
                         >
                           {isVerifyingPhone ? (
@@ -1491,7 +1499,7 @@ const Profile = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 100 }}
                 transition={{ type: "spring", damping: 25, stiffness: 350 }}
-                className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-[0_32px_80px_-20px_rgba(0,0,0,0.18)] dark:shadow-black/80 border border-slate-100 dark:border-slate-800/80 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh] relative mt-10 sm:mt-auto sm:my-auto select-none"
+                className="w-full max-w-full sm:max-w-xl bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-[0_32px_80px_-20px_rgba(0,0,0,0.18)] dark:shadow-black/80 border border-slate-100 dark:border-slate-800/80 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh] relative mt-10 sm:mt-auto sm:my-auto select-none"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header */}
@@ -1979,7 +1987,7 @@ const Profile = () => {
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="bg-white dark:bg-slate-900 w-full max-w-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] border border-slate-200 dark:border-slate-800"
+                className="bg-white dark:bg-slate-900 w-full max-w-full sm:max-w-2xl rounded-t-[2rem] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] border-t sm:border border-slate-200 dark:border-slate-800 pb-safe sm:pb-0"
               >
                 <div className="p-5 sm:p-8 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 shrink-0">
                   <div className="flex items-center gap-3">

@@ -195,7 +195,7 @@ const KYCVerification: React.FC<KYCVerificationProps> = ({ isOpen, onClose }) =>
         initial={{ opacity: 0, y: 100 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 100 }}
-        className="relative bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden w-full max-w-md border border-slate-200 dark:border-slate-800 pb-safe sm:pb-0"
+        className="relative bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden w-full max-w-full sm:max-w-md border border-slate-200 dark:border-slate-800 pb-safe sm:pb-0"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 sm:p-6 space-y-4">

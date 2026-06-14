@@ -238,7 +238,7 @@ const AppLayout = () => {
 
       {/* Mobile Navigation */}
       <div className="relative z-[100] lg:hidden">
-        {!currentListing && user?.role === 'agent' && (
+        {user?.role === 'agent' && (
           <MobileDrawer
             activeTab={activeTab}
             user={user}
@@ -249,8 +249,16 @@ const AppLayout = () => {
             }}
           />
         )}
-        {!currentListing && user?.role !== 'agent' && (
-          <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} />
+        {user?.role !== 'agent' && (
+          <BottomNav 
+            activeTab={activeTab} 
+            user={user} 
+            setActiveTab={(tab: any) => {
+              setCurrentListing(null);
+              setSelectedAgentId(null);
+              setActiveTab(tab);
+            }} 
+          />
         )}
       </div>
     </div>

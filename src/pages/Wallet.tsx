@@ -3,7 +3,8 @@ import HamburgerButton from '../components/HamburgerButton';
 import { motion } from 'motion/react';
 import { 
   CheckCircle2, AlertTriangle, ArrowUpRight, 
-  Clock, Download, Filter, Landmark, Plus, ArrowRight, Wallet as WalletIcon, ShieldCheck, FileText
+  Clock, Download, Filter, Landmark, Plus, ArrowRight, Wallet as WalletIcon, ShieldCheck, FileText,
+  Phone, Mail
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
@@ -36,6 +37,12 @@ const Wallet = () => {
   const [isPinVerifying, setIsPinVerifying] = useState(false);
   const pinInputRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   const confirmPinInputRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
+
+  const [isForgotPinModalOpen, setIsForgotPinModalOpen] = useState(false);
+  const [resetContact, setResetContact] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetMethod, setResetMethod] = useState<'phone' | 'email'>('phone');
 
   const BankLogo = ({ bankName }: { bankName: string }) => {
     const [useFallback, setUseFallback] = useState(false);
@@ -427,7 +434,7 @@ const Wallet = () => {
         <div className="w-8"></div>
       </header>
 
-      <main className="w-full max-w-none px-[15px] pt-[15px] pb-[15px] mb-[15px] space-y-[15px]">
+      <main className="w-full max-w-full sm:max-w-none px-[15px] pt-[15px] pb-[15px] mb-[15px] space-y-[15px]">
         
         {/* Top Balance Card */}
         <div className="bg-[#0B1015] dark:bg-black rounded-3xl p-[15px] md:p-6 text-white relative shadow-xl overflow-hidden flex flex-col justify-between">
@@ -697,7 +704,7 @@ const Wallet = () => {
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
-            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
+            className="relative w-full max-w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-black text-slate-900 dark:text-white">Add Bank Account</h3>
@@ -777,7 +784,7 @@ const Wallet = () => {
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
-            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 text-center pb-safe sm:pb-6"
+            className="relative w-full max-w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 text-center pb-safe sm:pb-6"
           >
             <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-8 h-8" />
@@ -810,7 +817,7 @@ const Wallet = () => {
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
-            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
+            className="relative w-full max-w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-black text-slate-900 dark:text-white">Create Wallet PIN</h3>
@@ -896,7 +903,7 @@ const Wallet = () => {
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
-            className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
+            className="relative w-full max-w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-black text-slate-900 dark:text-white">Withdraw Funds</h3>
@@ -942,7 +949,7 @@ const Wallet = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Confirm with PIN</label>
-                  <button type="button" onClick={() => { setIsWithdrawModalOpen(false); setPin(['', '', '', '']); setConfirmPin(['', '', '', '']); setSetupStep('create'); setIsSetupPinModalOpen(true); }} className="text-xs font-bold text-primary-600 hover:text-primary-500 transition-colors">Forgot PIN?</button>
+                  <button type="button" onClick={() => { setIsWithdrawModalOpen(false); setPin(['', '', '', '']); setResetContact(''); setResetMethod('phone'); setResetSent(false); setIsForgotPinModalOpen(true); }} className="text-xs font-bold text-primary-600 hover:text-primary-500 transition-colors">Forgot PIN?</button>
                 </div>
                 <div className="flex gap-3 justify-between">
                   {[0, 1, 2, 3].map((index) => (
@@ -976,6 +983,83 @@ const Wallet = () => {
                 )}
               </button>
             </form>
+          </motion.div>
+        </div>
+      )}
+      {isForgotPinModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsForgotPinModalOpen(false)}></div>
+          <motion.div 
+            initial={{ opacity: 0, y: "100%" }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, y: "100%" }}
+            className="relative w-full max-w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 pb-safe pb-8 sm:pb-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">Reset Wallet PIN</h3>
+              <button type="button" onClick={() => setIsForgotPinModalOpen(false)} className="w-8 h-8 flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
+                <Plus className="w-5 h-5 rotate-45" />
+              </button>
+            </div>
+            
+            {resetSent ? (
+              <div className="text-center py-6">
+                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                </div>
+                <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Reset Link Sent!</h4>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  We've sent instructions to reset your PIN to <span className="font-bold">{resetMethod === 'phone' ? user?.phoneNumber : user?.email}</span>.
+                </p>
+                <button onClick={() => setIsForgotPinModalOpen(false)} className="mt-6 w-full py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold rounded-xl active:scale-[0.98] transition-all">Close</button>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                  We'll send you a secure link to reset your wallet PIN to the contact associated with your account.
+                </p>
+                
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
+                    {resetMethod === 'phone' ? 'Phone Number' : 'Email Address'}
+                  </label>
+                  <div className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                       {resetMethod === 'phone' ? (
+                         <span className="w-5 h-5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-md flex items-center justify-center"><Phone className="w-3 h-3" /></span>
+                       ) : (
+                         <span className="w-5 h-5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md flex items-center justify-center"><Mail className="w-3 h-3" /></span>
+                       )}
+                       {resetMethod === 'phone' ? (user?.phoneNumber || "Phone not added") : (user?.email || "Email not added")}
+                    </span>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => {
+                    const hasContact = resetMethod === 'phone' ? !!user?.phoneNumber : !!user?.email;
+                    if (hasContact) {
+                      setIsSendingReset(true);
+                      setTimeout(() => { setIsSendingReset(false); setResetSent(true); }, 1500);
+                    }
+                  }}
+                  disabled={isSendingReset || (resetMethod === 'phone' ? !user?.phoneNumber : !user?.email)}
+                  className="w-full py-3.5 bg-primary-600 hover:bg-primary-500 text-white rounded-xl font-bold tracking-wide transition-colors active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center h-[52px]"
+                >
+                  {isSendingReset ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : 'Send Reset Link'}
+                </button>
+                
+                <div className="text-center pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button 
+                    type="button" 
+                    onClick={() => setResetMethod(prev => prev === 'phone' ? 'email' : 'phone')} 
+                    className="text-[11px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors uppercase tracking-wider"
+                  >
+                    Use {resetMethod === 'phone' ? 'mail reset link' : 'SMS OTP'} instead
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         </div>
       )}

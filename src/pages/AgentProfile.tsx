@@ -49,7 +49,7 @@ const AgentProfileSkeleton: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         </button>
       </nav>
 
-      <main className="w-full max-w-full px-[15px] py-8 space-y-12 pb-[15px] mx-0">
+      <main className="w-full max-w-full sm:max-w-full px-[15px] py-8 space-y-12 pb-[15px] mx-0">
         {/* Header Hero Card Skeleton */}
         <section className="bg-white/85 dark:bg-[#0c111e] rounded-[32px] p-[15px] border border-slate-200 dark:border-[#1e293b] backdrop-blur-xl shadow-sm space-y-8">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
@@ -189,7 +189,7 @@ const ReportModal = ({ isOpen, onClose, agentId, userId }: { isOpen: boolean, on
         initial={{ opacity: 0, y: 100 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 100 }}
-        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
+        className="w-full max-w-full sm:max-w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-200 dark:border-slate-800 pb-safe sm:pb-6"
       >
         {isSuccess ? (
           <div className="text-center py-8">
@@ -535,7 +535,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
         </div>
       </nav>
 
-      <main className="w-full max-w-full px-[15px] pt-[15px] pb-[15px] space-y-12 mx-0">
+      <main className="w-full max-w-full sm:max-w-full px-[15px] pt-[15px] pb-[15px] space-y-12 mx-0">
         {/* Combined Agent Profile Card: Redesigned based on Image */}
         <section className="bg-white dark:bg-[#0c111e] rounded-[32px] p-[15px] border border-slate-200 dark:border-[#1e293b] shadow-2xl relative transition-all duration-300">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
@@ -920,7 +920,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
               initial={{ opacity: 0, y: 100 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 100 }}
-              className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 cursor-default pb-safe sm:pb-0"
+              className="bg-white dark:bg-slate-900 w-full max-w-full sm:max-w-full sm:max-w-xl rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 cursor-default pb-safe sm:pb-0"
             >
               <div className="p-6 md:p-8 space-y-6">
                 <div className="flex items-center justify-between">

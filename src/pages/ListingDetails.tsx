@@ -22,6 +22,7 @@ import { useMap, useMapsLibrary, Map as GoogleMap, AdvancedMarker, Pin } from '@
 import SafeImage from '../components/SafeImage';
 import FullscreenGallery from '../components/FullscreenGallery';
 import { HeaderPortal } from '../components/HeaderPortal';
+import HamburgerButton from '../components/HamburgerButton';
 
 interface ListingDetailsProps {
   listing: Listing;
@@ -77,7 +78,7 @@ const ReportModal = ({ isOpen, onClose, listingId, userId, agentId }: { isOpen: 
         initial={{ opacity: 0, y: 100 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 100 }}
-        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-200 dark:border-slate-800 transition-all duration-300 pb-safe sm:pb-6"
+        className="w-full max-w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-200 dark:border-slate-800 transition-all duration-300 pb-safe sm:pb-6"
       >
         {isSuccess ? (
           <div className="text-center py-8">
@@ -193,7 +194,7 @@ const ScheduleTourModal = ({ isOpen, onClose, listing, userId }: { isOpen: boole
         initial={{ opacity: 0, y: 100 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 100 }}
-        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-200 dark:border-slate-800 transition-all duration-300 pb-safe sm:pb-6"
+        className="w-full max-w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-200 dark:border-slate-800 transition-all duration-300 pb-safe sm:pb-6"
       >
         {isSuccess ? (
           <div className="text-center py-8">
@@ -337,7 +338,7 @@ const DirectionsModal = ({ isOpen, onClose, destination }: { isOpen: boolean, on
         initial={{ opacity: 0, y: 100 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 100 }}
-        className="w-full max-w-2xl h-[80vh] bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] overflow-hidden shadow-2xl relative z-10 border-[0.5px] border-slate-200 dark:border-[#0f172b] flex flex-col transition-all duration-300 pb-safe sm:pb-0"
+        className="w-full max-w-full sm:max-w-full sm:max-w-2xl h-[80vh] bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] overflow-hidden shadow-2xl relative z-10 border-[0.5px] border-slate-200 dark:border-[#0f172b] flex flex-col transition-all duration-300 pb-safe sm:pb-0"
       >
         <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
           <div className="flex items-center gap-3">
@@ -1003,7 +1004,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
               initial={{ opacity: 0, y: 100 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 100 }}
-              className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl relative z-10 border border-slate-200 dark:border-slate-800 transition-all duration-300 pb-safe sm:pb-6"
+              className="w-full max-w-full sm:max-w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl relative z-10 border border-slate-200 dark:border-slate-800 transition-all duration-300 pb-safe sm:pb-6"
             >
               <div className="w-12 h-12 bg-rose-50 dark:bg-rose-500/10 rounded-2xl flex items-center justify-center text-rose-600 mb-4">
                 <Trash2 className="w-6 h-6" />
@@ -1080,12 +1081,9 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
       <div className="relative w-full bg-slate-100 dark:bg-slate-900 overflow-hidden shadow-sm">
         {/* Top Header Buttons overlay */}
         <div className="absolute top-0 left-0 right-0 p-4 px-4 pt-4 md:pt-6 z-40 flex justify-between items-center pointer-events-none lg:hidden">
-          <button 
-            onClick={onBack}
-            className="w-10 h-10 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md flex items-center justify-center text-slate-900 dark:text-white hover:bg-white dark:hover:bg-slate-700 transition-all cursor-pointer shadow-md pointer-events-auto border border-white/20"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <HamburgerButton className="w-10 h-10 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md flex items-center justify-center shadow-md border border-white/20 text-slate-900 dark:text-white hover:bg-white dark:hover:bg-slate-700 transition-all cursor-pointer active:scale-[0.98]" />
+          </div>
           <div className="flex items-center gap-2 pointer-events-auto">
             <button 
               onClick={handleReportClick}

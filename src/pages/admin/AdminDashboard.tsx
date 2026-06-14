@@ -1657,7 +1657,7 @@ const AdminDashboard = () => {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white dark:bg-slate-900 rounded-none w-full max-w-sm overflow-hidden border border-slate-200 dark:border-slate-800"
+              className="bg-white dark:bg-slate-900 rounded-none w-full max-w-full sm:max-w-sm overflow-hidden border border-slate-200 dark:border-slate-800"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6">
@@ -1699,7 +1699,7 @@ const AdminDashboard = () => {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white dark:bg-slate-900 rounded-none w-full max-w-sm overflow-hidden border border-slate-200 dark:border-slate-800"
+              className="bg-white dark:bg-slate-900 rounded-none w-full max-w-full sm:max-w-sm overflow-hidden border border-slate-200 dark:border-slate-800"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6">

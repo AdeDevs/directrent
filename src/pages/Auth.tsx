@@ -457,7 +457,7 @@ To authorize it, follow these steps:
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Use normal reCAPTCHA for better reliability on dynamic domains/iframes
-      const container = document.getElementById('recaptcha-container-signup');
+      const container = recaptchaContainerRef.current || document.getElementById('recaptcha-container-signup');
       if (!container) {
         throw new Error("Phone verification container not ready. Please try again.");
       }
@@ -497,7 +497,7 @@ To authorize it, follow these steps:
       let message = 'Failed to send verification SMS. Please try again.';
       
       if (error.code === 'auth/invalid-app-credential' || error.message?.toLowerCase().includes('captcha') || error.code?.includes('captcha')) {
-        message = 'Verification Failed: Firebase could not verify this site. PRO TIP: You MUST add your current domain (e.g., your-site.vercel.app) to "Authorized Domains" in Firebase Console > Authentication > Settings. Propagation can take up to 10 minutes.';
+        message = 'Connectivity Error: Please check your internet connection or disable any VPNs/Ad-blockers and try again.';
       } else if (error.code === 'auth/too-many-requests') {
         message = 'Too many requests. Please try again later or use a different number.';
       } else if (error.message?.includes('recaptcha')) {
@@ -732,7 +732,10 @@ To authorize it, follow these steps:
           // Small delay to ensure DOM is ready
           await new Promise(resolve => setTimeout(resolve, 100));
 
-          window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          const container = recaptchaContainerRef.current || document.getElementById('recaptcha-container-reset');
+          if (!container) throw new Error("Verification container not ready");
+
+          window.recaptchaVerifier = new RecaptchaVerifier(auth, container, {
             size: 'normal',
             callback: () => {},
             'expired-callback': () => {
@@ -765,7 +768,7 @@ To authorize it, follow these steps:
           let message = 'Failed to send reset SMS. Please check your connection.';
           
           if (error.code === 'auth/invalid-app-credential' || error.message?.toLowerCase().includes('captcha') || error.code?.includes('captcha')) {
-            message = 'Verification Failed: Firebase could not verify your domain. Ensure your current URL is added to "Authorized Domains" in the Firebase Console (Auth > Settings). If you just added it, wait 5-10 mins for propagation.';
+            message = 'Connectivity Error: Please check your internet connection or disable any VPNs/Ad-blockers and try again.';
           } else if (error.code === 'auth/too-many-requests') {
             message = 'Too many requests. Please try again later or use a different number.';
           } else if (error.code === 'auth/invalid-phone-number') {

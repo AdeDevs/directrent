@@ -319,12 +319,17 @@ export default function CreateListing() {
             const compressed = await compressImage(item);
             const fileName = `listings/${listingId}/image_${i}_${Date.now()}.jpg`;
             const storageRef = ref(storage, fileName);
-            const snapshot = await uploadBytes(storageRef, compressed);
+            const uploadPromise = uploadBytes(storageRef, compressed);
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Image upload timed out")), 30000));
+            const snapshot = await Promise.race([uploadPromise, timeoutPromise]) as any;
             const url = await getDownloadURL(snapshot.ref);
             uploadedImageUrls.push(url);
           } catch (uploadErr) {
             console.error("Image upload failed:", uploadErr);
-            uploadedImageUrls.push(formData.images[i]);
+            if (formData.images && formData.images[i]) {
+              uploadedImageUrls.push(formData.images[i]);
+            }
+            throw new Error("Failed to upload image. Please check your network and try again.");
           }
         } else {
           uploadedImageUrls.push(item);
@@ -340,11 +345,14 @@ export default function CreateListing() {
         try {
           const fileName = `listings/${listingId}/video_${Date.now()}.mp4`;
           const storageRef = ref(storage, fileName);
-          const snapshot = await uploadBytes(storageRef, pendingVideo);
+          const uploadPromise = uploadBytes(storageRef, pendingVideo);
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Video upload timed out")), 60000));
+          const snapshot = await Promise.race([uploadPromise, timeoutPromise]) as any;
           finalVideoUrl = await getDownloadURL(snapshot.ref);
         } catch (uploadErr) {
           console.error("Video upload failed:", uploadErr);
           finalVideoUrl = formData.video;
+          throw new Error("Failed to upload video. Please check your network and try again.");
         }
       } else if (typeof pendingVideo === 'string') {
         finalVideoUrl = pendingVideo;

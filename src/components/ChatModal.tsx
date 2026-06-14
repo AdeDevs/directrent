@@ -1269,7 +1269,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-xl sm:rounded-2xl shadow-2xl flex flex-col h-[90vh] sm:h-[650px] max-h-[95vh] overflow-hidden m-0 sm:m-4 pointer-events-auto border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300"
+            className="relative w-full max-w-full sm:max-w-lg bg-white dark:bg-slate-900 rounded-t-xl sm:rounded-2xl shadow-2xl flex flex-col h-[90vh] sm:h-[650px] max-h-[95vh] overflow-hidden m-0 sm:m-4 pointer-events-auto border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300"
           >
             <AnimatePresence>
               {showBillingSlip && (
@@ -1285,7 +1285,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                     initial={{ opacity: 0, scale: 0.9, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                    className="relative w-full max-w-sm bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-2xl border-[0.5px] border-slate-200 dark:border-[#0f172b]"
+                    className="relative w-full max-w-full sm:max-w-sm bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-2xl border-[0.5px] border-slate-200 dark:border-[#0f172b]"
                   >
                     <div className="flex items-center gap-3 mb-6">
                       <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500 flex items-center justify-center shrink-0">
