@@ -70,7 +70,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const [preselectedRole, setPreselectedRole] = useState<UserRole>('tenant');
   const [currentListing, setCurrentListingState] = useState<Listing | null>(null);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedAgentId, setSelectedAgentIdState] = useState<string | null>(null);
+
+  const setSelectedAgentId = (agentId: string | null) => {
+    setSelectedAgentIdState(agentId);
+    if (agentId) {
+      setCurrentListingState(null);
+    }
+  };
+
   const [favorites, setFavorites] = useState<(string | number)[]>([]);
   const tabList: AppTab[] = ['home', 'chat', 'profile', 'favorites', 'create', 'mylistings', 'notifications', 'terms', 'faq'];
   
@@ -92,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const setCurrentListing = (listing: Listing | null) => {
     if (listing === null) {
-      const targetPath = `/${activeTab}`;
+      const targetPath = selectedAgentId ? `/agent/${selectedAgentId}` : `/${activeTab}`;
       const newState = {
         view,
         activeTab,
@@ -114,6 +122,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     window.history.pushState(newState, "", targetPath);
 
+    setCurrentListingState(null);
+    setSelectedAgentIdState(null);
     setActiveTabState(tab);
     localStorage.setItem('last_active_tab', tab);
   };
@@ -191,28 +201,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (event.state) {
         // Apply historical states back into React
         if (event.state.view !== undefined) {
-          setView(event.state.view);
+          if (userRefForEffect.current && (event.state.view === 'landing' || event.state.view === 'auth')) {
+             setView('app');
+             if (event.state.activeTab !== undefined) {
+               setActiveTabState(event.state.activeTab);
+             } else {
+               setActiveTabState('home');
+             }
+             window.history.replaceState({ view: 'app', activeTab: event.state.activeTab || 'home' }, "", '/home');
+          } else {
+             setView(event.state.view);
+          }
         }
-        if (event.state.activeTab !== undefined) {
+        if (event.state.activeTab !== undefined && !(userRefForEffect.current && (event.state.view === 'landing' || event.state.view === 'auth'))) {
           setActiveTabState(event.state.activeTab);
           localStorage.setItem('last_active_tab', event.state.activeTab);
         }
-        setCurrentListing(event.state.currentListing || null);
-        setSelectedAgentId(event.state.selectedAgentId || null);
+        setCurrentListingState(event.state.currentListing || null);
+        setSelectedAgentIdState(event.state.selectedAgentId || null);
       } else {
         // Fallback: Parse URL pathname on browser gesture back/forward transitions if State is null
         const p = window.location.pathname;
         if (p === '/admin' || p.startsWith('/admin/')) {
           setView('admin-auth');
         } else if (p === '/login' || p === '/auth') {
-          setView('auth');
+          if (userRefForEffect.current) {
+            setView('app');
+            setActiveTabState('home');
+            window.history.replaceState({ view: 'app', activeTab: 'home' }, "", '/home');
+          } else {
+            setView('auth');
+          }
         } else if (p === '/terms' || p === '/legal') {
           setView('legal');
         } else if (p === '/' || p === '/home') {
-          setView('landing');
-          setActiveTabState('home');
-          setCurrentListing(null);
-          setSelectedAgentId(null);
+          if (userRefForEffect.current) {
+            setView('app');
+            setActiveTabState('home');
+            setCurrentListing(null);
+            setSelectedAgentId(null);
+            window.history.replaceState({ view: 'app', activeTab: 'home' }, "", '/home');
+          } else {
+            setView('landing');
+            setActiveTabState('home');
+            setCurrentListing(null);
+            setSelectedAgentId(null);
+          }
         } else {
           let cleanPath = p.replace(/^\//, '');
           const tabList: AppTab[] = ['home', 'chat', 'profile', 'favorites', 'create', 'mylistings', 'notifications', 'terms', 'faq'];
@@ -385,6 +419,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               }
             } else if (roleChanged) {
               // Only switch to app view if we are on landing or auth pages
+              if (sessionStorage.getItem("sms_reset_flow") !== "active") {
+                if (userData.role === 'admin' || userData.role === 'moderator') {
+                  if (view === "landing" || view === "auth" || view === "admin-auth") {
+                    setView("admin");
+                  }
+                } else {
+                  if (view === "landing" || view === "auth") {
+                    setView("app");
+                  }
+                }
+              }
+            } else {
+              // Standard session restore (already logged in, role unchanged)
               if (sessionStorage.getItem("sms_reset_flow") !== "active") {
                 if (userData.role === 'admin' || userData.role === 'moderator') {
                   if (view === "landing" || view === "auth" || view === "admin-auth") {

@@ -124,7 +124,7 @@ const SuspendedScreen = ({ onLogout, userId }: { onLogout: () => void; userId: s
 };
 
 const AppContent = () => {
-  const { view, isLoading, user, logout, currentListing } = useAuth();
+  const { view, isLoading, user, logout, currentListing, selectedAgentId } = useAuth();
   const path = window.location.pathname;
 
   // Track if path is listing detail
@@ -167,7 +167,7 @@ const AppContent = () => {
 
   // Priority: If path is listing detail, show it or prompt to register if not signed in
   // ONLY if not already handled by AppLayout internally (currentListing is not set)
-  if (isListingPath && !currentListing) {
+  if (isListingPath && !currentListing && !selectedAgentId) {
     if (!user) {
       return (
         <Suspense fallback={<LoadingScreen message="Prompting account creation..." />}>

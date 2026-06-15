@@ -58,7 +58,7 @@ const AppLayout = () => {
   useEffect(() => {
     const path = window.location.pathname;
     const isListingPath = path.startsWith('/property/') || path.startsWith('/listings/');
-    if (isListingPath && !currentListing) {
+    if (isListingPath && !currentListing && !selectedAgentId) {
       const parts = path.split('/');
       const listingId = parts[2] || parts[1];
       if (listingId) {
@@ -185,20 +185,7 @@ const AppLayout = () => {
 
           <Suspense fallback={<PageLoader />}>
             <AnimatePresence mode="wait">
-            {selectedAgentId ? (
-              <motion.div
-                key={`agent-${selectedAgentId}`}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <AgentProfile
-                  agentId={selectedAgentId}
-                  onBack={() => setSelectedAgentId(null)}
-                />
-              </motion.div>
-            ) : (currentListing && activeTab !== "create") ? (
+            {(currentListing && activeTab !== "create") ? (
               <motion.div
                 key={`listing-${currentListing.id}`}
                 initial={{ opacity: 0, x: 20 }}
@@ -209,6 +196,19 @@ const AppLayout = () => {
                 <ListingDetails
                   listing={currentListing}
                   onBack={() => setCurrentListing(null)}
+                />
+              </motion.div>
+            ) : selectedAgentId ? (
+              <motion.div
+                key={`agent-${selectedAgentId}`}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <AgentProfile
+                  agentId={selectedAgentId}
+                  onBack={() => setSelectedAgentId(null)}
                 />
               </motion.div>
             ) : (
