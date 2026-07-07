@@ -175,6 +175,53 @@ app.use((req, res, next) => {
 
 const PORT = 3000;
 
+app.get("/sitemap.xml", async (req, res) => {
+  try {
+    const db = getDb();
+    let dynamicUrls = "";
+
+    try {
+      const listingsSnap = await db.collection("listings").where("status", "==", "available").get();
+      listingsSnap.forEach((doc: any) => {
+        dynamicUrls += `
+  <url>
+    <loc>https://directrent.space/properties/${doc.id}</loc>
+    <lastmod>${new Date().toISOString()}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>`;
+      });
+    } catch (dbErr) {
+      console.warn("Could not fetch listings for sitemap:", dbErr);
+    }
+
+    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://directrent.space/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://directrent.space/listings</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://directrent.space/agents</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>${dynamicUrls}
+</urlset>`;
+    
+    res.header('Content-Type', 'application/xml');
+    res.send(sitemap);
+  } catch (err: any) {
+    console.error("Error generating sitemap:", err);
+    res.status(500).send("Error generating sitemap");
+  }
+});
+
 app.get("/api/health", (req, res) => {
   let adminApp = null;
   let adminError = null;
@@ -1065,17 +1112,88 @@ async function configureApp() {
     const { createServer } = await import("vite");
     const vite = await createServer({
       server: { middlewareMode: true },
-      appType: "spa",
+      appType: "custom", // Changed from spa to custom to handle HTML manually
     });
     app.use(vite.middlewares);
+
+    app.use("*", async (req, res, next) => {
+      // Skip API routes
+      if (req.originalUrl.startsWith("/api")) return next();
+
+      try {
+        let template = fs.readFileSync(path.resolve(process.cwd(), "index.html"), "utf-8");
+        template = await vite.transformIndexHtml(req.originalUrl, template);
+
+        // Inject dynamic OG tags for properties
+        const match = req.originalUrl.match(/^\/(?:property|properties|listings)\/([a-zA-Z0-9_\-]+)/);
+        if (match && match[1]) {
+          const listingId = match[1];
+          try {
+            // Lazy init admin/db logic handles errors gracefully
+            const db = getDb();
+            const docSnap = await db.collection("listings").doc(listingId).get();
+            if (docSnap.exists) {
+              const data = docSnap.data();
+              const coverImg = data?.coverImage || (data?.imageUrls && data.imageUrls[0]) || "https://directrent.space/og-cover.png";
+              const title = `DirectRent: ${data?.title || "Premium Listing"}`;
+              const desc = `Check out this verified ${data?.type || "property"} in ${data?.location || "Nigeria"}.`;
+              
+              template = template.replace(/<meta property="og:title" content="[^"]*"\s*\/>/gi, `<meta property="og:title" content="${title}" />`);
+              template = template.replace(/<meta property="og:description" content="[^"]*"\s*\/>/gi, `<meta property="og:description" content="${desc}" />`);
+              template = template.replace(/<meta property="og:image" content="[^"]*"\s*\/>/gi, `<meta property="og:image" content="${coverImg}" />`);
+
+              template = template.replace(/<meta property="twitter:title" content="[^"]*"\s*\/>/gi, `<meta property="twitter:title" content="${title}" />`);
+              template = template.replace(/<meta property="twitter:description" content="[^"]*"\s*\/>/gi, `<meta property="twitter:description" content="${desc}" />`);
+              template = template.replace(/<meta property="twitter:image" content="[^"]*"\s*\/>/gi, `<meta property="twitter:image" content="${coverImg}" />`);
+            }
+          } catch (injectErr) {
+            console.warn("Could not inject dynamic OG tags:", (injectErr as any).message);
+          }
+        }
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e: any) {
+        vite.ssrFixStacktrace(e);
+        next(e);
+      }
+    });
+
   } else {
     const distPath = path.join(process.cwd(), "dist");
     if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath));
-      app.get("*", (req, res) => {
+      app.use(express.static(distPath, { index: false })); // index: false to prevent sending index.html automatically
+
+      app.get("*", async (req, res) => {
         const indexPath = path.join(distPath, "index.html");
         if (fs.existsSync(indexPath)) {
-          res.sendFile(indexPath);
+          let template = fs.readFileSync(indexPath, "utf-8");
+
+          // Inject dynamic OG tags for properties
+          const match = req.originalUrl.match(/^\/(?:property|properties|listings)\/([a-zA-Z0-9_\-]+)/);
+          if (match && match[1]) {
+            const listingId = match[1];
+            try {
+              const db = getDb();
+              const docSnap = await db.collection("listings").doc(listingId).get();
+              if (docSnap.exists) {
+                const data = docSnap.data();
+                const coverImg = data?.coverImage || (data?.imageUrls && data.imageUrls[0]) || "https://directrent.space/og-cover.png";
+                const title = `DirectRent: ${data?.title || "Premium Listing"}`;
+                const desc = `Check out this verified ${data?.type || "property"} in ${data?.location || "Nigeria"}.`;
+                
+                template = template.replace(/<meta property="og:title" content="[^"]*"\s*\/>/gi, `<meta property="og:title" content="${title}" />`);
+                template = template.replace(/<meta property="og:description" content="[^"]*"\s*\/>/gi, `<meta property="og:description" content="${desc}" />`);
+                template = template.replace(/<meta property="og:image" content="[^"]*"\s*\/>/gi, `<meta property="og:image" content="${coverImg}" />`);
+
+                template = template.replace(/<meta property="twitter:title" content="[^"]*"\s*\/>/gi, `<meta property="twitter:title" content="${title}" />`);
+                template = template.replace(/<meta property="twitter:description" content="[^"]*"\s*\/>/gi, `<meta property="twitter:description" content="${desc}" />`);
+                template = template.replace(/<meta property="twitter:image" content="[^"]*"\s*\/>/gi, `<meta property="twitter:image" content="${coverImg}" />`);
+              }
+            } catch (injectErr) {
+              console.warn("Could not inject dynamic OG tags:", (injectErr as any).message);
+            }
+          }
+
+          res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
         } else {
           res.status(404).send("Frontend build not found");
         }

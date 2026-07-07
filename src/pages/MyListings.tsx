@@ -133,7 +133,7 @@ export default function MyListings() {
           <HamburgerButton />
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Agent Panel</span>
-            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">My Listings</h1>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">My Properties</h1>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -158,7 +158,7 @@ export default function MyListings() {
         <div className="hidden lg:flex flex-1 items-center justify-between px-6 h-full">
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Agent Panel</span>
-            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">My Listings</h1>
+            <h1 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight mt-0.5">My Properties</h1>
           </div>
           <div className="flex items-center gap-3">
             <button 

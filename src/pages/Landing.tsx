@@ -24,7 +24,10 @@ import {
   FileText,
   BadgeAlert,
   HelpCircle,
-  Coins
+  Coins,
+  Linkedin,
+  Github,
+  Twitter
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import ListingCard from '../components/ListingCard';
@@ -126,52 +129,32 @@ const Hero = () => {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-slate-600 font-sans text-base sm:text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed font-light"
             >
-              Verified properties listed directly by landlords and trusted developers. Take a walk through virtual maps, escape ridiculous double fees, and secure tenancy in minutes.
+              Verified student hostels, off-campus accommodations, and apartments listed directly by landlords and verified agents. Secure your tenancy in minutes, scam-free.
             </motion.p>
 
-            {/* Premium Floated Light search bar */}
+            {/* In-app like search bar */}
             <motion.div 
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="p-2.5 bg-white border border-slate-200/80 shadow-xl shadow-slate-150/40 rounded-2xl sm:rounded-3xl max-w-2xl mx-auto lg:mx-0 flex flex-col sm:flex-row gap-2"
+              className="max-w-2xl mx-auto lg:mx-0 w-full relative group"
             >
-              <div className="flex-1 flex items-center px-4 py-3 gap-3 border-b sm:border-b-0 sm:border-r border-slate-150">
-                <MapPin className="text-primary-500 w-5 h-5 flex-shrink-0" />
-                <div className="w-full text-left">
-                  <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Location</label>
-                  <input 
-                    type="text"
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                    placeholder={`e.g. ${typedPlaceholder}`} 
-                    className="bg-transparent border-none outline-none text-slate-900 placeholder:text-slate-400 w-full font-semibold text-sm focus:ring-0 p-0 mt-0.5"
-                  />
-                </div>
-              </div>
-
-              <div className="flex-1 flex items-center px-4 py-3 gap-3">
-                <HomeIcon className="text-indigo-500 w-5 h-5 flex-shrink-0" />
-                <div className="w-full text-left">
-                  <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Housing Type</label>
-                  <select 
-                    value={selectedType} 
-                    onChange={(e) => setSelectedType(e.target.value)} 
-                    className="bg-transparent border-none outline-none text-slate-900 font-semibold text-sm w-full appearance-none focus:ring-0 p-0 mt-0.5 cursor-pointer"
-                  >
-                    <option className="bg-white text-slate-900" value="Self-contain">Self-contain</option>
-                    <option className="bg-white text-slate-900" value="1 Bedroom Flat">1 Bedroom Flat</option>
-                    <option className="bg-white text-slate-900" value="Studio">Studio / Flatlet</option>
-                  </select>
-                </div>
-              </div>
-
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary-500 transition-all pointer-events-none" />
+              <input 
+                type="text" 
+                placeholder="Search by area, landmark, or university..." 
+                value={selectedLocation}
+                onChange={(e) => setSelectedLocation(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleFind();
+                }}
+                className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-12 pr-32 outline-none focus:border-primary-400 focus:ring-4 focus:ring-primary-500/10 transition-all text-sm shadow-xl shadow-slate-150/40 placeholder:text-slate-400 text-slate-900"
+              />
               <button 
                 onClick={handleFind}
-                className="bg-primary-600 hover:bg-primary-700 text-white px-7 py-3.5 sm:py-0 rounded-xl sm:rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary-500/10 hover:scale-[1.02] active:scale-95 duration-205 shrink-0"
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary-600 hover:bg-primary-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md hover:scale-[1.02] active:scale-95 text-xs sm:text-sm"
               >
-                <Search className="w-4 h-4 shrink-0" />
-                <span className="text-sm">Explore Map</span>
+                Search
               </button>
             </motion.div>
 
@@ -286,7 +269,7 @@ const Hero = () => {
 {/* Value Comparative Metrics - Eliminates Boring Info, Increases Trust */}
 const CompareTraditional = () => {
   return (
-    <section className="py-16 sm:py-20 bg-white text-slate-900 transition-colors duration-300 relative border-y border-slate-200">
+    <section className="py-12 sm:py-16 md:py-20 bg-white text-slate-900 transition-colors duration-300 relative border-y border-slate-200">
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div className="text-center max-w-2xl mx-auto mb-12 space-y-4">
@@ -386,7 +369,7 @@ const RoleSelection = () => {
   };
 
   return (
-    <section className="py-16 sm:py-20 bg-slate-50/50 transition-colors duration-300 relative">
+    <section className="py-12 sm:py-16 md:py-20 bg-slate-50/50 transition-colors duration-300 relative">
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div className="text-center max-w-2xl mx-auto mb-12 space-y-4">
@@ -439,22 +422,22 @@ const RoleSelection = () => {
             <div className="w-14 h-14 bg-indigo-50 text-indigo-505 rounded-2xl flex items-center justify-center mb-8 border border-indigo-100 group-hover:scale-105 transition-transform">
               <Handshake className="w-7 h-7" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2 font-display">I'm a landlord / developer</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-2 font-display">I'm a landlord / verified agent</h3>
             <p className="text-xs sm:text-sm text-slate-500 mb-8 leading-relaxed font-light">Upload real estate listings, filter tenant leads, and draft instant digitized paperwork.</p>
             
             <ul className="space-y-4 mb-10 text-xs sm:text-sm text-slate-600">
               <li className="flex items-center gap-3">
-                <CheckCircle2 className="text-indigo-505 w-4 h-4 flex-shrink-0" /> Instant verification to get your custom badge.
+                <CheckCircle2 className="text-indigo-500 w-4 h-4 flex-shrink-0" /> Instant verification to get your custom badge.
               </li>
               <li className="flex items-center gap-3">
-                <CheckCircle2 className="text-indigo-520 w-4 h-4 flex-shrink-0" /> Safe identity validation to shield deals from scammers.
+                <CheckCircle2 className="text-indigo-500 w-4 h-4 flex-shrink-0" /> Safe identity validation to shield deals from scammers.
               </li>
               <li className="flex items-center gap-3">
-                <CheckCircle2 className="text-indigo-520 w-4 h-4 flex-shrink-0" /> Receive qualified leads ready to view and pay.
+                <CheckCircle2 className="text-indigo-500 w-4 h-4 flex-shrink-0" /> Receive qualified leads ready to view and pay.
               </li>
             </ul>
             <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-indigo-500/10">
-              Register Portfolio
+              Create Agent Profile
             </button>
           </motion.div>
         </div>
@@ -562,7 +545,7 @@ const FeaturedListings = () => {
   };
 
   return (
-    <section id="listings" className="py-16 sm:py-20 lg:py-24 bg-white transition-colors duration-300">
+    <section id="listings" className="py-12 sm:py-16 lg:py-20 bg-white transition-colors duration-300">
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
@@ -575,7 +558,7 @@ const FeaturedListings = () => {
             onClick={handleAction} 
             className="flex items-center gap-2 font-bold text-primary-600 hover:text-primary-700 transition-all text-sm group"
           >
-            Explore live interactive map <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            View More Properties <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
 
@@ -610,12 +593,12 @@ const FeaturedListings = () => {
 };
 
 const HowItWorks = () => (
-  <section id="how-it-works" className="py-16 sm:py-20 lg:py-24 bg-slate-50/50 transition-colors duration-300 relative overflow-hidden">
+  <section id="how-it-works" className="py-12 sm:py-16 lg:py-20 bg-slate-50/50 transition-colors duration-300 relative overflow-hidden">
     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary-500/5 rounded-full blur-[140px] pointer-events-none" />
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
       
       <div className="text-center max-w-2xl mx-auto mb-12 space-y-4">
-        <span className="text-primary-600 text-xs font-black tracking-widest uppercase">Process Engine</span>
+        <span className="text-primary-600 text-xs font-black tracking-widest uppercase">How It Works</span>
         <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">Three steps to your keys</h2>
         <p className="text-slate-500 text-sm sm:text-base font-light">Eradicating inspections taxes and long protocols.</p>
       </div>
@@ -659,7 +642,7 @@ const HowItWorks = () => (
 );
 
 const TrustSafety = () => (
-  <section id="security" className="py-16 sm:py-20 bg-white text-slate-900 relative overflow-hidden transition-colors duration-500 border-t border-slate-200">
+  <section id="security" className="py-12 sm:py-16 md:py-20 bg-white text-slate-900 relative overflow-hidden transition-colors duration-500 border-t border-slate-200">
     {/* Glow Layout */}
     <div className="absolute inset-0 z-0 opacity-15 pointer-events-none">
       <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[140px]" />
@@ -668,7 +651,7 @@ const TrustSafety = () => (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
       <span className="text-emerald-650 bg-emerald-50 border border-emerald-105/60 px-3 py-1 rounded-full text-xs font-black tracking-widest uppercase">High Credential Checks</span>
       <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mt-4 mb-6 max-w-3xl mx-auto">
-        Your security is our absolute blueprint
+        Security built into the platform
       </h2>
       <p className="text-slate-500 max-w-xl mx-auto mb-16 text-sm sm:text-base leading-relaxed font-light">
         We understand the dynamic risks underlying Nigerian housing. DirectRent filters out fraud from the baseline up.
@@ -683,13 +666,13 @@ const TrustSafety = () => (
           },
           { 
             icon: <Clock className="w-6 h-6 text-primary-600" />, 
-            title: "Physical Auditing Teams", 
-            desc: "DirectRent team members inspect real conditions of listings consistently to guarantee precise match representations." 
+            title: "Strict Verification Standards", 
+            desc: "We enforce a strict visual policy with location-stamped photos to ensure what you see is what you get." 
           },
           { 
             icon: <MessageSquare className="w-6 h-6 text-indigo-600" />, 
             title: "Encrypted Deal Logs", 
-            desc: "Conversations and contract logs are recorded directly in-platform to protect users from unsafe physical protocols." 
+            desc: "Conversations and agreements are kept on-platform, protecting you from off-platform scams and keeping a secure record." 
           }
         ].map((feature, i) => (
           <div key={`trust-${i}`} className="bg-slate-50/80 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 p-8 rounded-3xl hover:shadow-md transition-all duration-300">
@@ -706,7 +689,7 @@ const TrustSafety = () => (
 );
 
 const Testimonials = () => (
-  <section className="py-16 sm:py-20 bg-slate-50/35 text-slate-900 transition-colors duration-300 relative border-t border-slate-200">
+  <section className="py-12 sm:py-16 md:py-20 bg-slate-50/35 text-slate-900 transition-colors duration-300 relative border-t border-slate-200">
     <div className="absolute top-0 right-1/4 w-96 h-96 bg-primary-500/5 rounded-full blur-[100px] pointer-events-none" />
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
       
@@ -815,7 +798,7 @@ const FAQ = () => {
   ];
 
   return (
-    <section id="faq" className="py-16 sm:py-20 bg-slate-50/50 transition-colors duration-300">
+    <section id="faq" className="py-12 sm:py-16 md:py-20 bg-slate-50/50 transition-colors duration-300">
       <div className="w-full max-w-4xl mx-auto px-4 sm:px-6">
         
         <div className="text-center mb-12 space-y-4">
@@ -853,6 +836,117 @@ const FAQ = () => {
           ))}
         </div>
 
+      </div>
+    </section>
+  );
+};
+
+const Founders = () => {
+  return (
+    <section className="py-16 md:py-24 bg-white relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-30" />
+      <div className="max-w-6xl mx-auto px-4 relative z-10">
+        <div className="text-center mb-16">
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-50 border border-primary-100 text-primary-600 text-xs font-black tracking-widest uppercase mb-4"
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>The Founders</span>
+          </motion.div>
+          <motion.h2 
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="font-display text-3xl md:text-5xl font-black text-slate-900 tracking-tight"
+          >
+            Built by <span className="text-primary-600">Engineers</span>
+          </motion.h2>
+          <motion.p 
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.2 }}
+            className="mt-4 text-slate-500 max-w-2xl mx-auto"
+          >
+            We got tired of the Nigerian housing crisis, exorbitant agent fees, and rampant scams. So we built DirectRent.
+          </motion.p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 max-w-4xl mx-auto border-t border-slate-100 pt-16">
+          {/* Founder 1 */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="group"
+          >
+            <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
+              <div className="w-32 h-32 rounded-full bg-primary-100 shadow-[0_0_0_4px_white,0_10px_20px_-10px_rgba(0,0,0,0.15)] overflow-hidden shrink-0 flex items-center justify-center relative group-hover:scale-105 transition-transform duration-300">
+                <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=Ajala&backgroundColor=eef2ff`} alt="Ajala Peace" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 space-y-3 mt-2">
+                <div>
+                  <h3 className="font-display font-black text-2xl text-slate-900">Ajala Peace Olaoluwa</h3>
+                  <p className="text-sm font-bold text-primary-600 uppercase tracking-wider mt-1">Co-Founder & Tech Lead</p>
+                </div>
+                <p className="text-slate-500 text-sm leading-relaxed max-w-sm">
+                  Built the DirectRent mobile app from the ground up. Passionate about scalable systems and delightful user experiences.
+                </p>
+                <div className="flex items-center justify-center sm:justify-start gap-4 pt-3">
+                  <a href="#" className="text-slate-400 hover:text-primary-600 transition-colors">
+                    <Linkedin className="w-5 h-5" />
+                  </a>
+                  <a href="#" className="text-slate-400 hover:text-primary-600 transition-colors">
+                    <Github className="w-5 h-5" />
+                  </a>
+                  <a href="#" className="text-slate-400 hover:text-primary-600 transition-colors">
+                    <Twitter className="w-5 h-5" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Founder 2 */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.2 }}
+            className="group"
+          >
+            <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
+              <div className="w-32 h-32 rounded-full bg-primary-100 shadow-[0_0_0_4px_white,0_10px_20px_-10px_rgba(0,0,0,0.15)] overflow-hidden shrink-0 flex items-center justify-center relative group-hover:scale-105 transition-transform duration-300">
+                <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=Adeyemi&backgroundColor=eef2ff`} alt="Adeyemi Akinyemi" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 space-y-3 mt-2">
+                <div>
+                  <h3 className="font-display font-black text-2xl text-slate-900">Adeyemi Akinyemi</h3>
+                  <p className="text-sm font-bold text-primary-600 uppercase tracking-wider mt-1">Co-Founder & Product Lead</p>
+                </div>
+                <p className="text-slate-500 text-sm leading-relaxed max-w-sm">
+                  Built the DirectRent web app. Bridging the gap between real estate pain points and elegant technical solutions.
+                </p>
+                <div className="flex items-center justify-center sm:justify-start gap-4 pt-3">
+                  <a href="#" className="text-slate-400 hover:text-primary-600 transition-colors">
+                    <Linkedin className="w-5 h-5" />
+                  </a>
+                  <a href="#" className="text-slate-400 hover:text-primary-600 transition-colors">
+                    <Github className="w-5 h-5" />
+                  </a>
+                  <a href="#" className="text-slate-400 hover:text-primary-600 transition-colors">
+                    <Twitter className="w-5 h-5" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       </div>
     </section>
   );
@@ -909,10 +1003,11 @@ const Landing = () => {
         <HowItWorks />
         <TrustSafety />
         <Testimonials />
+        <Founders />
         <FAQ />
         
         {/* Call to action section with highly stylistic visuals -- LIGHT DESIGN */}
-        <section className="py-16 sm:py-20 bg-white">
+        <section className="py-12 sm:py-16 md:py-20 bg-white">
           <div className="w-full max-w-6xl mx-auto px-4">
             <motion.div 
               initial={{ opacity: 0, scale: 0.97 }} 
@@ -926,14 +1021,14 @@ const Landing = () => {
               <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-indigo-500/5 rounded-full blur-[90px] pointer-events-none" />
               
               <div className="relative z-10 space-y-6">
-                <span className="text-primary-600 bg-primary-50 border border-primary-100 px-3 py-1 rounded-full text-xs font-black tracking-widest font-mono">Instant Search App</span>
+                <span className="text-primary-600 bg-primary-50 border border-primary-100 px-3 py-1 rounded-full text-xs font-black tracking-widest font-mono">The Smart Choice</span>
                 
                 <h2 className="font-display text-3xl sm:text-5xl font-black text-slate-900 tracking-tight max-w-2xl mx-auto leading-tight">
-                  Ready to secure your next premium rental place?
+                  Ready to secure your next home or student apartment?
                 </h2>
                 
                 <p className="text-slate-555 text-sm sm:text-base max-w-md mx-auto leading-relaxed font-light">
-                  Skip the middleman. Engage verified landlords and move with supreme authority.
+                  Skip the fraud. Connect with verified landlords and trusted agents directly.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
@@ -941,13 +1036,13 @@ const Landing = () => {
                     onClick={() => { setAuthMode('signup'); setView('auth'); }} 
                     className="bg-primary-600 hover:bg-primary-700 text-white px-8 py-3.5 rounded-2xl font-bold text-sm transition-all shadow-xl shadow-primary-500/15"
                   >
-                    Register Free Account
+                    Create Free Account
                   </button>
                   <button 
                     onClick={handleAction} 
                     className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3.5 rounded-2xl font-bold text-sm transition-all shadow-md"
                   >
-                    Launch Interactive Map
+                    Browse Properties
                   </button>
                 </div>
               </div>

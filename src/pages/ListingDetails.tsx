@@ -447,7 +447,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
     const shareData = {
       title: `DirectRent: ${listing.title}`,
       text: `Check out this verified ${listing.type} in ${listing.location}. ₦${listing.priceValue?.toLocaleString() || listing.price}/year.`,
-      url: `${window.location.origin}/property/${listing.id}`
+      url: `${window.location.origin}/properties/${listing.id}`
     };
 
     try {
@@ -902,7 +902,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
         <meta name="keywords" content={`rent in ${listing.location}, ${listing.type} Nigeria, real estate nigeria, verified listings, local agents nigeria`} />
         
         {/* Canonical */}
-        <link rel="canonical" href={`https://rentbyade.vercel.app/property/${listing.id}`} />
+        <link rel="canonical" href={`https://directrent.space/properties/${listing.id}`} />
 
         {/* Open Graph / Facebook */}
         <meta property="og:type" content="website" />
@@ -910,7 +910,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
         <meta property="og:title" content={`${listing.title} - ₦${listing.priceValue?.toLocaleString() || listing.price}/yr`} />
         <meta property="og:description" content={`Verified ${listing.type} available for rent in ${listing.location}. Connect directly with verified agents on DirectRent.`} />
         <meta property="og:image" content={listing.image} />
-        <meta property="og:url" content={`https://rentbyade.vercel.app/property/${listing.id}`} />
+        <meta property="og:url" content={`https://directrent.space/properties/${listing.id}`} />
 
         {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />

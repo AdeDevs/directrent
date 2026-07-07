@@ -184,7 +184,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       initialPath = selectedAgentId 
         ? `/agent/${selectedAgentId}` 
         : (currentListing 
-          ? `/property/${currentListing.id}` 
+          ? `/properties/${currentListing.id}` 
           : `/${activeTab}`
         );
     }
@@ -296,7 +296,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       targetPath = selectedAgentId 
         ? `/agent/${selectedAgentId}` 
         : (currentListing 
-          ? `/property/${currentListing.id}` 
+          ? `/properties/${currentListing.id}` 
           : `/${activeTab}`
         );
     }
@@ -311,7 +311,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       (window.location.pathname !== targetPath && window.location.pathname !== '/');
       
     const currentPath = window.location.pathname;
-    const isDeepLink = currentPath.startsWith('/property/') || currentPath.startsWith('/agent/') || currentPath.startsWith('/listings/');
+    const isDeepLink = currentPath.startsWith('/property/') || currentPath.startsWith('/properties/') || currentPath.startsWith('/agent/') || currentPath.startsWith('/listings/');
 
     if (isDifferent && (!isDeepLink || currentListing || selectedAgentId || view === 'landing')) {
       // Don't overwrite the deep link if we haven't loaded the target yet, unless we're on landing
@@ -460,7 +460,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         // If logged out and on a protected path (non-listing, non-terms), redirect to root
         const p = window.location.pathname;
-        const isListPath = p.startsWith('/listings/') || p.startsWith('/property/');
+        const isListPath = p.startsWith('/listings/') || p.startsWith('/property/') || p.startsWith('/properties/');
         if (!isListPath && p !== '/' && p !== '/admin' && p !== '/admin-auth' && p !== '/terms') {
           window.history.replaceState(null, "", "/");
         }

@@ -57,7 +57,7 @@ const AppLayout = () => {
 
   useEffect(() => {
     const path = window.location.pathname;
-    const isListingPath = path.startsWith('/property/') || path.startsWith('/listings/');
+    const isListingPath = path.startsWith('/property/') || path.startsWith('/properties/') || path.startsWith('/listings/');
     if (isListingPath && !currentListing && !selectedAgentId) {
       const parts = path.split('/');
       const listingId = parts[2] || parts[1];

@@ -128,7 +128,7 @@ const AppContent = () => {
   const path = window.location.pathname;
 
   // Track if path is listing detail
-  const isListingPath = (path.startsWith('/listings/') || path.startsWith('/property/')) && path.split('/').length >= 3;
+  const isListingPath = (path.startsWith('/listings/') || path.startsWith('/property/') || path.startsWith('/properties/')) && path.split('/').length >= 3;
 
   useEffect(() => {
     if (isListingPath && !user && !isLoading) {

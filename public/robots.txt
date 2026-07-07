@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /api
 
-Sitemap: https://rentbyade.vercel.app/sitemap.xml
+Sitemap: https://directrent.space/sitemap.xml
