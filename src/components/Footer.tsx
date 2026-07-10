@@ -6,7 +6,7 @@ const Footer = () => {
   const { setView } = useAuth();
   const [logoFailed, setLogoFailed] = useState(false);
   return (
-    <footer className="bg-slate-950 text-white py-10 md:py-16">
+    <footer className="bg-slate-950 text-white py-8 md:py-8">
       <div className="w-full px-[15px]">
         <div className="grid md:grid-cols-4 gap-12 mb-10 md:mb-16">
           <div className="col-span-2">

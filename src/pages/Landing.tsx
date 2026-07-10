@@ -26,21 +26,29 @@ import {
   HelpCircle,
   Coins,
   Linkedin,
-  Github,
-  Twitter
+  Github
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import ListingCard from '../components/ListingCard';
 import Footer from '../components/Footer';
 import { collection, query, limit, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Listing } from '../types';
 
-// ... (omitting top imports for brevity, replacing inside the file)
+import { Listing } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import SafeImage from '../components/SafeImage';
-import CustomCursor from '../components/CustomCursor';
+
+const XLogo = ({ className }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 24 24" 
+    fill="currentColor" 
+    className={className}
+  >
+    <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z" />
+  </svg>
+);
 
 const fadeUpVariant = {
   hidden: { opacity: 0, y: 30 },
@@ -84,7 +92,7 @@ const Hero = () => {
   };
 
   return (
-    <section className="relative pt-24 pb-20 lg:pt-32 lg:pb-28 overflow-hidden bg-slate-50/50 text-slate-900 transition-colors duration-300">
+    <section className="relative min-h-[100vh] flex flex-col justify-center items-center pt-24 pb-16 overflow-hidden bg-slate-50/50 text-slate-900 transition-colors duration-300">
       {/* Editorial Mesh Grid & Radial Soft Glows */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:4.5rem_4.5rem] opacity-30" />
@@ -93,172 +101,41 @@ const Hero = () => {
         <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-primary-600/5 rounded-full blur-[120px] opacity-40 pointer-events-none" />
       </div>
 
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+      <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-10 pb-10 flex flex-col justify-center items-center">
+        <div className="flex flex-col items-center text-center max-w-4xl mx-auto space-y-8">
           
-          {/* Hero Left Content */}
-          <div className="lg:col-span-7 text-center lg:text-left space-y-6">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm text-xs font-medium text-slate-700"
+          <motion.h1 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="font-display text-5xl sm:text-6xl lg:text-7xl font-medium tracking-tight leading-[1.05] text-slate-900"
+          >
+            Find your next space,<br />
+            <span className="text-primary-600 font-semibold">without the agent stress.</span>
+          </motion.h1>
+
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-slate-600 font-sans text-base sm:text-xl max-w-2xl mx-auto leading-relaxed font-light"
+          >
+            Verified student hostels, off-campus accommodations, and apartments listed directly by landlords. We specialize in safe, scam-free renting.
+          </motion.p>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="flex flex-col sm:flex-row items-center gap-4 pt-4"
+          >
+            <button 
+              onClick={handleFind}
+              className="bg-primary-600 hover:bg-primary-700 text-white px-8 py-4 rounded-full font-medium flex items-center justify-center gap-2 transition-all duration-300 shadow-md active:scale-95 text-base w-full sm:w-auto hover:shadow-lg hover:shadow-primary-500/10"
             >
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
-              </span>
-              <span>DirectRent is LIVE across Nigeria</span>
-            </motion.div>
-
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="font-display text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05] text-slate-900"
-            >
-              Find rental homes <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 via-indigo-600 to-indigo-500">
-                without agent stress.
-              </span>
-            </motion.h1>
-
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-slate-600 font-sans text-base sm:text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed font-light"
-            >
-              Verified student hostels, off-campus accommodations, and apartments listed directly by landlords and verified agents. Secure your tenancy in minutes, scam-free.
-            </motion.p>
-
-            {/* In-app like search bar */}
-            <motion.div 
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="max-w-2xl mx-auto lg:mx-0 w-full relative group"
-            >
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary-500 transition-all pointer-events-none" />
-              <input 
-                type="text" 
-                placeholder="Search by area, landmark, or university..." 
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleFind();
-                }}
-                className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-12 pr-32 outline-none focus:border-primary-400 focus:ring-4 focus:ring-primary-500/10 transition-all text-sm shadow-xl shadow-slate-150/40 placeholder:text-slate-400 text-slate-900"
-              />
-              <button 
-                onClick={handleFind}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary-600 hover:bg-primary-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md hover:scale-[1.02] active:scale-95 text-xs sm:text-sm"
-              >
-                Search
-              </button>
-            </motion.div>
-
-            {/* Tenant social validation icons */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
-              className="pt-6 flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start"
-            >
-              <div className="flex -space-x-3">
-                {[
-                  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100&q=80",
-                  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80",
-                  "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&h=100&q=80"
-                ].map((src, i) => (
-                  <SafeImage key={`val-avatar-${i}`} src={src} alt="Verified User" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-md" />
-                ))}
-              </div>
-              <p className="text-xs sm:text-sm text-slate-500 text-center lg:text-left">
-                Join <span className="text-slate-905 font-bold">2,500+ satisfied young professionals</span> who skipped shady commissions.
-              </p>
-            </motion.div>
-          </div>
-
-          {/* Hero Right Visuals: Premium Light Dashboard Preview */}
-          <div className="lg:col-span-5 relative hidden lg:block select-none pointer-events-none">
-            {/* Ambient Highlight */}
-            <div className="absolute inset-0 bg-primary-500/5 rounded-[32px] blur-3xl transform rotate-3" />
-            
-            <motion.div
-              initial={{ opacity: 0, x: 50, rotateY: -10 }}
-              animate={{ opacity: 1, x: 0, rotateY: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="relative bg-white border border-slate-250 rounded-3xl p-6 shadow-xl skew-y-1 transform hover:skew-y-0 transition-transform duration-500"
-            >
-              {/* Header bar */}
-              <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-5">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-rose-400" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-amber-450" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-450" />
-                  <span className="text-[10px] text-slate-400 font-mono ml-2">directrent.nig/app_preview</span>
-                </div>
-                <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
-                  Verified Data
-                </span>
-              </div>
-
-              {/* Fake Interactive map widget */}
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 relative overflow-hidden h-[240px] flex flex-col justify-end">
-                {/* Background mini-mesh simulating map styling */}
-                <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1.5px,transparent_1.5px)] [background-size:1rem_1rem] opacity-50" />
-                
-                {/* Simulated Floating Markers */}
-                <div className="absolute top-[25%] left-[30%] bg-primary-600 text-white px-2 py-1 rounded-lg text-[10px] font-black border border-white shadow-md flex items-center gap-1">
-                  <Building2 className="w-2.5 h-2.5" /> ₦850k/yr
-                </div>
-                <div className="absolute top-[45%] right-[20%] bg-indigo-600 text-white px-2 py-1 rounded-lg text-[10px] font-black border border-white shadow-md flex items-center gap-1">
-                  <HomeIcon className="w-2.5 h-2.5" /> ₦1.2M/yr
-                </div>
-                
-                {/* Map HUD Control Mock */}
-                <div className="absolute top-2 right-2 bg-white border border-slate-300 p-1.5 rounded-lg flex flex-col gap-1 shadow-sm">
-                  <div className="w-4 h-4 rounded bg-slate-100 text-[10px] font-extrabold flex items-center justify-center text-slate-700">+</div>
-                  <div className="w-4 h-4 rounded bg-slate-100 text-[10px] font-extrabold flex items-center justify-center text-slate-700">-</div>
-                  <div className="w-4 h-4 rounded bg-slate-50 text-[9px] font-extrabold flex items-center justify-center text-primary-600">3D</div>
-                </div>
-
-                {/* Listing quick snapshot card inside preview */}
-                <div className="relative z-10 bg-white border border-slate-250 p-3 rounded-xl flex items-center gap-3 shadow-lg">
-                  <SafeImage 
-                    src="https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=120&h=120&q=80" 
-                    alt="Property Preview" 
-                    className="w-14 h-14 rounded-lg object-cover"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Yaba, Lagos</p>
-                    <h5 className="text-xs font-bold text-slate-900 truncate">Premium Cozy Studio</h5>
-                    <p className="text-xs text-primary-600 font-extrabold mt-1">₦850,000 / year</p>
-                  </div>
-                  <div className="p-1 px-2 rounded-md bg-emerald-50 text-emerald-600 text-[9px] font-bold border border-emerald-100">
-                    No Fee
-                  </div>
-                </div>
-              </div>
-
-              {/* Metrics strip beneath panel */}
-              <div className="grid grid-cols-3 gap-3 mt-4 text-center">
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-205">
-                  <span className="block text-xl font-black text-slate-900 font-mono">0%</span>
-                  <span className="text-[9px] text-slate-550 uppercase tracking-wider font-semibold">Agent Fee</span>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-205">
-                  <span className="block text-xl font-black text-primary-600 font-mono">100%</span>
-                  <span className="text-[9px] text-slate-550 uppercase tracking-wider font-semibold">Verified</span>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-205">
-                  <span className="block text-xl font-black text-indigo-600 font-mono">Direct</span>
-                  <span className="text-[9px] text-slate-550 uppercase tracking-wider font-semibold">Contract</span>
-                </div>
-              </div>
-            </motion.div>
-          </div>
+              Get Started <span className="ml-1">→</span>
+            </button>
+          </motion.div>
 
         </div>
       </div>
@@ -270,21 +147,27 @@ const Hero = () => {
 const CompareTraditional = () => {
   return (
     <section className="py-12 sm:py-16 md:py-20 bg-white text-slate-900 transition-colors duration-300 relative border-y border-slate-200">
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <motion.div 
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: "-50px" }}
+        variants={staggerContainer}
+        className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8"
+      >
         
-        <div className="text-center max-w-2xl mx-auto mb-12 space-y-4">
-          <span className="text-primary-600 text-xs font-black tracking-widest uppercase">The Honest Reality</span>
+        <motion.div variants={fadeUpVariant} className="text-center max-w-2xl mx-auto mb-12 space-y-4">
+          <span className="text-primary-600 text-xs font-black tracking-widest uppercase">The Honest Truth</span>
           <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
-            Traditional Housing vs DirectRent
+            The Old Way vs DirectRent
           </h2>
           <p className="text-slate-555 text-sm sm:text-base font-light">
-            We put the power back in your hands. No tricks, no ridiculous middleman tax, just plain transparency.
+            We're making house hunting simple. No tricks, no ridiculous middleman fees, just plain transparency.
           </p>
-        </div>
+        </motion.div>
 
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12 max-w-5xl mx-auto">
           {/* Traditional Old-school block */}
-          <div className="bg-slate-50/75 rounded-3xl p-8 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-850 transition-all duration-300 relative overflow-hidden">
+          <motion.div variants={fadeUpVariant} className="bg-slate-50/75 rounded-3xl p-4 md:p-8 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-850 transition-all duration-300 relative overflow-hidden">
             <div className="absolute top-0 right-0 py-3 px-5 bg-rose-50 text-rose-600 border-l border-b border-rose-100 text-[10px] font-black uppercase tracking-wider rounded-bl-2xl">
               Broken System
             </div>
@@ -297,64 +180,64 @@ const CompareTraditional = () => {
               <li className="flex items-start gap-3">
                 <span className="w-5 h-5 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs border border-rose-100">✕</span>
                 <div>
-                  <strong className="text-slate-800">Payment for Inspections:</strong>
-                  <p className="text-xs text-slate-450 mt-0.5">Shady agents ask for "inspections form charges" just to show you locked gates.</p>
+                  <strong className="text-slate-800">Paying Just to Look:</strong>
+                  <p className="text-xs text-slate-450 mt-0.5">Agents charge you "inspection fees" just to show you places that might not even be available.</p>
                 </div>
               </li>
               <li className="flex items-start gap-3">
                 <span className="w-5 h-5 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs border border-rose-100">✕</span>
                 <div>
-                  <strong className="text-slate-800">10% Agency & 10% Legal Tax:</strong>
-                  <p className="text-xs text-slate-450 mt-0.5">Paying separate 20%+ commission on top of listed rent value directly to middle-men.</p>
+                  <strong className="text-slate-800">Hidden Agency & Legal Fees:</strong>
+                  <p className="text-xs text-slate-450 mt-0.5">Getting slapped with huge extra agency and legal fees that make the rent unaffordable.</p>
                 </div>
               </li>
               <li className="flex items-start gap-3">
                 <span className="w-5 h-5 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs border border-rose-100">✕</span>
                 <div>
-                  <strong className="text-slate-800">Fake photos & Double-Letting:</strong>
-                  <p className="text-xs text-slate-450 mt-0.5">Scanners advertising buildings they don't own, collecting multiple deposits and disappearing.</p>
+                  <strong className="text-slate-800">Fake Photos & Scams:</strong>
+                  <p className="text-xs text-slate-450 mt-0.5">Seeing a nice picture online, but getting to the place and it's a disaster, or dealing with scammers.</p>
                 </div>
               </li>
             </ul>
-          </div>
+          </motion.div>
 
           {/* New Modern DirectRent block */}
-          <div className="bg-primary-50/50 rounded-3xl p-8 border-[0.5px] border-primary-200/60 dark:border-[#0f172b] hover:border-primary-300 dark:hover:border-slate-850 transition-all duration-300 relative overflow-hidden shadow-md shadow-primary-500/5">
+          <motion.div variants={fadeUpVariant} className="bg-primary-50/50 rounded-3xl p-4 md:p-8 border-[0.5px] border-primary-200/60 dark:border-[#0f172b] hover:border-primary-300 dark:hover:border-slate-850 transition-all duration-300 relative overflow-hidden shadow-md shadow-primary-500/5">
             <div className="absolute top-0 right-0 py-3 px-5 bg-emerald-50 text-emerald-600 border-l border-b border-emerald-100 text-[10px] font-black uppercase tracking-wider rounded-bl-2xl">
-              Frictionless Path
+              The Better Way
             </div>
             <div className="w-12 h-12 rounded-2xl bg-white border border-primary-200 text-primary-600 flex items-center justify-center mb-6">
               <ShieldCheck className="w-6 h-6 text-primary-500" />
             </div>
-            <h3 className="text-lg font-bold mb-6 font-display text-primary-950">The DirectRent Standard</h3>
+            <h3 className="text-lg font-bold mb-6 font-display text-primary-950">The DirectRent Way</h3>
             
             <ul className="space-y-4 text-xs sm:text-sm text-slate-800">
               <li className="flex items-start gap-3">
                 <span className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs border border-emerald-100">✓</span>
                 <div>
-                  <strong className="text-primary-950">Zero Inspection Form Fees:</strong>
-                  <p className="text-slate-600 text-xs mt-0.5">Browse through actual maps, coordinates, and clear 3D photo listings completely free.</p>
+                  <strong className="text-primary-950">Free to Browse & Inspect:</strong>
+                  <p className="text-slate-600 text-xs mt-0.5">Look through real, verified photos and videos of properties online without paying a dime.</p>
                 </div>
               </li>
               <li className="flex items-start gap-3">
                 <span className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs border border-emerald-100">✓</span>
                 <div>
-                  <strong className="text-primary-950">Upfront Standard Fees only:</strong>
-                  <p className="text-slate-600 text-xs mt-0.5">Any necessary charges are explicitly documented so you calculate total expenses before moving.</p>
+                  <strong className="text-primary-950">No Hidden Charges:</strong>
+                  <p className="text-slate-600 text-xs mt-0.5">What you see is what you pay. All fees are clearly stated upfront so you can budget properly.</p>
                 </div>
               </li>
               <li className="flex items-start gap-3">
                 <span className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs border border-emerald-100">✓</span>
                 <div>
-                  <strong className="text-primary-950">Landlord & Dev Verification logs:</strong>
-                  <p className="text-slate-600 text-xs mt-0.5">Every account lists properties checking coordinates, building papers, and owner credentials first.</p>
+                  <strong className="text-primary-950">Strictly Verified Owners & Agents:</strong>
+                  <p className="text-slate-600 text-xs mt-0.5">We physically verify the properties and the people renting them out so you don't get scammed.</p>
                 </div>
               </li>
             </ul>
-          </div>
+          </motion.div>
         </div>
 
-      </div>
+      </motion.div>
     </section>
   );
 };
@@ -370,7 +253,7 @@ const RoleSelection = () => {
 
   return (
     <section className="py-12 sm:py-16 md:py-20 bg-slate-50/50 transition-colors duration-300 relative">
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div className="text-center max-w-2xl mx-auto mb-12 space-y-4">
           <span className="text-indigo-600 text-xs font-black tracking-widest uppercase">Platform Portals</span>
@@ -383,7 +266,7 @@ const RoleSelection = () => {
           <motion.div 
             whileHover={{ y: -6 }} 
             onClick={() => handleRoleSelection('tenant')}
-            className="group relative bg-white p-8 rounded-[2rem] shadow-sm border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 cursor-pointer transition-all duration-300 hover:shadow-md"
+            className="group relative bg-white p-4 md:p-8 rounded-[2rem] shadow-sm border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 cursor-pointer transition-all duration-300 hover:shadow-md"
           >
             <div className="absolute top-6 right-6">
               <span className="bg-primary-50 text-primary-600 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-primary-100">Tenant Portal</span>
@@ -391,18 +274,18 @@ const RoleSelection = () => {
             <div className="w-14 h-14 bg-primary-50 text-primary-500 rounded-2xl flex items-center justify-center mb-8 border border-primary-100 group-hover:scale-105 transition-transform">
               <Users className="w-7 h-7" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2 font-display">I want a rental home</h3>
-            <p className="text-xs sm:text-sm text-slate-500 mb-8 leading-relaxed font-light">Looking for a verified flat of studio-apartment with straightforward contracts.</p>
+            <h3 className="text-xl font-bold text-slate-900 mb-2 font-display">I want an apartment</h3>
+            <p className="text-xs sm:text-sm text-slate-500 mb-8 leading-relaxed font-light">Looking for your next space? Find verified student hostels, flats, and rooms.</p>
             
             <ul className="space-y-4 mb-10 text-xs sm:text-sm text-slate-600">
               <li className="flex items-center gap-3">
-                <CheckCircle2 className="text-primary-500 w-4 h-4 flex-shrink-0" /> Search using custom geographic interactive maps.
+                <CheckCircle2 className="text-primary-500 w-4 h-4 flex-shrink-0" /> Search real verified properties, no fake pictures.
               </li>
               <li className="flex items-center gap-3">
-                <CheckCircle2 className="text-primary-500 w-4 h-4 flex-shrink-0" /> Zero fake listings from unregistered roadside touts.
+                <CheckCircle2 className="text-primary-500 w-4 h-4 flex-shrink-0" /> Zero fake spaces from unregistered roadside touts.
               </li>
               <li className="flex items-center gap-3">
-                <CheckCircle2 className="text-primary-500 w-4 h-4 flex-shrink-0" /> Direct landlord contract terms and simple payment rules.
+                <CheckCircle2 className="text-primary-500 w-4 h-4 flex-shrink-0" /> Clear upfront fees so you can budget accurately.
               </li>
             </ul>
             <button className="w-full bg-primary-600 hover:bg-primary-700 text-white py-3.5 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-primary-500/10">
@@ -414,26 +297,26 @@ const RoleSelection = () => {
           <motion.div 
             whileHover={{ y: -6 }} 
             onClick={() => handleRoleSelection('agent')}
-            className="group relative bg-white p-8 rounded-[2rem] shadow-sm border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 cursor-pointer transition-all duration-300 hover:shadow-md"
+            className="group relative bg-white p-4 md:p-8 rounded-[2rem] shadow-sm border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 cursor-pointer transition-all duration-300 hover:shadow-md"
           >
             <div className="absolute top-6 right-6">
-              <span className="bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-indigo-100">Listing Portal</span>
+              <span className="bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-indigo-100">Landlord Portal</span>
             </div>
             <div className="w-14 h-14 bg-indigo-50 text-indigo-505 rounded-2xl flex items-center justify-center mb-8 border border-indigo-100 group-hover:scale-105 transition-transform">
               <Handshake className="w-7 h-7" />
             </div>
             <h3 className="text-xl font-bold text-slate-900 mb-2 font-display">I'm a landlord / verified agent</h3>
-            <p className="text-xs sm:text-sm text-slate-500 mb-8 leading-relaxed font-light">Upload real estate listings, filter tenant leads, and draft instant digitized paperwork.</p>
+            <p className="text-xs sm:text-sm text-slate-500 mb-8 leading-relaxed font-light">Upload real estate properties, connect with students, and manage your spaces.</p>
             
             <ul className="space-y-4 mb-10 text-xs sm:text-sm text-slate-600">
               <li className="flex items-center gap-3">
-                <CheckCircle2 className="text-indigo-500 w-4 h-4 flex-shrink-0" /> Instant verification to get your custom badge.
+                <CheckCircle2 className="text-indigo-500 w-4 h-4 flex-shrink-0" /> Identity verification to get your trusted badge.
               </li>
               <li className="flex items-center gap-3">
-                <CheckCircle2 className="text-indigo-500 w-4 h-4 flex-shrink-0" /> Safe identity validation to shield deals from scammers.
+                <CheckCircle2 className="text-indigo-500 w-4 h-4 flex-shrink-0" /> Only genuine inquiries from verified tenants.
               </li>
               <li className="flex items-center gap-3">
-                <CheckCircle2 className="text-indigo-500 w-4 h-4 flex-shrink-0" /> Receive qualified leads ready to view and pay.
+                <CheckCircle2 className="text-indigo-500 w-4 h-4 flex-shrink-0" /> Manage properties directly on the platform.
               </li>
             </ul>
             <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-indigo-500/10">
@@ -546,13 +429,13 @@ const FeaturedListings = () => {
 
   return (
     <section id="listings" className="py-12 sm:py-16 lg:py-20 bg-white transition-colors duration-300">
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
           <div className="text-center md:text-left mx-auto md:mx-0 max-w-xl">
             <span className="text-primary-600 text-xs font-black tracking-widest uppercase">Verified Showcase</span>
-            <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 mt-1">Hand-picked premium listings</h2>
-            <p className="text-slate-500 text-sm sm:text-base font-light mt-3">Ready-inspected standard properties with actual map reference markers.</p>
+            <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 mt-1">Hand-picked premium spaces</h2>
+            <p className="text-slate-500 text-sm sm:text-base font-light mt-3">Ready-inspected standard properties with actual location details.</p>
           </div>
           <button 
             onClick={handleAction} 
@@ -583,7 +466,7 @@ const FeaturedListings = () => {
           </motion.div>
         ) : (
           <div className="text-center py-10 bg-slate-50 rounded-3xl border border-slate-200">
-             <p className="text-slate-500 font-medium">No verified listings available right now. Check back soon!</p>
+             <p className="text-slate-500 font-medium">No verified spaces available right now. Check back soon!</p>
           </div>
         )}
 
@@ -595,36 +478,42 @@ const FeaturedListings = () => {
 const HowItWorks = () => (
   <section id="how-it-works" className="py-12 sm:py-16 lg:py-20 bg-slate-50/50 transition-colors duration-300 relative overflow-hidden">
     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary-500/5 rounded-full blur-[140px] pointer-events-none" />
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+    <motion.div 
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-50px" }}
+      variants={staggerContainer}
+      className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10"
+    >
       
-      <div className="text-center max-w-2xl mx-auto mb-12 space-y-4">
+      <motion.div variants={fadeUpVariant} className="text-center max-w-2xl mx-auto mb-12 space-y-4">
         <span className="text-primary-600 text-xs font-black tracking-widest uppercase">How It Works</span>
-        <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">Three steps to your keys</h2>
-        <p className="text-slate-500 text-sm sm:text-base font-light">Eradicating inspections taxes and long protocols.</p>
-      </div>
+        <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">Three steps to your new home</h2>
+        <p className="text-slate-500 text-sm sm:text-base font-light">Skip the agent stress and rent directly from verified owners.</p>
+      </motion.div>
 
       <div className="grid lg:grid-cols-3 gap-8 md:gap-12 max-w-6xl mx-auto">
         {[
           { 
             step: "01", 
             icon: <Search className="w-6 h-6 text-primary-500" />, 
-            title: "Simulate & Locate", 
-            desc: "Browse through verified geographical lists using real interactive map parameters filtered by location or budget." 
+            title: "Find Your Spot", 
+            desc: "Search for rooms or apartments near your school or workplace. We verify every listing so what you see is what you get." 
           },
           { 
             step: "02", 
             icon: <MessageSquare className="w-6 h-6 text-indigo-550" />, 
-            title: "Verify & Converse", 
-            desc: "View clear verified structural documents, click to initiate secured messaging requests, and chat directly with property hosts." 
+            title: "Book a Viewing", 
+            desc: "Found a place you like? Chat directly with the owner to schedule a physical inspection without paying any form fees." 
           },
           { 
             step: "03", 
             icon: <Key className="w-6 h-6 text-emerald-600" />, 
-            title: "Approve & Nest", 
-            desc: "Review clear in-app lease drafts with flat rates, proceed to close the contract safely, and grab your residential keys." 
+            title: "Pay & Move In", 
+            desc: "Sign your agreement and pay securely through our platform. No hidden agency fees, no sudden extra charges." 
           }
         ].map((item, idx) => (
-          <div key={`how-step-${idx}`} className="bg-white p-8 rounded-3xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300 shadow-sm flex flex-col items-start relative h-full">
+          <motion.div variants={fadeUpVariant} key={`how-step-${idx}`} className="bg-white p-4 md:p-8 rounded-3xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 transition-all duration-300 shadow-sm flex flex-col items-start relative h-full">
             <span className="font-mono text-[56px] font-black text-slate-101 leading-none absolute top-4 right-6 pointer-events-none select-none">
               {item.step}
             </span>
@@ -633,11 +522,11 @@ const HowItWorks = () => (
             </div>
             <h4 className="text-base font-bold text-slate-900 mb-2 leading-tight font-display">{item.title}</h4>
             <p className="text-xs sm:text-sm text-slate-500 leading-relaxed font-light">{item.desc}</p>
-          </div>
+          </motion.div>
         ))}
       </div>
 
-    </div>
+    </motion.div>
   </section>
 );
 
@@ -648,79 +537,92 @@ const TrustSafety = () => (
       <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[140px]" />
     </div>
 
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-      <span className="text-emerald-650 bg-emerald-50 border border-emerald-105/60 px-3 py-1 rounded-full text-xs font-black tracking-widest uppercase">High Credential Checks</span>
-      <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mt-4 mb-6 max-w-3xl mx-auto">
-        Security built into the platform
-      </h2>
-      <p className="text-slate-500 max-w-xl mx-auto mb-16 text-sm sm:text-base leading-relaxed font-light">
-        We understand the dynamic risks underlying Nigerian housing. DirectRent filters out fraud from the baseline up.
-      </p>
+    <motion.div 
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-50px" }}
+      variants={staggerContainer}
+      className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center"
+    >
+      <motion.div variants={fadeUpVariant}>
+        <span className="text-emerald-650 bg-emerald-50 border border-emerald-105/60 px-3 py-1 rounded-full text-xs font-black tracking-widest uppercase">100% Safe</span>
+        <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mt-4 mb-6 max-w-3xl mx-auto">
+          Rent without the worry
+        </h2>
+        <p className="text-slate-500 max-w-xl mx-auto mb-16 text-sm sm:text-base leading-relaxed font-light">
+          We do the hard work of verifying properties and owners so you don't have to. DirectRent filters out fraud from the start.
+        </p>
+      </motion.div>
 
       <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto text-left">
         {[
           { 
             icon: <ShieldCheck className="w-6 h-6 text-emerald-600" />, 
-            title: "KYC Registered Landlords", 
-            desc: "Property managers and hosts must provide official government identity data and verified coordinates to curb fraud." 
+            title: "Verified Owners Only", 
+            desc: "Every landlord and agent goes through strict identity checks. No scammers, just real people with real properties." 
           },
           { 
             icon: <Clock className="w-6 h-6 text-primary-600" />, 
-            title: "Strict Verification Standards", 
-            desc: "We enforce a strict visual policy with location-stamped photos to ensure what you see is what you get." 
+            title: "Real Properties", 
+            desc: "We double-check every listing to make sure the apartment actually exists and looks exactly like the photos." 
           },
           { 
             icon: <MessageSquare className="w-6 h-6 text-indigo-600" />, 
-            title: "Encrypted Deal Logs", 
-            desc: "Conversations and agreements are kept on-platform, protecting you from off-platform scams and keeping a secure record." 
+            title: "Safe Payments", 
+            desc: "All payments and chat messages happen safely on our platform, keeping your money and personal details fully protected." 
           }
         ].map((feature, i) => (
-          <div key={`trust-${i}`} className="bg-slate-50/80 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 p-8 rounded-3xl hover:shadow-md transition-all duration-300">
+          <motion.div variants={fadeUpVariant} key={`trust-${i}`} className="bg-slate-50/80 border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 p-4 md:p-8 rounded-3xl hover:shadow-md transition-all duration-300">
             <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mb-6 border border-slate-150">
               {feature.icon}
             </div>
             <h4 className="text-base font-bold mb-3 font-display text-slate-900">{feature.title}</h4>
             <p className="text-xs sm:text-sm text-slate-555 leading-relaxed font-light">{feature.desc}</p>
-          </div>
+          </motion.div>
         ))}
       </div>
-    </div>
+    </motion.div>
   </section>
 );
 
 const Testimonials = () => (
   <section className="py-12 sm:py-16 md:py-20 bg-slate-50/35 text-slate-900 transition-colors duration-300 relative border-t border-slate-200">
     <div className="absolute top-0 right-1/4 w-96 h-96 bg-primary-500/5 rounded-full blur-[100px] pointer-events-none" />
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+    <motion.div 
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-50px" }}
+      variants={staggerContainer}
+      className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10"
+    >
       
-      <div className="text-center max-w-2xl mx-auto mb-12 space-y-4">
+      <motion.div variants={fadeUpVariant} className="text-center max-w-2xl mx-auto mb-12 space-y-4">
         <span className="text-indigo-600 text-xs font-black tracking-widest uppercase">Verified Voices</span>
         <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight">Our Community</h2>
         <p className="text-slate-500 text-sm sm:text-base font-light">From students hunting for campus flats to landlords securing great tenants.</p>
-      </div>
+      </motion.div>
 
       <div className="flex overflow-x-auto snap-x snap-mandatory md:grid md:grid-cols-12 gap-4 md:gap-6 max-w-6xl mx-auto pb-8 md:pb-0 px-4 md:px-0 -mx-4 md:mx-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {/* Large Review Card */}
-        <div className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-8 bg-white p-6 sm:p-10 rounded-[2rem] border-[0.5px] border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 flex flex-col justify-between group">
+        <motion.div variants={fadeUpVariant} className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-8 bg-white p-4 lg:p-10 rounded-[2rem] border-[0.5px] border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 flex flex-col justify-between group">
           <div>
             <div className="flex gap-1 mb-4 sm:mb-6 text-amber-400">
               {[1,2,3,4,5].map(star => <Sparkles key={star} className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />)}
             </div>
             <h3 className="text-lg sm:text-2xl font-display font-medium text-slate-800 leading-tight mb-4">
-              "Finding a student apartment near UNILAG used to mean fighting with multiple agents and losing money on 'form fees'. DirectRent gave me direct contact with the owner. The 3D view actually matched reality."
+              "Finding a student apartment used to mean fighting with multiple agents and losing money on 'form fees'. DirectRent gave me direct contact with the owner. The photos actually matched reality."
             </h3>
           </div>
           <div className="flex items-center gap-4 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-100">
-            <SafeImage src="https://images.unsplash.com/photo-1531123897727-8f129e1bfa8ea?auto=format&fit=crop&w=150&h=150&q=80" className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-white shadow-md object-cover" alt="Pelumi Adeyemi" />
             <div>
               <h5 className="font-bold text-slate-900 text-sm sm:text-base leading-none mb-1">Pelumi Adeyemi</h5>
-              <p className="text-[10px] sm:text-xs text-primary-600 font-semibold tracking-wide">Final Year Student, Lagos</p>
+              <p className="text-[10px] sm:text-xs text-primary-600 font-semibold tracking-wide">Final Year Student</p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Square Right Card */}
-        <div className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-4 bg-primary-600 p-6 sm:p-8 rounded-[2rem] border border-primary-500 shadow-md hover:shadow-xl hover:scale-[1.02] transform transition-all duration-300 flex flex-col text-white">
+        <motion.div variants={fadeUpVariant} className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-4 bg-primary-600 p-4 md:p-8 rounded-[2rem] border border-primary-500 shadow-md hover:shadow-xl hover:scale-[1.02] transform transition-all duration-300 flex flex-col text-white">
           <div className="bg-primary-500/50 w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center mb-4 sm:mb-6">
             <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
@@ -729,45 +631,44 @@ const Testimonials = () => (
           </h3>
           <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-primary-500/50">
             <h5 className="font-bold text-white text-sm sm:text-base leading-none mb-1">Chief Okafor</h5>
-            <p className="text-[10px] sm:text-xs text-primary-200 font-semibold tracking-wide">Property Owner, Abuja</p>
+            <p className="text-[10px] sm:text-xs text-primary-200 font-semibold tracking-wide">Property Owner</p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Bottom Left Card */}
-        <div className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-4 bg-slate-900 p-6 sm:p-8 rounded-[2rem] border border-slate-800 shadow-lg hover:shadow-xl hover:-translate-y-1 transform transition-all duration-300 flex flex-col text-slate-100">
+        <motion.div variants={fadeUpVariant} className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-4 bg-slate-900 p-4 md:p-8 rounded-[2rem] border border-slate-800 shadow-lg hover:shadow-xl hover:-translate-y-1 transform transition-all duration-300 flex flex-col text-slate-100">
           <div className="bg-slate-800 w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center mb-4 sm:mb-6">
             <Handshake className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400" />
           </div>
           <h3 className="text-base sm:text-lg font-display text-slate-300 mb-auto leading-relaxed">
-            "I manage multiple hostels in Ibadan. Using the custom dash on DirectRent lets me verify a student's ID digitally before they even come for inspection."
+            "I manage multiple hostels. Using the custom dashboard on DirectRent lets me verify a student's ID digitally before they even come for inspection."
           </h3>
           <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-800">
             <h5 className="font-bold text-white text-sm sm:text-base leading-none mb-1">Mrs. Bola</h5>
-            <p className="text-[10px] sm:text-xs text-slate-400 font-semibold tracking-wide">Hostel Manager, UI Area</p>
+            <p className="text-[10px] sm:text-xs text-slate-400 font-semibold tracking-wide">Hostel Manager, LAUTECH Area</p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Bottom Right Card */}
-        <div className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-8 bg-white p-6 sm:p-10 rounded-[2rem] border-[0.5px] border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 flex flex-col justify-between">
+        <motion.div variants={fadeUpVariant} className="w-[85vw] md:w-auto flex-shrink-0 snap-center md:col-span-8 bg-white p-4 lg:p-10 rounded-[2rem] border-[0.5px] border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 flex flex-col justify-between">
           <div>
             <div className="flex gap-1 mb-4 sm:mb-6 text-amber-400">
               {[1,2,3,4,5].map(star => <Sparkles key={star} className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />)}
             </div>
             <h3 className="text-lg sm:text-xl font-display font-medium text-slate-800 leading-relaxed mb-4">
-              "We relocated for NYSC to Port Harcourt and had no idea how to get a place safely. A friend recommended DirectRent. Found an affordable self-contain online and paid the landlord straight. No drama."
+              "We resumed for a new semester and had no idea how to get a place safely. A friend recommended DirectRent. Found an affordable self-contain online and paid the landlord straight. No drama."
             </h3>
           </div>
           <div className="flex items-center gap-4 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-100">
-            <SafeImage src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&h=150&q=80" className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-white shadow-md object-cover" alt="Chidinma N." />
             <div>
               <h5 className="font-bold text-slate-900 text-sm sm:text-base leading-none mb-1">Chidinma N.</h5>
-              <p className="text-[10px] sm:text-xs text-primary-600 font-semibold tracking-wide">Corper, Rivers State</p>
+              <p className="text-[10px] sm:text-xs text-primary-600 font-semibold tracking-wide">Student</p>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
 
-    </div>
+    </motion.div>
   </section>
 );
 
@@ -777,7 +678,7 @@ const FAQ = () => {
   const faqs = [
     { 
       q: "I'm a student on a budget, are there affordable rooms?", 
-      a: "Yes. DirectRent is specially designed for students and young professionals. You can filter for self-contains, shared apartments, or hostels near your campus without paying any exorbitant 20% agency fees." 
+      a: "Yes. DirectRent is specially designed for students and young professionals. You can filter for self-contains or hostels near your campus without paying any exorbitant 20% agency fees." 
     },
     { 
       q: "As a landlord, how am I protected from difficult tenants?", 
@@ -785,7 +686,7 @@ const FAQ = () => {
     },
     { 
       q: "Do I have to pay an agent viewing form fee before seeing a property?", 
-      a: "Absolutely not. DirectRent strictly prohibits viewing fees. You browse accurate listings with coordinates for free, and only spend money when you are ready to sign your verified lease." 
+      a: "Absolutely not. DirectRent strictly prohibits viewing fees. You browse accurate properties with verified photos for free, and only spend money when you are ready to secure your space." 
     },
     { 
       q: "How does the rental payment structure work?", 
@@ -793,7 +694,7 @@ const FAQ = () => {
     },
     { 
       q: "Are the property images actually real or fake?", 
-      a: "DirectRent enforces a stern visual policy. Landlords take live photos that are location-stamped by our system. If you spot a disparity during your physical visit, flag it, and we will take down the listing." 
+      a: "DirectRent enforces a stern visual policy. Landlords take live photos that are location-stamped by our system. If you spot a disparity during your physical visit, flag it, and we will take down the space." 
     }
   ];
 
@@ -905,7 +806,7 @@ const Founders = () => {
                     <Github className="w-5 h-5" />
                   </a>
                   <a href="#" className="text-slate-400 hover:text-primary-600 transition-colors">
-                    <Twitter className="w-5 h-5" />
+                    <XLogo className="w-[18px] h-[18px] ml-0.5" />
                   </a>
                 </div>
               </div>
@@ -940,7 +841,7 @@ const Founders = () => {
                     <Github className="w-5 h-5" />
                   </a>
                   <a href="#" className="text-slate-400 hover:text-primary-600 transition-colors">
-                    <Twitter className="w-5 h-5" />
+                    <XLogo className="w-[18px] h-[18px] ml-0.5" />
                   </a>
                 </div>
               </div>
@@ -986,13 +887,12 @@ const Landing = () => {
   };
 
   return (
-    <div className="min-h-screen selection:bg-primary-550/20 bg-white text-slate-900 custom-cursor-area">
+    <div className="min-h-screen selection:bg-primary-550/20 bg-white text-slate-900">
       <Helmet>
         <title>DirectRent | Premium Zero-Commission Rental Platform in Nigeria</title>
         <meta name="description" content="DirectRent connects tenants directly with verified landlords and developers in Nigeria. Real coordinates, zero agent tax, digital lease logs, and safe viewings." />
       </Helmet>
       
-      <CustomCursor />
       <Navbar />
       
       <main className="overflow-hidden">
@@ -1014,7 +914,7 @@ const Landing = () => {
               whileInView={{ opacity: 1, scale: 1 }} 
               viewport={{ once: true }}
               transition={{ duration: 0.6 }} 
-              className="bg-slate-50 border-[0.5px] border-slate-200 dark:border-[#0f172b] rounded-[2.5rem] p-10 md:p-14 text-center relative overflow-hidden shadow-sm"
+              className="bg-slate-50 border-[0.5px] border-slate-200 dark:border-[#0f172b] rounded-[2.5rem] p-4 md:p-8 lg:p-14 text-center relative overflow-hidden shadow-sm"
             >
               {/* Subtle back reflection glows */}
               <div className="absolute top-0 right-0 w-[350px] h-[350px] bg-primary-500/5 rounded-full blur-[100px] pointer-events-none" />

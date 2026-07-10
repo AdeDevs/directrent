@@ -1060,8 +1060,8 @@ To authorize it, follow these steps:
       </div>
 
       {/* Right Column (Form Panel) */}
-      <div className="lg:col-span-7 flex flex-col justify-between min-h-screen lg:h-full lg:overflow-y-auto px-6 py-8 sm:px-12 sm:py-12 bg-white dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-300">
-        <header className="flex items-center justify-between pb-4">
+      <div className="lg:col-span-7 flex flex-col min-h-screen lg:h-full lg:overflow-y-auto px-6 py-4 sm:px-12 bg-white dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-300 relative">
+        <header className="flex items-center justify-between pb-0 lg:absolute lg:top-4 lg:left-12 lg:right-12 lg:z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md lg:bg-transparent lg:backdrop-blur-none">
           <button onClick={() => setView('landing')} className="p-2 -ml-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-1.5 group">
             <X className="w-5 h-5 group-hover:scale-110 transition-transform" />
             <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline">Back</span>
@@ -1090,9 +1090,9 @@ To authorize it, follow these steps:
           <div className="w-10 lg:hidden" />
         </header>
 
-        <main className="max-w-md mx-auto w-full py-6 md:py-12 flex-1 flex flex-col justify-center">
+        <main className="max-w-md mx-auto w-full flex-shrink-0 flex flex-col mt-8 mb-8 lg:mt-auto lg:mb-auto lg:py-8 relative z-0">
           {sessionStorage.getItem('redirect_after_auth') && (
-            <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-2xl flex items-start gap-3">
+            <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-2xl flex items-start gap-3">
               <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
               <div>
                 <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-0.5">Authentication Required</h4>
@@ -1102,8 +1102,8 @@ To authorize it, follow these steps:
               </div>
             </div>
           )}
-          <div className="text-center mb-8">
-          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white mb-2">
+          <div className="text-center mb-6">
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white mb-2">
             {isResetMode ? 'Reset password' : (authMode === 'login' ? 'Welcome back' : (signupStep === 1 ? 'Create account' : 'Verify Identity'))}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
@@ -1112,7 +1112,7 @@ To authorize it, follow these steps:
         </div>
 
         {!isResetMode && (
-          <div className="bg-slate-50 dark:bg-slate-900 p-1 rounded-xl flex items-center gap-1 mb-8 border border-slate-100 dark:border-slate-800">
+          <div className="bg-slate-50 dark:bg-slate-900 p-1 rounded-xl flex items-center gap-1 mb-6 border border-slate-100 dark:border-slate-800">
             <button onClick={() => handleAuthModeChange('login')} className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${authMode === 'login' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>Login</button>
             <button onClick={() => handleAuthModeChange('signup')} className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${authMode === 'signup' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>Sign Up</button>
           </div>
@@ -1120,7 +1120,7 @@ To authorize it, follow these steps:
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {!isResetMode && (
-            <div className="space-y-4">
+            <div className="space-y-3">
                <button 
                 type="button" 
                 onClick={handleGoogleSignIn}
@@ -1131,7 +1131,7 @@ To authorize it, follow these steps:
                 <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Continue with Google</span>
               </button>
               
-              <div className="flex items-center gap-4 my-6">
+              <div className="flex items-center gap-4 my-4">
                 <div className="h-[1px] flex-1 bg-slate-100 dark:bg-slate-800" />
                 <span className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest">or use email</span>
                 <div className="h-[1px] flex-1 bg-slate-100 dark:bg-slate-800" />
@@ -1829,7 +1829,7 @@ To authorize it, follow these steps:
       </main>
       
       {/* Dynamic desktop helper footer on form section */}
-      <footer className="text-center pt-4 border-t border-slate-100 dark:border-slate-850">
+      <footer className="text-center pt-4 pb-2 border-t border-slate-100 dark:border-slate-850 sticky bottom-[-1rem] lg:bottom-[-1rem] bg-white/95 dark:bg-slate-950/95 backdrop-blur-md z-10 mt-auto">
         <p className="text-xs text-slate-400 dark:text-slate-500">
           By signing up, you agree to our{' '}
           <button 

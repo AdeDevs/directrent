@@ -57,7 +57,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     userRefForEffect.current = user;
   }, [user]);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, 1700);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const isLoading = authLoading || !minTimeElapsed;
+  const setIsLoading = setAuthLoading;
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [isSigningUp, setIsSigningUp] = useState(false);
   

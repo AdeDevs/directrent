@@ -89,10 +89,6 @@
   }
 }
 
-.custom-cursor-area, .custom-cursor-area * {
-  cursor: none !important;
-}
-
 /* Ensure the reCAPTCHA challenge is above everything */
 .grecaptcha-badge { 
   z-index: 999999 !important; 
@@ -161,3 +157,4 @@ html.dark .gm-ui-hover-effect {
 html.dark .gm-ui-hover-effect span {
   background-color: #ffffff !important;
 }
+html { scroll-behavior: smooth; }

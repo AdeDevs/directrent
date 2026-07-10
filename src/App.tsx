@@ -6,8 +6,9 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { Listing } from './types';
 import ScrollToTop from './components/ScrollToTop';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Home } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
+import { motion } from 'motion/react';
 
 import TermsOfUse from './pages/TermsOfUse';
 
@@ -20,12 +21,59 @@ const ListingDetails = lazy(() => import('./pages/ListingDetails'));
 const AppLayout = lazy(() => import('./layouts/AppLayout'));
 
 const LoadingScreen = ({ message = "Initializing app..." }) => (
-  <div className="h-screen w-screen flex flex-col items-center justify-center bg-white dark:bg-slate-950 transition-colors gap-4">
-    <div className="relative">
-      <div className="w-12 h-12 border-4 border-slate-100 dark:border-slate-900 rounded-full" />
-      <div className="absolute top-0 left-0 w-12 h-12 border-4 border-transparent border-t-primary-600 dark:border-t-primary-500 rounded-full animate-spin" />
+  <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-950 transition-colors duration-300 relative overflow-hidden">
+    {/* Background Grid Pattern matching Landing */}
+    <div className="absolute inset-0 z-0 pointer-events-none">
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-primary-600/5 dark:bg-primary-500/5 rounded-full blur-[120px]" />
     </div>
-    <p className="text-sm font-bold text-slate-500 dark:text-slate-400 animate-pulse">{message}</p>
+
+    <div className="relative z-10 flex flex-col items-center gap-8 max-w-xs text-center px-4">
+      {/* Premium Minimal Kinetic Column Wave */}
+      <div className="flex items-end justify-center gap-1.5 h-10">
+        {[0, 1, 2, 3].map((index) => (
+          <motion.div
+            key={index}
+            className="w-2 rounded-full bg-primary-600 dark:bg-primary-500"
+            initial={{ height: 12 }}
+            animate={{ 
+              height: [12, 36, 12]
+            }}
+            transition={{
+              duration: 1.2,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: index * 0.15
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Brand & Message Signature */}
+      <div className="flex flex-col gap-2.5">
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="flex items-center justify-center gap-2"
+        >
+          <span className="text-xl font-display font-bold tracking-tight text-slate-800 dark:text-slate-200">
+            Direct<span className="text-primary-600 dark:text-primary-500 font-extrabold">Rent</span>
+          </span>
+          <span className="w-1.5 h-1.5 rounded-full bg-primary-500 dark:bg-primary-400 animate-ping" />
+        </motion.div>
+        
+        {/* Message Label */}
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.6 }}
+          transition={{ delay: 0.2, duration: 0.6 }}
+          className="text-[10px] font-sans font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400"
+        >
+          {message}
+        </motion.p>
+      </div>
+    </div>
   </div>
 );
 

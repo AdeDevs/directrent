@@ -210,8 +210,8 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
           </div>
         )}
 
-        {/* Beautiful bottom details and pricing bar - Stacks beautifully on long prices, side-by-side by default */}
-        <div className="mt-auto pt-4 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-transparent">
+        {/* Beautiful bottom details and pricing bar - Stacks beautifully on long prices */}
+        <div className="mt-auto pt-4 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/60 flex flex-col justify-between gap-4 bg-transparent">
           <div className="flex flex-col flex-1 min-w-0">
             <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">
               {listing.initialPayment ? '1st Pay / Deposit' : (
@@ -253,7 +253,7 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
             )}
           </div>
 
-          <div className="flex items-center w-full sm:w-auto mt-2 sm:mt-0">
+          <div className="flex items-center w-full mt-2">
             {isAgentView ? (
               <div className="flex gap-1.5 w-full">
                 <button 
