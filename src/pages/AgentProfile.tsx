@@ -497,6 +497,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
 
   const isVerified = agent.verificationLevel?.toLowerCase() === 'verified';
   const fullName = agent.firstName ? `${agent.firstName} ${agent.lastName}` : (agent.name || 'Anonymous Agent');
+  const isActive = agent.lastActive ? (Date.now() - agent.lastActive) < 5 * 60 * 1000 : false;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-white font-sans selection:bg-primary-500/30 transition-colors duration-500">
@@ -567,18 +568,15 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                     Verified Broker
                   </span>
                 )}
-              </div>
-
-              {/* Location / Meta data tags */}
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">
-                <span className="inline-flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-primary-500" />
-                  {agent.city || 'Ibadan'}, Nigeria
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-primary-500" />
-                  {stats.memberSince ? `${new Date().getFullYear() - parseInt(stats.memberSince) || 5} Years Experience` : '5 Years Experience'}
-                </span>
+                {isActive && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-bold uppercase tracking-wider self-center mx-auto md:mx-0 shadow-sm shadow-emerald-500/10">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    Active Now
+                  </span>
+                )}
               </div>
 
               {/* Description block */}
@@ -672,7 +670,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                     className="flex-none w-[85%] sm:w-[350px] md:w-[320px] snap-start group bg-white dark:bg-[#0c111e] rounded-3xl overflow-hidden border border-slate-200/60 dark:border-[#1e293b] shadow-md hover:shadow-2xl hover:border-slate-300 dark:hover:border-white/10 transition-all duration-300 flex flex-col cursor-pointer"
                   >
                     {/* Image Container with Cover Zoom */}
-                    <div className="relative aspect-[16/10] overflow-hidden">
+                    <div className="relative aspect-[2/1] sm:aspect-[16/10] overflow-hidden">
                       <SafeImage 
                         src={listing.image} 
                         alt={listing.title} 
@@ -706,7 +704,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
                     </div>
 
                     {/* Info Panel Info */}
-                    <div className="p-[15px] flex-1 flex flex-col justify-between space-y-4">
+                    <div className="p-3 sm:p-[15px] flex-1 flex flex-col justify-between space-y-4">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <h3 className="font-extrabold text-md text-slate-900 dark:text-white group-hover:text-primary-500 transition-colors truncate">

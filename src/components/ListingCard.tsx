@@ -92,7 +92,7 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
       onClick={onViewDetails}
       className="bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-sm hover:shadow-2xl hover:shadow-slate-200/45 dark:hover:shadow-black/25 transition-all duration-300 flex flex-col h-full group cursor-pointer relative"
     >
-      <div className="relative aspect-[4/3] overflow-hidden group/image">
+      <div className="relative aspect-[2/1] sm:aspect-[4/3] overflow-hidden group/image">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentImageIndex}
@@ -163,22 +163,22 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
         )}
       </div>
 
-      <div className="p-5 flex flex-col flex-1 bg-white dark:bg-slate-900 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/50">
-        <div className="flex justify-between items-start gap-3 mb-2">
-          <h3 className="text-slate-900 dark:text-white text-base font-display font-extrabold leading-snug group-hover:text-primary-600 dark:group-hover:text-primary-450 transition-colors tracking-tight line-clamp-1">
+      <div className="p-2.5 sm:p-5 flex flex-col flex-1 bg-white dark:bg-slate-900 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/50">
+        <div className="flex justify-between items-start gap-2 sm:gap-3 mb-1.5 sm:mb-2">
+          <h3 className="text-slate-900 dark:text-white text-sm sm:text-base font-display font-extrabold leading-snug group-hover:text-primary-600 dark:group-hover:text-primary-450 transition-colors tracking-tight line-clamp-1">
             {listing.title}
           </h3>
         </div>
 
-        <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 mb-3.5">
+        <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 mb-2 sm:mb-3.5">
           <MapPin className="w-3.5 h-3.5 text-primary-500 flex-shrink-0" />
-          <span className="text-[11px] font-bold tracking-wide uppercase truncate">{listing.location}</span>
+          <span className="text-[9px] sm:text-[11px] font-bold tracking-wide uppercase truncate">{listing.location}</span>
           {listing.landmark && (
-            <span className="text-[11px] text-slate-450 dark:text-slate-500 truncate font-medium">• {listing.landmark}</span>
+            <span className="text-[9px] sm:text-[11px] text-slate-450 dark:text-slate-500 truncate font-medium hidden sm:inline">• {listing.landmark}</span>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-1.5 mb-4.5">
+        <div className="flex flex-wrap gap-1.5 mb-3 sm:mb-4.5">
           {(listing.amenities || []).slice(0, 3).map((amenity, idx) => (
             <span key={`card-amenity-${listing.id}-${amenity}-${idx}`} className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800/80 text-slate-550 dark:text-slate-350 rounded-full text-[9px] font-bold uppercase tracking-wider border border-slate-250 dark:border-slate-700/60">
               {amenity}
@@ -186,34 +186,10 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
           ))}
         </div>
 
-        {!hideAgent && !isAgentView && listing.agent && (
-          <div className="pt-4 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/60 flex items-center justify-between mb-4.5">
-            <div className="flex items-center gap-2.5 cursor-pointer hover:opacity-85 transition-opacity">
-              <div className="w-8.5 h-8.5 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-500 dark:text-slate-400 overflow-hidden border border-slate-250 dark:border-slate-800 shadow-inner relative">
-                {(listing.agent as any).avatarUrl ? (
-                  <img src={(listing.agent as any).avatarUrl} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
-                ) : (
-                  listing.agent.name.charAt(0)
-                )}
-              </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-1 leading-none">
-                  <span className="text-xs font-black text-slate-800 dark:text-slate-200 truncate max-w-[120px]">{listing.agent.name}</span>
-                  {listing.agent.isVerified && <BadgeCheck className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
-                </div>
-                <div className="flex items-center gap-0.5 text-amber-500 mt-0.5">
-                  <Star className="w-2.5 h-2.5 fill-current" />
-                  <span className="text-[9px] font-black tracking-tight uppercase leading-none">{listing.agent.rating} Rating</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Beautiful bottom details and pricing bar - Stacks beautifully on long prices */}
-        <div className="mt-auto pt-4 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/60 flex flex-col justify-between gap-4 bg-transparent">
+        <div className="mt-auto pt-2 sm:pt-4 border-t-[0.5px] border-slate-200 dark:border-[#0f172b]/60 flex flex-col justify-between gap-2 sm:gap-4 bg-transparent">
           <div className="flex flex-col flex-1 min-w-0">
-            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">
+            <span className="text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">
               {listing.initialPayment ? '1st Pay / Deposit' : (
                 listing.paymentPeriod === 'monthly' ? 'Monthly Rent' :
                 listing.paymentPeriod === 'quarterly' ? 'Quarterly Rent' :
@@ -221,8 +197,8 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
                 listing.paymentPeriod === 'custom' ? 'Custom Lease' : 'Annual Rent'
               )}
             </span>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-slate-900 dark:text-white font-sans font-black text-base sm:text-lg leading-none tracking-tight break-all">
+            <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+              <span className="text-slate-900 dark:text-white font-sans font-black text-sm sm:text-lg leading-none tracking-tight break-all">
                 {listing.initialPayment || listing.price}
                 {!listing.initialPayment && (
                   <span className="text-xs font-bold text-slate-400 dark:text-slate-500 ml-0.5 uppercase">

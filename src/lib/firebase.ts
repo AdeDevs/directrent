@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { initializeFirestore, doc, getDocFromServer, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { getStorage } from "firebase/storage";
+import { getMessaging, isSupported } from "firebase/messaging";
 import firebaseConfig from '../../firebase-applet-config.json';
 
 export enum OperationType {
@@ -62,6 +63,7 @@ export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 }, (firebaseConfig as any).firestoreDatabaseId);
 export const storage = getStorage(app);
+export const messaging = async () => (await isSupported()) ? getMessaging(app) : null;
 
 // Test Connection
 async function testConnection() {

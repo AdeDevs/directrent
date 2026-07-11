@@ -24,6 +24,20 @@ export const createNotification = async (
       link: link || null,
       relatedId: relatedId || null,
     });
+    
+    // Trigger push notification via backend
+    fetch('/api/notifications/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        title,
+        body: message,
+        link,
+        relatedId
+      })
+    }).catch(e => console.warn("Push trigger failed:", e));
+
   } catch (err) {
     console.error("Error creating notification:", err);
   }

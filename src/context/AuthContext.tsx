@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { User, UserRole, ViewState, AuthMode, Listing, AppTab } from '../types';
-import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType, messaging } from '../lib/firebase';
+import { getToken } from 'firebase/messaging';
 import { onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, linkWithCredential, EmailAuthProvider, updatePassword as fbUpdatePassword } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, serverTimestamp, deleteField, updateDoc, FieldValue } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, serverTimestamp, deleteField, updateDoc, FieldValue, arrayUnion, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { isProfileComplete, calculateVerificationLevel } from '../lib/verification';
 import { useTheme } from './ThemeContext';
 
@@ -59,6 +60,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const [authLoading, setAuthLoading] = useState(true);
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+
+  const setupPushNotifications = async (userId: string) => {
+    try {
+      if (!('Notification' in window)) return;
+      
+      const msg = await messaging();
+      if (!msg) return;
+
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        const token = await getToken(msg, { vapidKey: 'BOPY_19AIXAx6Db1zKISMjdF8emGfEO-T6N1yrJuCPwad6tLY3iVBDrSMgKUYBS6pMMLT4VIpfIFF7xiWeB3Jfs' });
+        if (token) {
+          const userRef = doc(db, 'users', userId);
+          await updateDoc(userRef, {
+            fcmTokens: arrayUnion(token)
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Push notification setup failed:', e);
+    }
+  };
+
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -387,6 +411,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               }
             }
             themeSyncedFromProfile.current = firebaseUser.uid;
+            setupPushNotifications(firebaseUser.uid);
             lastFirestoreTheme.current = userData.theme || null;
             
             // Redirect logic (only run once on login or if role changes)
@@ -586,11 +611,100 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       await updateDoc(userRef, cleanUpdates);
+
+      // Cascade name, avatarUrl, or verificationLevel changes to all listings if user is an agent
+      if (user.role === 'agent') {
+        const hasNameChange = cleanUpdates.name !== undefined && cleanUpdates.name !== user.name;
+        const hasFirstNameChange = cleanUpdates.firstName !== undefined && cleanUpdates.firstName !== user.firstName;
+        const hasLastNameChange = cleanUpdates.lastName !== undefined && cleanUpdates.lastName !== user.lastName;
+        const hasAvatarChange = cleanUpdates.avatarUrl !== undefined && cleanUpdates.avatarUrl !== user.avatarUrl;
+        const hasVerificationChange = cleanUpdates.verificationLevel !== undefined && cleanUpdates.verificationLevel !== user.verificationLevel;
+
+        if (hasNameChange || hasFirstNameChange || hasLastNameChange || hasAvatarChange || hasVerificationChange) {
+          try {
+            const listingsRef = collection(db, 'listings');
+            const q = query(listingsRef, where('agent.id', '==', user.id));
+            const snapshot = await getDocs(q);
+            
+            if (!snapshot.empty) {
+              const batch = writeBatch(db);
+              
+              // Calculate new name if it changed
+              let newName = user.name;
+              if (cleanUpdates.name !== undefined) {
+                newName = cleanUpdates.name;
+              } else if (cleanUpdates.firstName !== undefined || cleanUpdates.lastName !== undefined) {
+                newName = `${cleanUpdates.firstName || user.firstName} ${cleanUpdates.lastName || user.lastName}`.trim();
+              }
+              
+              const newAvatarUrl = cleanUpdates.avatarUrl !== undefined ? cleanUpdates.avatarUrl : user.avatarUrl;
+              const newVerificationLevel = cleanUpdates.verificationLevel !== undefined ? cleanUpdates.verificationLevel : user.verificationLevel;
+
+              snapshot.forEach((docSnap) => {
+                const listingUpdates: any = {};
+                if (newName !== user.name) {
+                  listingUpdates['agent.name'] = newName;
+                }
+                if (newAvatarUrl !== user.avatarUrl) {
+                  listingUpdates['agent.avatarUrl'] = newAvatarUrl === null ? deleteField() : newAvatarUrl;
+                }
+                if (newVerificationLevel !== user.verificationLevel) {
+                  listingUpdates['agent.isVerified'] = newVerificationLevel?.toLowerCase() === 'verified';
+                  listingUpdates['verified'] = newVerificationLevel?.toLowerCase() === 'verified'; // Update root verified field as well
+                }
+                if (Object.keys(listingUpdates).length > 0) {
+                  batch.update(docSnap.ref, listingUpdates);
+                }
+              });
+
+              await batch.commit();
+              console.log(`Cascaded profile updates to ${snapshot.size} listings.`);
+            }
+          } catch (err) {
+            console.error("Failed to cascade profile updates to listings:", err);
+          }
+        }
+      }
     } catch (error) {
       console.error("Error updating profile:", error);
       throw error;
     }
   };
+
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const updatePresence = async () => {
+      try {
+        const userRef = doc(db, 'users', user.id);
+        await updateDoc(userRef, {
+          lastActive: serverTimestamp()
+        });
+      } catch (err) {
+        // Ignore permission or connectivity issues
+      }
+    };
+
+    // Update immediately on mount/login
+    updatePresence();
+
+    // Update every 3 minutes
+    const interval = setInterval(updatePresence, 3 * 60 * 1000);
+    
+    // Also update on visibility change if it becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        updatePresence();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user?.id]);
 
   const signInWithGoogle = async (preferredRole?: UserRole): Promise<boolean> => {
     setIsLoading(true);

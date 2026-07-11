@@ -30,7 +30,7 @@ const SavedListingCard: React.FC<SavedListingCardProps> = ({
       className="bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-slate-200/40 dark:hover:shadow-black/25 transition-all duration-300 flex flex-col h-full group cursor-pointer relative"
     >
       {/* Property image container with custom cover hover zoom */}
-      <div className="relative aspect-[4/3] overflow-hidden">
+      <div className="relative aspect-[2/1] sm:aspect-[4/3] overflow-hidden">
         <SafeImage 
           src={coverImage} 
           alt={listing.title} 
@@ -59,40 +59,24 @@ const SavedListingCard: React.FC<SavedListingCardProps> = ({
       </div>
 
       {/* Reduced listing metadata */}
-      <div className="p-4 flex flex-col flex-1 justify-between gap-3">
+      <div className="p-2.5 sm:p-4 flex flex-col flex-1 justify-between gap-1.5 sm:gap-3">
         <div>
-          <h3 className="text-slate-905 dark:text-white text-sm font-display font-black leading-tight group-hover:text-primary-600 dark:group-hover:text-primary-450 transition-colors tracking-tight line-clamp-1">
+          <h3 className="text-slate-905 dark:text-white text-xs sm:text-sm font-display font-black leading-tight group-hover:text-primary-600 dark:group-hover:text-primary-450 transition-colors tracking-tight line-clamp-1">
             {listing.title}
           </h3>
-          <p className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 tracking-wide uppercase mt-1 truncate">
+          <p className="text-[9px] sm:text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 tracking-wide uppercase mt-1 truncate">
             {listing.location}
           </p>
         </div>
 
         {/* Agent and Price - Clean visual footer */}
-        <div className="flex items-center justify-between pt-3 border-t-[0.5px] border-slate-205 dark:border-[#0f172b]/65">
+        <div className="flex items-center justify-between pt-2 sm:pt-3 border-t-[0.5px] border-slate-205 dark:border-[#0f172b]/65">
           <div className="text-left leading-none">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">rent/year</span>
-            <p className="text-xs font-display font-black text-primary-650 dark:text-primary-400 mt-1">
+            <span className="text-[8px] sm:text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">rent/year</span>
+            <p className="text-[11px] sm:text-xs font-display font-black text-primary-650 dark:text-primary-400 mt-1">
               {listing.price}
             </p>
           </div>
-
-          {/* Clean Agent Signature details */}
-          {listing.agent && (
-            <div className="flex items-center gap-1.5 max-w-[50%]">
-              <div className="w-6.5 h-6.5 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[8px] font-black text-slate-500 dark:text-slate-400 overflow-hidden border border-slate-250 dark:border-slate-700 shadow-inner relative shrink-0">
-                {(listing.agent as any).avatarUrl ? (
-                  <img src={(listing.agent as any).avatarUrl} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
-                ) : (
-                  listing.agent.name.charAt(0)
-                )}
-              </div>
-              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-bold truncate">
-                {listing.agent.name.split(' ')[0]}
-              </span>
-            </div>
-          )}
         </div>
       </div>
     </div>
