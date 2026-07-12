@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html><body>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
+  const firebaseConfig = {
+    projectId: "maindirectrent",
+    appId: "1:526214594338:web:799c4c2ed332c33aceef7b",
+    apiKey: "AIzaSyD9KnNb_J0-lmQ6aZLBwmj82jKfB-W8LlU",
+    authDomain: "maindirectrent.firebaseapp.com",
+    storageBucket: "maindirectrent.firebasestorage.app",
+    messagingSenderId: "526214594338",
+    measurementId: "G-DVTQL5WH2K"
+  };
+  const app = initializeApp(firebaseConfig);
+  const msg = getMessaging(app);
+  getToken(msg).then(console.log).catch(console.error);
+</script>
+</body></html>

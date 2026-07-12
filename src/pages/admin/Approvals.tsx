@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { createPortal } from 'react-dom';
+import { createNotification } from '../../lib/notifications';
+import { createNotification } from '../../lib/notifications';
 import { 
   ShieldCheck, 
   Check, 
@@ -437,20 +439,7 @@ const Approvals: React.FC<ApprovalsProps> = () => {
     }
   }, [selectedListingForReview?.id]);
 
-  const createNotification = async (userId: string, title: string, message: string, type: 'verification' | 'listing' | 'system') => {
-    try {
-      await addDoc(collection(db, 'notifications'), {
-        userId,
-        title,
-        message,
-        type,
-        read: false,
-        createdAt: serverTimestamp()
-      });
-    } catch (err) {
-      console.error("Error creating notification:", err);
-    }
-  };
+  // Removed local createNotification
 
   const filteredListings = useMemo(() => {
     return allListings.filter(listing => {

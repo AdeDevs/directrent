@@ -45,7 +45,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { theme, setTheme } = useTheme();
   const [view, setView] = useState<ViewState>(() => {
-    const p = window.location.pathname;
+    const p = typeof window !== 'undefined' ? window.location.pathname : '/';
     if (p === '/admin' || p.startsWith('/admin/')) return 'admin-auth';
     if (p === '/login' || p === '/auth') return 'auth';
     if (p === '/terms') return 'legal';
@@ -64,6 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const setupPushNotifications = async (userId: string, userData?: any) => {
     try {
+      if (typeof window === 'undefined') return;
       if (!('Notification' in window)) return;
       if (!('serviceWorker' in navigator)) return;
       
@@ -141,7 +142,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const tabList: AppTab[] = ['home', 'chat', 'profile', 'favorites', 'create', 'mylistings', 'notifications', 'terms', 'faq'];
   
   const [activeTab, setActiveTabState] = useState<AppTab>(() => {
-    const pathname = window.location.pathname;
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
     let cleanPath = pathname.replace(/^\//, '');
     
     // Handle admin sub-paths
@@ -152,7 +153,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (tabList.includes(cleanPath as AppTab)) {
       return cleanPath as AppTab;
     }
-    const saved = localStorage.getItem('last_active_tab') as AppTab;
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('last_active_tab') as AppTab : null;
     return (saved && tabList.includes(saved)) ? saved : 'home';
   });
 
@@ -191,7 +192,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [publishingStatus, setPublishingStatus] = useState<string>('');
 
   const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState<boolean>(() => {
-    return localStorage.getItem("directrent_sidebar_collapsed") === "true";
+    return typeof localStorage !== 'undefined' ? localStorage.getItem("directrent_sidebar_collapsed") === "true" : false;
   });
 
   const setIsSidebarCollapsed = (collapsed: boolean) => {

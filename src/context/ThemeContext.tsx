@@ -13,7 +13,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
     try {
-      const savedTheme = localStorage.getItem('theme');
+      const savedTheme = typeof localStorage !== 'undefined' ? localStorage.getItem('theme') : null;
       if (savedTheme === 'dark' || savedTheme === 'light') return savedTheme;
     } catch (e) {
       console.error("Theme load failed:", e);

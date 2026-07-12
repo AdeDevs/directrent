@@ -162,8 +162,11 @@ function getDb() {
 }
 
 export const app = express();
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
 
 app.post("/api/notifications/push", async (req, res) => {
+  console.log("-> /api/notifications/push HIT:", req.body);
   try {
     const { userId, title, body, link, relatedId } = req.body;
     if (!userId || !title) return res.status(400).json({ error: "Missing required fields" });
@@ -184,6 +187,7 @@ app.post("/api/notifications/push", async (req, res) => {
       };
       
       const response = await adminSDK.messaging().sendEachForMulticast(message);
+      console.log("Push notification multicast response:", JSON.stringify(response, null, 2));
       
       // Clean up invalid tokens
       const failedTokens = [];
@@ -213,8 +217,6 @@ app.post("/api/notifications/push", async (req, res) => {
 });
 
 
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
 
 // Set COOP headers to allow popups like Firebase Auth Google Sign-in to communicate with opener
 app.use((req, res, next) => {

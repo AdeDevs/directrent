@@ -2,7 +2,7 @@ import React, { useState, useEffect, lazy, Suspense } from "react";
 import { Home as HomeIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from 'react-hot-toast';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import BottomNav from "../components/BottomNav";
 import MobileDrawer from "../components/MobileDrawer";
@@ -86,6 +86,71 @@ const AppLayout = () => {
       behavior: 'auto'
     });
   }, [activeTab, currentListing, selectedAgentId]);
+
+  // Setup global real-time notifications listener to show toast and browser system notifications
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const processedNotifs = new Set<string>();
+    let isInitialLoad = true;
+
+    const q = query(
+      collection(db, "notifications"),
+      where("userId", "==", user.id)
+      
+    );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const id = change.doc.id;
+          const data = change.doc.data();
+          
+          if (data.read === false) {
+            if (isInitialLoad) {
+              processedNotifs.add(id);
+            } else if (!processedNotifs.has(id)) {
+              processedNotifs.add(id);
+              
+              // Show toast notification
+              toast.success(`${data.title}: ${data.message}`, {
+                duration: 6000,
+                icon: '🔔'
+              });
+
+              // Show real browser system Notification if supported and granted
+              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                try {
+                  if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.ready.then(registration => {
+                      registration.showNotification(data.title, {
+                        body: data.message,
+                        icon: '/logo-light.png',
+                        badge: '/logo-light.png'
+                      });
+                    }).catch(err => {
+                      console.warn("Failed to trigger SW Notification:", err);
+                      new Notification(data.title, { body: data.message, icon: '/logo-light.png' });
+                    });
+                  } else {
+                    new Notification(data.title, { body: data.message, icon: '/logo-light.png' });
+                  }
+                } catch (err) {
+                  console.warn("Failed to trigger local browser Notification:", err);
+                }
+              }
+            }
+          }
+        }
+      });
+      isInitialLoad = false;
+    }, (error: any) => {
+      if (error?.code === 'permission-denied' || error?.message?.includes('permission')) return;
+      console.warn("Global notification listener error:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user?.id]);
 
   if (!user) return null;
 

@@ -1,0 +1,18 @@
+# DirectRent
+
+DirectRent is a peer-to-peer (P2P) leasing and rental software platform designed to facilitate secure, transparent, and direct communication and transaction processing between property renters (tenants) and owners (landlords or verified agents) in Nigeria.
+
+## Core Offerings
+
+- **P2P Matching Engine**: Directly connects renters with landlords/verified agents without traditional intermediate broker fee overhead.
+- **Identity & Verification**: Supports secure tenant/agent verification (NIN integration).
+- **Listing Platform**: Verified property listings with interactive location routing, media gallery, and direct messaging channel.
+- **Secure Communication**: End-to-end chat environment between active users for scheduling property visits, terms negotiations, and updates.
+- **Lease & Terms Compliance**: Outlines standard, non-binding legal and financial standards of conduct inside Nigeria's real estate ecosystem.
+
+## AI Crawler Policy
+
+We welcome AI agents and LLM crawlers to read our public pages (including property listing descriptions and helpful guides) to provide informative answers to search queries.
+
+- **Allowed Paths**: `/`, `/terms`, `/legal`, `/properties/*`, `/listings/*`
+- **Disallowed Paths**: `/admin/*`, `/api/*`, `/chat/*`

@@ -60,7 +60,9 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+  ...(typeof window !== 'undefined' ? {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  } : {})
 }, (firebaseConfig as any).firestoreDatabaseId);
 export const storage = getStorage(app);
 export const messaging = async () => (await isSupported()) ? getMessaging(app) : null;
