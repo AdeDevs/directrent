@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { createPortal } from 'react-dom';
 import { createNotification } from '../../lib/notifications';
-import { createNotification } from '../../lib/notifications';
 import { 
   ShieldCheck, 
   Check, 

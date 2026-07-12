@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from "react";
+import React, { useState, useEffect, lazy, Suspense, useRef } from "react";
 import { Home as HomeIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from 'react-hot-toast';
@@ -46,6 +46,10 @@ const AppLayout = () => {
     isSidebarCollapsed,
     setIsSidebarCollapsed,
   } = useAuth();
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   const isCollapsed = isSidebarCollapsed;
   const { theme } = useTheme();
@@ -119,7 +123,7 @@ const AppLayout = () => {
               });
 
               // Show real browser system Notification if supported and granted
-              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted' && (userRef.current as any)?.fcmTokens?.length > 0) {
                 try {
                   if ('serviceWorker' in navigator) {
                     navigator.serviceWorker.ready.then(registration => {
