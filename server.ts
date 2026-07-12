@@ -595,6 +595,27 @@ app.get("/api/fetch-image", async (req, res) => {
       }
       
       const data = doc.data() || {};
+      
+      let lastActiveVal = null;
+      if (data.lastActive) {
+        if (typeof data.lastActive.toMillis === "function") {
+          lastActiveVal = data.lastActive.toMillis();
+        } else if (typeof data.lastActive.toDate === "function") {
+          lastActiveVal = data.lastActive.toDate().getTime();
+        } else if (data.lastActive._seconds) {
+          lastActiveVal = data.lastActive._seconds * 1000;
+        } else if (data.lastActive.seconds) {
+          lastActiveVal = data.lastActive.seconds * 1000;
+        } else {
+          const parsed = Date.parse(data.lastActive);
+          if (!isNaN(parsed)) {
+            lastActiveVal = parsed;
+          } else if (typeof data.lastActive === 'number') {
+            lastActiveVal = data.lastActive;
+          }
+        }
+      }
+
       const publicData = {
         id: doc.id,
         firstName: data.firstName || '',
@@ -612,14 +633,14 @@ app.get("/api/fetch-image", async (req, res) => {
         completedTxns: data.completedTxns || 0,
         avgRating: data.avgRating || 0,
         reviewsCount: data.reviewsCount || 0,
-        lastActive: data.lastActive ? (data.lastActive._seconds ? data.lastActive._seconds * 1000 : data.lastActive.toMillis()) : null,
+        lastActive: lastActiveVal,
         phoneNumber: data.phoneNumber || '' 
       };
       
       res.json({ data: publicData });
     } catch (err: any) {
       console.error(`Error fetching public profile for ${req.params.userId}:`, err);
-      res.status(500).json({ error: "Failed to fetch public profile" });
+      res.status(500).json({ error: "Failed to fetch public profile", details: err.message });
     }
   });
 

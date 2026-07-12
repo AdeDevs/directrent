@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { User, UserRole, ViewState, AuthMode, Listing, AppTab } from '../types';
 import { auth, db, handleFirestoreError, OperationType, messaging } from '../lib/firebase';
-import { getToken } from 'firebase/messaging';
+import { getToken, onMessage } from 'firebase/messaging';
+import { toast } from 'react-hot-toast';
 import { onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, linkWithCredential, EmailAuthProvider, updatePassword as fbUpdatePassword } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, collection, deleteDoc, serverTimestamp, deleteField, updateDoc, FieldValue, arrayUnion, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { isProfileComplete, calculateVerificationLevel } from '../lib/verification';
@@ -61,16 +62,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [authLoading, setAuthLoading] = useState(true);
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
-  const setupPushNotifications = async (userId: string) => {
+  const setupPushNotifications = async (userId: string, userData?: any) => {
     try {
       if (!('Notification' in window)) return;
+      if (!('serviceWorker' in navigator)) return;
       
       const msg = await messaging();
       if (!msg) return;
 
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        const token = await getToken(msg, { vapidKey: 'BOPY_19AIXAx6Db1zKISMjdF8emGfEO-T6N1yrJuCPwad6tLY3iVBDrSMgKUYBS6pMMLT4VIpfIFF7xiWeB3Jfs' });
+      // Listen for foreground push notifications in real-time
+      onMessage(msg, (payload) => {
+        console.log("Foreground message received:", payload);
+        if (payload.notification) {
+          toast.success(`${payload.notification.title}: ${payload.notification.body}`, {
+            duration: 6000,
+            icon: '🔔'
+          });
+        }
+      });
+
+      // Avoid automatic re-enabling if the user explicitly turned off notifications (has no tokens in Firestore)
+      if (!userData || !userData.fcmTokens || userData.fcmTokens.length === 0) {
+        return;
+      }
+
+      // Only setup if already granted to prevent annoying popups on mount
+      if (Notification.permission === 'granted') {
+        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        await navigator.serviceWorker.ready;
+        const token = await getToken(msg, { 
+          vapidKey: 'BOPY_19AIXAx6Db1zKISMjdF8emGfEO-T6N1yrJuCPwad6tLY3iVBDrSMgKUYBS6pMMLT4VIpfIFF7xiWeB3Jfs',
+          serviceWorkerRegistration: registration
+        });
         if (token) {
           const userRef = doc(db, 'users', userId);
           await updateDoc(userRef, {
@@ -411,7 +434,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               }
             }
             themeSyncedFromProfile.current = firebaseUser.uid;
-            setupPushNotifications(firebaseUser.uid);
+            setupPushNotifications(firebaseUser.uid, userData);
             lastFirestoreTheme.current = userData.theme || null;
             
             // Redirect logic (only run once on login or if role changes)

@@ -84,9 +84,19 @@ const Profile = () => {
         });
         toast.success("Push notifications disabled");
       } else {
+        if (!('serviceWorker' in navigator)) {
+          toast.error("Service workers are not supported on this browser.");
+          return;
+        }
+
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-          const token = await getToken(msg, { vapidKey: 'BOPY_19AIXAx6Db1zKISMjdF8emGfEO-T6N1yrJuCPwad6tLY3iVBDrSMgKUYBS6pMMLT4VIpfIFF7xiWeB3Jfs' });
+          const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          await navigator.serviceWorker.ready;
+          const token = await getToken(msg, { 
+            vapidKey: 'BOPY_19AIXAx6Db1zKISMjdF8emGfEO-T6N1yrJuCPwad6tLY3iVBDrSMgKUYBS6pMMLT4VIpfIFF7xiWeB3Jfs',
+            serviceWorkerRegistration: registration
+          });
           if (token) {
             const userRef = doc(db, 'users', user.id);
             await updateDoc(userRef, {
@@ -94,15 +104,19 @@ const Profile = () => {
             });
             toast.success("Push notifications enabled");
           } else {
-            toast.error("Failed to get notification token");
+            toast.error("Failed to retrieve push notification token");
           }
         } else {
           toast.error("Permission denied for notifications");
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Push notification toggle error:", err);
-      toast.error("Failed to toggle push notifications");
+      if (window.self !== window.top) {
+        toast.error("Push notifications cannot be registered within the preview iframe. Please open the app in a new tab to enable them!");
+      } else {
+        toast.error(`Failed to toggle push notifications: ${err.message || err}`);
+      }
     }
   };
 
@@ -1102,7 +1116,7 @@ const Profile = () => {
               onClick={handleTogglePushNotifications}
               className="w-full flex items-center gap-4 p-4 hover:bg-slate-100/75 dark:hover:bg-black/35 transition-colors group cursor-pointer"
             >
-              <div className={`w-10 h-10 ${(user as any)?.fcmTokens?.length > 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/55 dark:bg-emerald-900/30 dark:border-emerald-800/50 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 border border-slate-200/55 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'} rounded-2xl flex items-center justify-center group-active:scale-95 transition-all duration-300`}>
+              <div className={`w-10 h-10 ${(user as any)?.fcmTokens?.length > 0 ? 'bg-blue-50 text-blue-500 border border-blue-100/40 dark:bg-blue-955/40 dark:border-blue-900/10' : 'bg-slate-100 text-slate-600 border border-slate-200/55 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'} rounded-2xl flex items-center justify-center group-active:scale-95 transition-all duration-300`}>
                 <Bell className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
@@ -1110,7 +1124,7 @@ const Profile = () => {
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Receive alerts even when away</p>
               </div>
               <div 
-                className={`w-11 h-6 ${(user as any)?.fcmTokens?.length > 0 ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'} rounded-full flex items-center px-1 transition-all duration-300 relative`}
+                className={`w-11 h-6 ${(user as any)?.fcmTokens?.length > 0 ? 'bg-primary-600' : 'bg-slate-200 dark:bg-slate-700'} rounded-full flex items-center px-1 transition-all duration-300 relative`}
               >
                 <motion.div 
                   layout
