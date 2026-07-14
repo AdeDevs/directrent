@@ -164,7 +164,12 @@ const AudioPlayer: React.FC<{ src: string; isOwn: boolean }> = ({ src, isOwn }) 
 export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, currentUser, overrideConversationId }) => {
   const { setSelectedAgentId, setCurrentListing } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [pendingMessages, setPendingMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  
+  const allMessages = useMemo(() => {
+    return [...messages, ...pendingMessages];
+  }, [messages, pendingMessages]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [visualizerLevels, setVisualizerLevels] = useState<number[]>(new Array(30).fill(2));
@@ -558,7 +563,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       setTourNote('');
       setIsTourFormOpen(false);
 
-      if (agentId && agentId !== 'unknown') {
+      if (agentId && agentId !== 'unknown' && agentId !== currentUser.id) {
         await createNotification(
           agentId,
           "Property Tour Requested",
@@ -609,8 +614,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
         createdAt: serverTimestamp()
       }).catch(err => handleFirestoreError(err, OperationType.CREATE, `conversations/${conversationId}/messages`));
 
-      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
-      if (recipientId && recipientId !== 'unknown') {
+      const recipientId = currentUser.id === tenantId ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown' && recipientId !== currentUser.id) {
         await createNotification(
           recipientId,
           "Property Tour Confirmed",
@@ -659,8 +664,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
         createdAt: serverTimestamp()
       }).catch(err => handleFirestoreError(err, OperationType.CREATE, `conversations/${conversationId}/messages`));
 
-      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
-      if (recipientId && recipientId !== 'unknown') {
+      const recipientId = currentUser.id === tenantId ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown' && recipientId !== currentUser.id) {
         await createNotification(
           recipientId,
           "Tour Request Declined",
@@ -722,8 +727,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       setCounterNote('');
       setCounterFormMsgId(null);
 
-      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
-      if (recipientId && recipientId !== 'unknown') {
+      const recipientId = currentUser.id === tenantId ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown' && recipientId !== currentUser.id) {
         await createNotification(
           recipientId,
           "Tour Counter Proposed",
@@ -806,8 +811,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       }).catch(err => handleFirestoreError(err, OperationType.CREATE, `conversations/${conversationId}/messages`));
 
       // Send notification to the OTHER user
-      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
-      if (recipientId && recipientId !== 'unknown') {
+      const recipientId = currentUser.id === tenantId ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown' && recipientId !== currentUser.id) {
         await createNotification(
           recipientId,
           `Transaction Update: ${actionType.replace('_', ' ')}`,
@@ -836,21 +841,37 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       return;
     }
 
+    const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+    const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
+    const agentId = listing.agent?.id || convData?.agentId || 'unknown';
+
+    // Format file size
+    const formattedSize = file.size > 1024 * 1024 
+      ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+      : `${(file.size / 1024).toFixed(0)} KB`;
+
+    const tempMsg: Message = {
+      id: tempId,
+      content: '', // Temporary empty URL during upload
+      fileName: file.name,
+      fileSize: formattedSize,
+      fileType: file.type,
+      senderId: currentUser.id,
+      tenantId: tenantId,
+      agentId: agentId,
+      type: 'document',
+      createdAt: new Date(),
+      isPending: true
+    };
+
+    setPendingMessages(prev => [...prev, tempMsg]);
     setIsSending(true);
     setError(null);
     try {
-      const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
-      const agentId = listing.agent?.id || 'unknown';
-
       // Upload file to Firebase Storage
       const fileRef = ref(storage, `conversations/${conversationId}/${Date.now()}_${file.name}`);
       await uploadBytes(fileRef, file);
       const fileUrl = await getDownloadURL(fileRef);
-
-      // Format file size
-      const formattedSize = file.size > 1024 * 1024 
-        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-        : `${(file.size / 1024).toFixed(0)} KB`;
 
       // Check if conversation exists, if not create metadata
       const convRef = doc(db, 'conversations', conversationId);
@@ -951,8 +972,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
         }
       }
 
-      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
-      if (recipientId && recipientId !== 'unknown') {
+      const recipientId = currentUser.id === tenantId ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown' && recipientId !== currentUser.id) {
         await createNotification(
           recipientId,
           notificationTitle,
@@ -966,6 +987,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       console.error("Failed to send document: ", err);
       setError("Failed to send document.");
     } finally {
+      setPendingMessages(prev => prev.filter(m => m.id !== tempId));
       setIsSending(false);
     }
   };
@@ -1057,12 +1079,28 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       setError("Conversation is currently suspended.");
       return;
     }
+
+    const localAudioUrl = URL.createObjectURL(blob);
+    const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+    const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
+    const agentId = listing.agent?.id || convData?.agentId || 'unknown';
+
+    const tempMsg: Message = {
+      id: tempId,
+      content: localAudioUrl,
+      senderId: currentUser.id,
+      tenantId: tenantId,
+      agentId: agentId,
+      type: 'audio',
+      createdAt: new Date(),
+      isPending: true
+    };
+
+    setPendingMessages(prev => [...prev, tempMsg]);
     setIsSending(true);
     setError(null);
     try {
       const convRef = doc(db, 'conversations', conversationId);
-      const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
-      const agentId = listing.agent?.id || 'unknown';
 
       // Upload audio to Firebase Storage
       const fileRef = ref(storage, `conversations/${conversationId}/${Date.now()}_audio.webm`);
@@ -1134,9 +1172,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
 
       await addDoc(collection(db, 'conversations', conversationId, 'messages'), msgData);
       
-      // Send notification
-      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
-      if (recipientId && recipientId !== 'unknown') {
+      // Send notification (safeguarded against notifying oneself)
+      const recipientId = currentUser.id === tenantId ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown' && recipientId !== currentUser.id) {
         await createNotification(
           recipientId,
           `New audio message from ${`${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'User'}`,
@@ -1150,6 +1188,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       console.error("Audio processing/send error:", err);
       setError("Failed to send audio message.");
     } finally {
+      setPendingMessages(prev => prev.filter(m => m.id !== tempId));
       setIsSending(false);
     }
   };
@@ -1162,16 +1201,33 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
       return;
     }
 
+    const messageText = newMessage.trim();
+    setNewMessage('');
+
+    const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+    const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
+    const agentId = listing.agent?.id || convData?.agentId || 'unknown';
+
+    const tempMsg: Message = {
+      id: tempId,
+      content: messageText,
+      senderId: currentUser.id,
+      tenantId: tenantId,
+      agentId: agentId,
+      type: 'text',
+      createdAt: new Date(),
+      isPending: true
+    };
+
+    setPendingMessages(prev => [...prev, tempMsg]);
     setIsSending(true);
     setError(null);
     try {
       const convRef = doc(db, 'conversations', conversationId);
-      const agentId = listing.agent?.id || 'unknown';
       
       // Check if conversation exists, if not create metadata
       const convDoc = await getDoc(convRef);
       if (!convDoc.exists()) {
-        const agentId = listing.agent?.id || 'unknown';
         let agentImage = '';
         
         // Try to fetch agent's image if not in listing
@@ -1198,7 +1254,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
           listingPriceValue: getListingPriceValue(),
           status: 'inquiry',
           updatedAt: serverTimestamp(),
-          lastMessage: newMessage.trim(),
+          lastMessage: messageText,
           unreadCount_tenant: currentUser.role === 'tenant' ? 0 : 1,
           unreadCount_agent: currentUser.role === 'agent' ? 0 : 1
         });
@@ -1212,17 +1268,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
 
       } else {
         await updateDoc(convRef, {
-          lastMessage: newMessage.trim(),
+          lastMessage: messageText,
           updatedAt: serverTimestamp(),
           [currentUser.role === 'tenant' ? 'unreadCount_agent' : 'unreadCount_tenant']: increment(1)
         });
       }
 
-      // Add message to subcollection with metadata fields for relational rules
-      const tenantId = convData?.tenantId || (currentUser.role === 'tenant' ? currentUser.id : conversationId.split('_')[0]);
-      
       const msgData = {
-        content: newMessage.trim(),
+        content: messageText,
         senderId: currentUser.id,
         tenantId: tenantId, 
         agentId: agentId,
@@ -1240,24 +1293,24 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
 
       await addDoc(collection(db, 'conversations', conversationId, 'messages'), msgData);
 
-      // Send notification to the OTHER user
-      const recipientId = currentUser.role === 'tenant' ? agentId : tenantId;
-      if (recipientId && recipientId !== 'unknown') {
+      // Send notification to the OTHER user (safeguarded against notifying oneself)
+      const recipientId = currentUser.id === tenantId ? agentId : tenantId;
+      if (recipientId && recipientId !== 'unknown' && recipientId !== currentUser.id) {
         await createNotification(
           recipientId,
           `New message from ${`${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'User'}`,
-          newMessage.trim(),
+          messageText,
           'message',
           'chat',
           conversationId
         );
       }
-
-      setNewMessage('');
     } catch (err: any) {
       console.error("Error sending message:", err);
       setError("Failed to send message.");
+      setNewMessage(messageText);
     } finally {
+      setPendingMessages(prev => prev.filter(m => m.id !== tempId));
       setIsSending(false);
     }
   };
@@ -1573,7 +1626,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                   <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Securing Connection</p>
                 </div>
-              ) : messages.length === 0 ? (
+              ) : allMessages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-6 sm:p-8">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white dark:bg-slate-900 rounded-2xl shadow-sm flex items-center justify-center mb-4 border border-slate-200 dark:border-slate-800 text-primary-200 dark:text-primary-800">
                     <MessageSquare className="w-7 h-7 sm:w-8 sm:h-8" />
@@ -1584,7 +1637,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                   </p>
                 </div>
               ) : (
-                messages.map((msg) => (
+                allMessages.map((msg) => (
                   <div 
                     key={msg.id}
                     className={`flex ${
@@ -1622,15 +1675,15 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                         }
 
                         if (isTourAction && tourDetails) {
-                          const latestTourAction = [...messages]
+                          const latestTourAction = [...allMessages]
                             .reverse()
                             .find(m => m.type === 'action' && m.actionType && m.actionType.startsWith('tour_'));
                           const isLatestProposal = latestTourAction && latestTourAction.id === msg.id;
                           const isStaleProposal = (msg.actionType === 'tour_requested' || msg.actionType === 'tour_counter') && !isLatestProposal;
 
-                          const msgIndex = messages.findIndex(m => m.id === msg.id);
+                          const msgIndex = allMessages.findIndex(m => m.id === msg.id);
                           const subsequentTourAction = msgIndex !== -1 
-                            ? messages.slice(msgIndex + 1).find(m => m.type === 'action' && m.actionType && m.actionType.startsWith('tour_'))
+                            ? allMessages.slice(msgIndex + 1).find(m => m.type === 'action' && m.actionType && m.actionType.startsWith('tour_'))
                             : null;
 
                           const isConfirmed = tourDetails.status === 'confirmed';
@@ -1844,8 +1897,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                         );
                       })()
                     ) : msg.type === 'audio' ? (
-                      <div className="flex flex-col gap-1">
-                        <AudioPlayer src={msg.content} isOwn={msg.senderId === currentUser.id} />
+                      <div className="flex flex-col gap-1 relative">
+                        <div className="flex items-center gap-2">
+                          <AudioPlayer src={msg.content} isOwn={msg.senderId === currentUser.id} />
+                          {msg.isPending && (
+                            <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />
+                          )}
+                        </div>
                       </div>
                     ) : msg.type === 'document' ? (
                       <div className={`flex flex-col gap-1 max-w-[85%] ${msg.senderId === currentUser.id ? 'items-end' : 'items-start'}`}>
@@ -1861,7 +1919,11 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                               ? 'bg-indigo-700/50 text-indigo-100' 
                               : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500'
                           }`}>
-                            <FileText className="w-5 h-5 pointer-events-none" />
+                            {msg.isPending ? (
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                              <FileText className="w-5 h-5 pointer-events-none" />
+                            )}
                           </div>
                           
                           <div className="flex-1 min-w-0 text-left">
@@ -1871,34 +1933,39 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                             <p className={`text-[9.5px] mt-0.5 uppercase tracking-wider font-extrabold ${
                               msg.senderId === currentUser.id ? 'text-indigo-200' : 'text-slate-400 dark:text-slate-500'
                             }`}>
-                              {msg.fileSize || 'Unknown Size'} • Tenancy Agreement
+                              {msg.fileSize || 'Unknown Size'} • {msg.isPending ? 'Uploading...' : 'Tenancy Agreement'}
                             </p>
-                            <div className="mt-2.5 flex items-center gap-2">
-                              <a 
-                                href={msg.content} 
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all shadow-sm ${
-                                  msg.senderId === currentUser.id
-                                    ? 'bg-white/10 hover:bg-white/20 text-white'
-                                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950/80'
-                                }`}
-                              >
-                                {msg.content?.startsWith('data:') ? 'Download' : 'View Document'}
-                              </a>
-                            </div>
+                            {!msg.isPending && (
+                              <div className="mt-2.5 flex items-center gap-2">
+                                <a 
+                                  href={msg.content} 
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all shadow-sm ${
+                                    msg.senderId === currentUser.id
+                                      ? 'bg-white/10 hover:bg-white/20 text-white'
+                                      : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950/80'
+                                  }`}
+                                >
+                                  {msg.content?.startsWith('data:') ? 'Download' : 'View Document'}
+                                </a>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
                     ) : (
                       <div 
-                        className={`max-w-[85%] px-4 py-2.5 rounded-[22px] text-[13px] sm:text-sm shadow-sm transition-colors font-sans tracking-tight ${
+                        className={`max-w-[85%] px-4 py-2.5 rounded-[22px] text-[13px] sm:text-sm shadow-sm transition-colors font-sans tracking-tight flex items-center gap-2 ${
                           msg.senderId === currentUser.id 
                             ? 'bg-blue-500 text-white rounded-br-none shadow-blue-500/10' 
                             : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-none shadow-black/5'
                         }`}
                       >
-                        {msg.content}
+                        <span>{msg.content}</span>
+                        {msg.isPending && (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin opacity-70 shrink-0" />
+                        )}
                       </div>
                     )}
                   </div>

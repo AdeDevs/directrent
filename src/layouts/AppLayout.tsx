@@ -8,8 +8,8 @@ import BottomNav from "../components/BottomNav";
 import MobileDrawer from "../components/MobileDrawer";
 import DesktopSidebar from "../components/DesktopSidebar";
 
-const HomePage = lazy(() => import("../pages/Home?t=1784039513"));
-const ChatPage = lazy(() => import("../pages/Chat?t=1784039528"));
+const HomePage = lazy(() => import("../pages/Home"));
+const ChatPage = lazy(() => import("../pages/Chat"));
 const ProfilePage = lazy(() => import("../pages/Profile"));
 const FavoritesPage = lazy(() => import("../pages/Favorites"));
 const ListingDetails = lazy(() => import("../pages/ListingDetails"));
@@ -118,8 +118,7 @@ const AppLayout = () => {
               
               // Show toast notification
               toast.success(`${data.title}: ${data.message}`, {
-                duration: 6000,
-                icon: '🔔'
+                duration: 6000
               });
 
 

@@ -183,4 +183,5 @@ export interface Message {
   fileType?: string;
   actionType?: string;
   createdAt: any;
+  isPending?: boolean;
 }

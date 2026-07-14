@@ -1,4 +1,5 @@
 import React from 'react';
+import { Helmet } from 'react-helmet-async';
 import { ChevronLeft, Gavel } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { LegalTermsDoc, PrivacyPolicyDoc } from '../components/LegalDocs';
@@ -8,6 +9,11 @@ const TermsOfUse = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+      <Helmet>
+        <title>Terms of Use & Privacy Policy | DirectRent Nigeria</title>
+        <meta name="description" content="Read the official terms, rules, guidelines, and privacy policy for renting and listing properties safely with DirectRent in Nigeria." />
+        <link rel="canonical" href="https://directrent.space/terms" />
+      </Helmet>
       <header className="sticky top-0 z-40 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 dark:border-slate-850">
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center gap-4">
           <button 

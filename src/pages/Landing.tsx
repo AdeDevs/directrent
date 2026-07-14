@@ -891,6 +891,52 @@ const Landing = () => {
       <Helmet>
         <title>DirectRent | Premium Zero-Commission Rental Platform in Nigeria</title>
         <meta name="description" content="DirectRent connects tenants directly with verified landlords and developers in Nigeria. Real coordinates, zero agent tax, digital lease logs, and safe viewings." />
+        <meta name="keywords" content="rent apartments Nigeria, student hostels Lagos, DirectRent, verified house rent Abuja, rent space Lagos, real estate Nigeria, find hostels UNILAG, UNILORIN, UI accommodation, fraud free rental portal" />
+        <link rel="canonical" href="https://directrent.space" />
+        <meta name="robots" content="index, follow" />
+        <meta name="google-site-verification" content="gfloaJV0vGsUlpBVTMEETTTlkQm_bM2CK_Wg7yeuqzU" />
+        
+        {/* Open Graph / Facebook */}
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://directrent.space" />
+        <meta property="og:title" content="DirectRent | Premium Zero-Commission Rental Platform in Nigeria" />
+        <meta property="og:description" content="Eliminating housing scams in Nigeria. Connect directly with thoroughly verified owners, view safe real estate listings, and secure your next home or host space without agent fees." />
+        <meta property="og:image" content="https://directrent.space/og-cover.png" />
+        <meta property="og:site_name" content="DirectRent" />
+
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:url" content="https://directrent.space" />
+        <meta name="twitter:title" content="DirectRent | Verified Housing & Hostels in Nigeria" />
+        <meta name="twitter:description" content="Ditch the bait-and-switch. DirectRent offers double-verified agent identities and AI-screened listings across major cities. Rent with confidence." />
+        <meta name="twitter:image" content="https://directrent.space/og-cover.png" />
+
+        {/* Google Structured Schema for Rich Snippets */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "RealEstateAgent",
+            "name": "DirectRent",
+            "url": "https://directrent.space",
+            "logo": "https://directrent.space/logo-light.png",
+            "image": "https://directrent.space/og-cover.png",
+            "description": "Premium rental marketplace in Nigeria featuring facial-recognition agent KYC, AI-audited property listings, and secure rent settlement.",
+            "address": {
+              "@type": "PostalAddress",
+              "addressLocality": "Lagos",
+              "addressCountry": "NG"
+            },
+            "geo": {
+              "@type": "GeoCoordinates",
+              "latitude": "6.5244",
+              "longitude": "3.3792"
+            },
+            "sameAs": [
+              "https://twitter.com/DirectRent",
+              "https://github.com/DirectRent-Space"
+            ]
+          })}
+        </script>
       </Helmet>
       
       <Navbar />

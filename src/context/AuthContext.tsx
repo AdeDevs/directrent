@@ -76,8 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("Foreground message received:", payload);
         if (payload.notification) {
           toast.success(`${payload.notification.title}: ${payload.notification.body}`, {
-            duration: 6000,
-            icon: '🔔'
+            duration: 6000
           });
         }
       });
