@@ -1352,12 +1352,15 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
               <div className="flex items-center gap-3.5 text-left">
                 <button 
                   onClick={() => {
-                    const idToView = listing.agent?.id || convData?.agentId;
-                    if (idToView && idToView !== 'unknown') {
-                      onClose();
-                      setSelectedAgentId(idToView);
+                    if (otherUser?.role === 'agent') {
+                      const idToView = listing?.agent?.id || convData?.agentId;
+                      if (idToView && idToView !== 'unknown') {
+                        onClose();
+                        setSelectedAgentId(idToView);
+                      }
                     }
                   }}
+                  disabled={otherUser?.role !== 'agent'}
                   className="w-10 h-10 rounded-2xl bg-primary-50 dark:bg-slate-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-extrabold border border-slate-150/60 dark:border-slate-700 overflow-hidden shrink-0 uppercase text-sm relative shadow-inner cursor-pointer hover:scale-105 transition-all duration-300"
                 >
                   {otherUser?.avatarUrl ? (
@@ -1370,12 +1373,15 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                 <div className="min-w-0">
                   <button 
                     onClick={() => {
-                      const idToView = listing.agent?.id || convData?.agentId;
-                      if (idToView && idToView !== 'unknown') {
-                        onClose();
-                        setSelectedAgentId(idToView);
+                      if (otherUser?.role === 'agent') {
+                        const idToView = listing?.agent?.id || convData?.agentId;
+                        if (idToView && idToView !== 'unknown') {
+                          onClose();
+                          setSelectedAgentId(idToView);
+                        }
                       }
                     }}
+                    disabled={otherUser?.role !== 'agent'}
                     className="flex items-center gap-1.5 mb-0.5 text-left hover:text-primary-600 dark:hover:text-primary-400 group cursor-pointer"
                   >
                     <h3 className="font-display font-extrabold text-[#111827] dark:text-white text-sm sm:text-base leading-tight truncate tracking-tight group-hover:underline">

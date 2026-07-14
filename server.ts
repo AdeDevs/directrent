@@ -227,52 +227,9 @@ app.use((req, res, next) => {
 
 const PORT = 3000;
 
-app.get("/sitemap.xml", async (req, res) => {
-  try {
-    const db = getDb();
-    let dynamicUrls = "";
 
-    try {
-      const listingsSnap = await db.collection("listings").where("status", "==", "available").get();
-      listingsSnap.forEach((doc: any) => {
-        dynamicUrls += `
-  <url>
-    <loc>https://directrent.space/properties/${doc.id}</loc>
-    <lastmod>${new Date().toISOString()}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>`;
-      });
-    } catch (dbErr) {
-      console.warn("Could not fetch listings for sitemap:", dbErr);
-    }
-
-    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://directrent.space/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://directrent.space/listings</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://directrent.space/agents</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>${dynamicUrls}
-</urlset>`;
     
-    res.header('Content-Type', 'application/xml');
-    res.send(sitemap);
-  } catch (err: any) {
-    console.error("Error generating sitemap:", err);
-    res.status(500).send("Error generating sitemap");
-  }
-});
+
 
 app.get("/api/health", (req, res) => {
   let adminApp = null;

@@ -8,8 +8,8 @@ import BottomNav from "../components/BottomNav";
 import MobileDrawer from "../components/MobileDrawer";
 import DesktopSidebar from "../components/DesktopSidebar";
 
-const HomePage = lazy(() => import("../pages/Home"));
-const ChatPage = lazy(() => import("../pages/Chat"));
+const HomePage = lazy(() => import("../pages/Home?t=1784039513"));
+const ChatPage = lazy(() => import("../pages/Chat?t=1784039528"));
 const ProfilePage = lazy(() => import("../pages/Profile"));
 const FavoritesPage = lazy(() => import("../pages/Favorites"));
 const ListingDetails = lazy(() => import("../pages/ListingDetails"));
@@ -122,27 +122,7 @@ const AppLayout = () => {
                 icon: '🔔'
               });
 
-              // Show real browser system Notification if supported and granted
-              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted' && (userRef.current as any)?.fcmTokens?.length > 0) {
-                try {
-                  if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.ready.then(registration => {
-                      registration.showNotification(data.title, {
-                        body: data.message,
-                        icon: '/logo-light.png',
-                        badge: '/logo-light.png'
-                      });
-                    }).catch(err => {
-                      console.warn("Failed to trigger SW Notification:", err);
-                      new Notification(data.title, { body: data.message, icon: '/logo-light.png' });
-                    });
-                  } else {
-                    new Notification(data.title, { body: data.message, icon: '/logo-light.png' });
-                  }
-                } catch (err) {
-                  console.warn("Failed to trigger local browser Notification:", err);
-                }
-              }
+
             }
           }
         }
