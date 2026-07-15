@@ -207,7 +207,7 @@ const AppLayout = () => {
         {/* Persistent left sidebar on desktop view ports */}
         <DesktopSidebar isCollapsed={isCollapsed} onToggleCollapse={handleToggleCollapse} />
 
-        <main className={`w-full max-w-full px-0 ${user?.role === 'agent' ? 'pb-5' : 'pb-24'} lg:pb-12 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-72'} flex-1 relative transition-all duration-300 min-w-0`}>
+        <main className={`w-full max-w-full px-0 ${user?.role === 'agent' ? 'pb-5' : 'pb-24'} lg:pb-12 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-72'} flex flex-col flex-1 relative transition-all duration-300 min-w-0`}>
           {publishingProgress !== null && (
             <div className="sticky top-0 lg:top-0 z-[120] w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-primary-500/10 p-4 transition-all duration-300 shadow-sm">
               <div className="max-w-4xl mx-auto space-y-2 px-4">

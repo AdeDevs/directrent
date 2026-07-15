@@ -8,7 +8,7 @@ const TermsOfUse = () => {
   const { user, setActiveTab, setView } = useAuth();
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+    <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <Helmet>
         <title>Terms of Use & Privacy Policy | DirectRent Nigeria</title>
         <meta name="description" content="Read the official terms, rules, guidelines, and privacy policy for renting and listing properties safely with DirectRent in Nigeria." />

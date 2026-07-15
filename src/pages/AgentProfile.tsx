@@ -37,7 +37,7 @@ interface AgentProfileProps {
 
 const AgentProfileSkeleton: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-white font-sans transition-colors duration-500">
+    <div className="flex-1 w-full bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-white font-sans transition-colors duration-500">
       {/* Navigation */}
       <nav className="sticky top-0 left-0 right-0 h-16 flex items-center px-6 z-[100] bg-white/80 dark:bg-[#020617]/80 backdrop-blur-xl border-b border-slate-200 dark:border-white/5 transition-all">
         <button 
@@ -486,7 +486,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
 
   if (error || !agent) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center text-white">
+      <div className="flex-1 w-full bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center text-white">
         <ShieldAlert className="w-16 h-16 text-rose-500 mb-4" />
         <h2 className="text-2xl font-black mb-2 uppercase">Record Missing</h2>
         <p className="text-slate-400 mb-8 max-w-xs">{error || "This profile is no longer active."}</p>
@@ -500,7 +500,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
   const isActive = agent.lastActive ? (Date.now() - agent.lastActive) < 5 * 60 * 1000 : false;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-white font-sans selection:bg-primary-500/30 transition-colors duration-500">
+    <div className="flex-1 w-full bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-white font-sans selection:bg-primary-500/30 transition-colors duration-500">
       <HeaderPortal>
         <div className="hidden md:flex flex-1 items-center justify-end px-6 py-2 pb-3 mb-1">
           {(!user || user.id !== agentId) && (

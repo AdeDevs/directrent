@@ -832,7 +832,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center font-sans w-full animate-fade-in"
+        className="flex-1 w-full bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center font-sans w-full animate-fade-in"
       >
         <div className="max-w-md w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-xl flex flex-col items-center gap-6">
           <div className="w-16 h-16 rounded-full bg-rose-50 dark:bg-rose-950/30 text-rose-500 dark:text-rose-400 flex items-center justify-center shadow-inner">
@@ -861,7 +861,7 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center font-sans w-full"
+        className="flex-1 w-full bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center font-sans w-full"
       >
         <div className="max-w-md w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-xl flex flex-col items-center gap-6 animate-fade-in">
           <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-500 dark:text-amber-400 flex items-center justify-center shadow-inner">

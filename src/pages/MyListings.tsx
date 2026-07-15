@@ -119,7 +119,7 @@ export default function MyListings() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 gap-4">
+      <div className="flex-1 w-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 gap-4">
         <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-800 border-t-primary-600 dark:border-t-primary-500 rounded-full animate-spin" />
         <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest animate-pulse">Fetching your listings...</p>
       </div>
@@ -127,7 +127,7 @@ export default function MyListings() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-0 transition-colors">
+    <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950 pb-0 transition-colors">
       <header className={`sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center justify-between lg:hidden`}>
         <div className="flex items-center gap-2">
           <HamburgerButton />

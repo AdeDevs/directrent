@@ -74,11 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Listen for foreground push notifications in real-time
       onMessage(msg, (payload) => {
         console.log("Foreground message received:", payload);
-        if (payload.notification) {
-          toast.success(`${payload.notification.title}: ${payload.notification.body}`, {
-            duration: 6000
-          });
-        }
+        // Toast is handled by AppLayout's global Firestore notification listener to prevent duplicates.
       });
 
       // Avoid automatic re-enabling if the user explicitly turned off notifications (has no tokens in Firestore)

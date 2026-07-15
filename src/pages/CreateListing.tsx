@@ -462,7 +462,7 @@ export default function CreateListing() {
 
   if (isEditMode && currentListing?.status === 'suspended') {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4 text-center font-sans">
+      <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4 text-center font-sans">
         <div className="max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-xl border border-rose-100 dark:border-rose-950/40 relative">
           <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/40 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
             <AlertCircle className="w-8 h-8" />
@@ -497,7 +497,7 @@ export default function CreateListing() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-0 transition-colors">
+    <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950 pb-0 transition-colors">
       {/* 1st part: mobile sticky header */}
       <header className={`sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center justify-between lg:hidden`}>
         <div className="flex items-center gap-3">

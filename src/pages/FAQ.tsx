@@ -58,7 +58,7 @@ const FAQ = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+    <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <header className={`sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center gap-4 lg:hidden`}>
         <button 
           onClick={() => setActiveTab('profile')}

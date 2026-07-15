@@ -384,7 +384,7 @@ const Wallet = () => {
 
   if (!user || user.role !== 'agent') {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+      <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
         <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
         <h2 className="text-lg font-black text-slate-900 dark:text-white">Wallet Unavailable</h2>
         <p className="text-sm text-slate-500 mt-2 max-w-sm">Tenant accounts utilize direct Paystack checkout for transactions. Agents receive wallet settlements.</p>
@@ -429,7 +429,7 @@ const Wallet = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-0 transition-colors duration-300 animate-fade-in">
+    <div className="flex-1 w-full bg-slate-50/50 dark:bg-slate-950 pb-0 transition-colors duration-300 animate-fade-in">
       <header className={`sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 h-16 flex items-center justify-between lg:hidden`}>
         <div className="flex items-center gap-2">
           <HamburgerButton />
