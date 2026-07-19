@@ -14,6 +14,7 @@ import { Listing, Notification } from '../types';
 import NotificationBadge from '../components/NotificationBadge';
 import { GoogleMapsGuard } from '../components/GoogleMapsGuard';
 import { HeaderPortal } from '../components/HeaderPortal';
+import toast from 'react-hot-toast';
 
 // Ultra-minimal high-end light styling - hides schools, shops, transit clutter
 const LIGHT_MAP_STYLE = [
@@ -119,7 +120,7 @@ const getMarkerIcon = (type: string) => {
   }
 };
 
-const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing) => void }> = ({ listing, onClick }) => {
+const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing) => void }> = React.memo(({ listing, onClick }) => {
   const [markerRef, marker] = useAdvancedMarkerRef();
   const [infoWindowShown, setInfoWindowShown] = useState(false);
 
@@ -183,7 +184,7 @@ const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing
       )}
     </>
   );
-};
+});
 
 // Custom interactive dashboard overlays for rotation, elevation tilt (3D), and zooming controls
 const MapControlsOverlay: React.FC = () => {
@@ -295,7 +296,7 @@ const MapControlsOverlay: React.FC = () => {
 };
 
 // Auto-centers and zooms the map comfortably on the active listings so users aren't left in the Lagoon
-const MapCenteringController: React.FC<{ listings: Listing[] }> = ({ listings }) => {
+const MapCenteringController: React.FC<{ listings: Listing[] }> = React.memo(({ listings }) => {
   const map = useMap();
 
   const listingsHash = listings.map(l => l.id).join(',');
@@ -316,7 +317,7 @@ const MapCenteringController: React.FC<{ listings: Listing[] }> = ({ listings })
   }, [map, listingsHash]);
 
   return null;
-};
+});
 
 
 const Home = () => {
@@ -327,6 +328,7 @@ const Home = () => {
   const [priceInputVal, setPriceInputVal] = useState("1000000000");
   const [showFilters, setShowFilters] = useState(false);
   const [dbListings, setDbListings] = useState<Listing[]>([]);
+  const [isLoadingListings, setIsLoadingListings] = useState(true);
   const [isMapView, setIsMapView] = useState(false);
   const { user, setCurrentListing, setActiveTab } = useAuth();
   const [logoFailed, setLogoFailed] = useState(false);
@@ -376,8 +378,10 @@ const Home = () => {
         return dateB - dateA;
       });
       setDbListings(fetched);
+      setIsLoadingListings(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'listings');
+      setIsLoadingListings(false);
     });
 
     return () => unsubscribe();
@@ -451,8 +455,9 @@ const Home = () => {
         createdAt: serverTimestamp()
       });
       // Trigger a local notification or toast
-      alert('Search alert saved! We will notify you when matching properties are posted.');
+      toast.success('Search alert saved! We will notify you when matching properties are posted.');
     } catch (error) {
+      toast.error('Failed to save search alert. Please try again.');
       handleFirestoreError(error, OperationType.WRITE, 'saved_searches');
     } finally {
       setIsSavingSearch(false);
@@ -730,7 +735,17 @@ const Home = () => {
             
             {/* Listing List Section */}
             <div className="hidden lg:block w-full lg:w-[400px] xl:w-[450px] overflow-y-auto pr-2 space-y-4">
-                {visibleListings.length > 0 ? (
+                
+                  {isLoadingListings ? (
+                    [...Array(4)].map((_, i) => (
+                      <div key={'sk-list-'+i} className="animate-pulse flex flex-col gap-3 pb-4">
+                        <div className="w-full h-40 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
+                        <div className="w-2/3 h-5 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                        <div className="w-1/2 h-4 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                      </div>
+                    ))
+                  ) : visibleListings.length > 0 ? (
+
                   visibleListings.map((listing, index) => {
                     const isLast = index === visibleListings.length - 1;
                     return (
@@ -761,7 +776,19 @@ const Home = () => {
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-4 sm:gap-6 lg:gap-8 min-h-[400px]">
-            {visibleListings.length > 0 ? (
+            
+            {isLoadingListings ? (
+              [...Array(6)].map((_, i) => (
+                <div key={'sk-grid-'+i} className="animate-pulse bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col h-[320px]">
+                  <div className="w-full h-48 bg-slate-200 dark:bg-slate-800"></div>
+                  <div className="p-4 flex flex-col gap-3">
+                    <div className="w-3/4 h-5 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                    <div className="w-1/2 h-4 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                  </div>
+                </div>
+              ))
+            ) : visibleListings.length > 0 ? (
+
               visibleListings.map((listing) => (
                 <ListingCard 
                   key={`home-listing-${listing.id}`} 

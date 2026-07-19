@@ -10,28 +10,12 @@ import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import nodemailer from "nodemailer";
 
-const getFilename = () => {
-  if (typeof import.meta !== "undefined" && import.meta.url) {
-    try {
-      return fileURLToPath(import.meta.url);
-    } catch (e) {
-      // Ignore
-    }
-  }
-  return typeof __filename !== "undefined" ? __filename : "";
-};
 
-const getDirname = () => {
-  const fname = getFilename();
-  if (fname) {
-    return path.dirname(fname);
-  }
-  return typeof __dirname !== "undefined" ? __dirname : process.cwd();
-};
 
-const _filename = getFilename();
-const _dirname = getDirname();
 
 // Environment setup logic merged for reliability
 function setupEnvironment() {
@@ -162,7 +146,42 @@ function getDb() {
 }
 
 export const app = express();
-app.use(cors());
+app.set('trust proxy', 1);
+
+// Security Middlewares
+app.use(helmet({
+  contentSecurityPolicy: false, // Disabling CSP for development/vite compatibility, can be configured later
+  crossOriginEmbedderPolicy: false
+}));
+
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://directrent.space', 'https://www.directrent.space']
+    : '*',
+  credentials: true
+}));
+
+// Rate Limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // Limit each IP to 20 auth requests per hour
+  message: 'Too many authentication attempts from this IP, please try again after an hour',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+});
+
+app.use('/api/', apiLimiter);
+app.use('/api/auth/', authLimiter);
+
 app.use(express.json({ limit: '10mb' }));
 
 app.post("/api/notifications/push", async (req, res) => {
@@ -1151,6 +1170,11 @@ async function configureApp() {
       // Skip API routes
       if (req.originalUrl.startsWith("/api")) return next();
 
+      // Skip static assets, source files, and map files in development to let Vite handle them
+      if (req.path.includes('.') && !req.path.endsWith('.html')) {
+        return next();
+      }
+
       try {
         let template = fs.readFileSync(path.resolve(process.cwd(), "index.html"), "utf-8");
         template = await vite.transformIndexHtml(req.originalUrl, template);
@@ -1193,7 +1217,13 @@ async function configureApp() {
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath, { index: false })); // index: false to prevent sending index.html automatically
 
-      app.get("*", async (req, res) => {
+      app.get("*", async (req, res, next) => {
+        // Skip files with extensions in production to prevent HTML fallback for missing assets
+        if (req.path.includes('.') && !req.path.endsWith('.html')) {
+          res.status(404).send("Not found");
+          return;
+        }
+
         const indexPath = path.join(distPath, "index.html");
         if (fs.existsSync(indexPath)) {
           let template = fs.readFileSync(indexPath, "utf-8");
@@ -1232,6 +1262,369 @@ async function configureApp() {
     }
   }
 }
+
+
+// -----------------------------------------------------
+// Nodemailer Setup
+// -----------------------------------------------------
+const getTransporter = () => {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || process.env.MAILTRAP_HOST,
+    port: parseInt(process.env.SMTP_PORT || process.env.MAILTRAP_PORT || "587"),
+    secure: process.env.SMTP_SECURE === "true",
+    auth: {
+      user: process.env.SMTP_USER || process.env.MAILTRAP_USER,
+      pass: process.env.SMTP_PASS || process.env.MAILTRAP_PASS
+    }
+  });
+};
+
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+const getEmailHtml = (otp: string, type: string) => {
+  const isReset = type === "reset";
+  const title = isReset ? "Reset Your Password" : "Confirm Your Email";
+  const actionText = isReset
+    ? "We received a request to reset the password for your DirectRent account. If you made this request, please use the secure code below."
+    : "Welcome to DirectRent. To complete your account setup and confirm your email address, please use the security code below.";
+  const buttonText = isReset ? "Reset Code" : "Verification Code";
+  const barColor = isReset ? "linear-gradient(90deg, #f43f5e, #fb923c)" : "linear-gradient(90deg, #0284c7, #4f46e5)";
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <style>
+    body {
+      background-color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #f8fafc;
+      padding: 60px 20px;
+      box-sizing: border-box;
+    }
+    .card {
+      max-width: 480px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+    .header-bar {
+      height: 4px;
+      background: ${barColor};
+    }
+    .content {
+      padding: 48px 40px;
+      text-align: center;
+    }
+    .brand {
+      font-size: 20px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.025em;
+      margin-bottom: 32px;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .brand span {
+      color: #0284c7;
+    }
+    .title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 16px;
+      letter-spacing: -0.015em;
+    }
+    .description {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #475569;
+      margin-bottom: 40px;
+    }
+    .code-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+    .code-box {
+      background-color: #f8fafc;
+      border: 1px solid #cbd5e1;
+      padding: 20px 32px;
+      display: inline-block;
+      margin-bottom: 32px;
+    }
+    .code-text {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      color: #0f172a;
+    }
+    .expiry {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 8px;
+    }
+    .notice {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #94a3b8;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 24px;
+      margin: 32px auto 0 auto;
+    }
+    .footer {
+      text-align: center;
+      padding: 32px 20px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .footer a {
+      color: #64748b;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header-bar"></div>
+      <div class="content">
+        <div class="brand">Direct<span>Rent</span></div>
+        <div class="title">${title}</div>
+        <div class="description">${actionText}</div>
+        
+        <div class="code-label">${buttonText}</div>
+        <div class="code-box">
+          <span class="code-text">${otp}</span>
+        </div>
+        
+        <div class="expiry">This code will expire in 10 minutes.</div>
+        <div class="notice">
+          If you did not initiate this request, you can safely ignore this email. Your account remains completely secure.
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      Automated system notification.<br>
+      &copy; ${new Date().getFullYear()} DirectRent. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>`;
+};
+
+app.post("/api/waitlist/register", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email is required" });
+
+    const db = getDb();
+    await db.collection("lockdown_notified_emails").doc(email.toLowerCase()).set({
+      email: email.toLowerCase(),
+      createdAt: new Date(),
+      source: 'lockdown_countdown'
+    });
+
+    const transporter = getTransporter();
+    
+    const subject = "Welcome to the DirectRent Waitlist";
+    const text = `Thank you for registering for early access to DirectRent! We will notify you the moment we launch.`;
+    
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to DirectRent</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    .wrapper { width: 100%; padding: 60px 20px; box-sizing: border-box; }
+    .card { max-width: 480px; margin: 0 auto; background: #fff; border: 1px solid #e2e8f0; overflow: hidden; }
+    .header-bar { height: 4px; background: linear-gradient(90deg, #0ea5e9, #6366f1); }
+    .content { padding: 48px 40px; text-align: center; }
+    .brand { font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 32px; display: inline-block; }
+    .brand span { color: #0284c7; }
+    .title { font-size: 22px; font-weight: 700; color: #0f172a; margin-bottom: 16px; letter-spacing: -0.015em; }
+    .description { font-size: 15px; line-height: 1.6; color: #475569; margin-bottom: 24px; }
+    .highlight-box { background-color: #f0f9ff; border: 1px solid #bae6fd; padding: 20px; color: #0369a1; font-size: 14px; font-weight: 500; line-height: 1.5; margin-bottom: 32px; border-radius: 8px; }
+    .footer { text-align: center; padding: 32px 20px; font-size: 12px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header-bar"></div>
+      <div class="content">
+        <div class="brand">Direct<span>Rent</span></div>
+        <div class="title">You're on the list.</div>
+        <div class="description">Thank you for registering for early access to DirectRent. We are building the next generation of property rentals, and you're officially in line.</div>
+        <div class="highlight-box">
+          Keep an eye on this inbox. We will notify you with your exclusive access key the moment we launch.
+        </div>
+      </div>
+    </div>
+    <div class="footer">&copy; ${new Date().getFullYear()} DirectRent. All rights reserved.</div>
+  </div>
+</body>
+</html>`;
+
+    const senderEmail = process.env.SMTP_FROM_EMAIL || process.env.MAILTRAP_FROM_EMAIL || '"DirectRent" <hello@directrent.space>';
+    const finalSender = senderEmail.includes('<') ? senderEmail : `\"DirectRent\" <${senderEmail}>`;
+
+    await transporter.sendMail({
+      from: finalSender,
+      to: email,
+      subject,
+      text,
+      html
+    });
+
+    res.json({ success: true, message: "Registered successfully" });
+  } catch (error: any) {
+    console.error("Error registering waitlist email:", error);
+    res.status(500).json({ error: "Failed to register" });
+  }
+});
+
+app.post("/api/auth/send-email-otp", async (req, res) => {
+  try {
+    const { email, type = "signup" } = req.body;
+    if (!email) return res.status(400).json({ error: "Email is required" });
+
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+    const db = getDb();
+    await db.collection("email_otps").doc(email.toLowerCase()).set({
+      otp,
+      expiresAt,
+      type
+    });
+
+    const transporter = getTransporter();
+    
+    let subject = "Your DirectRent Verification Code";
+    let text = `Your verification code is: ${otp}\nThis code expires in 10 minutes.`;
+    
+    if (type === "reset") {
+      subject = "DirectRent Password Reset Code";
+      text = `Your password reset code is: ${otp}\nThis code expires in 10 minutes.`;
+    }
+
+    const html = getEmailHtml(otp, type);
+
+    const isReset = type === "reset";
+    const senderAlias = isReset ? "DirectRent Security" : "DirectRent";
+    const senderAddr = isReset ? "security@directrent.space" : "hello@directrent.space";
+    const defaultSender = `"${senderAlias}" <${senderAddr}>`;
+
+    const envEmail = process.env.SMTP_FROM_EMAIL || process.env.MAILTRAP_FROM_EMAIL || defaultSender;
+    const finalSender = envEmail.includes('<') ? envEmail : `"${senderAlias}" <${envEmail}>`;
+
+    await transporter.sendMail({
+      from: finalSender,
+      to: email,
+      subject,
+      text,
+      html
+    });
+
+    res.json({ success: true, message: "OTP sent successfully" });
+  } catch (error: any) {
+    console.error("Error sending OTP:", error);
+    res.status(500).json({ error: "Failed to send OTP" });
+  }
+});
+
+app.post("/api/auth/verify-email-otp", async (req, res) => {
+  try {
+    const { email, otp, type = "signup" } = req.body;
+    if (!email || !otp) return res.status(400).json({ error: "Email and OTP required" });
+
+    const db = getDb();
+    const docRef = db.collection("email_otps").doc(email.toLowerCase());
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      return res.status(400).json({ error: "No pending OTP found" });
+    }
+
+    const data = docSnap.data();
+    if (data?.otp !== otp || data?.type !== type) {
+      return res.status(400).json({ error: "Invalid OTP" });
+    }
+
+    if (data.expiresAt.toDate() < new Date()) {
+      return res.status(400).json({ error: "OTP expired" });
+    }
+
+    // Mark as verified instead of deleting immediately to allow signup to consume it
+    await docRef.update({ verified: true });
+    
+    res.json({ success: true, message: "OTP verified" });
+  } catch (error: any) {
+    console.error("Error verifying OTP:", error);
+    res.status(500).json({ error: "Failed to verify OTP" });
+  }
+});
+
+
+app.post("/api/auth/reset-password", async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) return res.status(400).json({ error: "Missing required fields" });
+
+    const db = getDb();
+    const docRef = db.collection("email_otps").doc(email.toLowerCase());
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      return res.status(400).json({ error: "No pending OTP found" });
+    }
+
+    const data = docSnap.data();
+    if (data?.otp !== otp || data?.type !== "reset") {
+      return res.status(400).json({ error: "Invalid OTP" });
+    }
+
+    if (data.expiresAt.toDate() < new Date()) {
+      return res.status(400).json({ error: "OTP expired" });
+    }
+
+    // Verify successful, update password via Admin SDK
+    const adminAuth = getAdmin().auth();
+    const userRecord = await adminAuth.getUserByEmail(email);
+    
+    await adminAuth.updateUser(userRecord.uid, {
+      password: newPassword
+    });
+
+    // Delete OTP
+    await docRef.delete();
+
+    res.json({ success: true, message: "Password updated successfully" });
+  } catch (error: any) {
+    console.error("Error resetting password:", error);
+    if (error.code === 'auth/user-not-found') {
+      res.status(400).json({ error: "No user found with this email" });
+    } else {
+      res.status(500).json({ error: "Failed to reset password" });
+    }
+  }
+});
 
 // Start if run directly or in AIS
 if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {

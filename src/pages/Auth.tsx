@@ -5,7 +5,7 @@ import { LegalTermsDoc, PrivacyPolicyDoc } from '../components/LegalDocs';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { UserRole, User } from '../types';
-import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, handleFirestoreError, OperationType, getFriendlyErrorMessage } from '../lib/firebase';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
@@ -23,10 +23,41 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 
+const getPasswordStrength = (pass: string) => {
+  if (!pass) return { score: 0, text: 'None', barColor: 'bg-slate-200 dark:bg-slate-800' };
+  let score = 0;
+  if (pass.length >= 7) score++;
+  if (/[A-Z]/.test(pass)) score++;
+  if (/[0-9]/.test(pass)) score++;
+  if (/[^a-zA-Z0-9]/.test(pass)) score++;
+
+  if (score <= 1) return { score, text: 'Weak', barColor: 'bg-rose-500' };
+  if (score <= 3) return { score, text: 'Medium', barColor: 'bg-amber-500' };
+  return { score, text: 'Strong', barColor: 'bg-emerald-500' };
+};
+
+const isLockdownActive = () => {
+  const targetDate = new Date("2026-08-23T06:00:58-07:00").getTime();
+  return Date.now() < targetDate;
+};
+
 const Auth = () => {
   const { authMode, setAuthMode, preselectedRole, login, setView, signInWithGoogle, setIsSigningUp } = useAuth();
   const { theme } = useTheme();
-  const [role, setRole] = useState<UserRole>(preselectedRole);
+  const isLockdown = isLockdownActive();
+  const [role, setRole] = useState<UserRole>(() => {
+    if (isLockdown && authMode === 'signup') {
+      return 'agent';
+    }
+    return preselectedRole;
+  });
+
+  useEffect(() => {
+    if (isLockdown && role === 'tenant' && authMode === 'signup') {
+      setRole('agent');
+    }
+  }, [isLockdown, authMode, role]);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -35,6 +66,7 @@ const Auth = () => {
   const [resetMethod, setResetMethod] = useState<'email' | 'sms'>('email');
   const [resetPhone, setResetPhone] = useState('');
   const [resetSent, setResetSent] = useState(false);
+  const [signupOtpMethod, setSignupOtpMethod] = useState<'sms' | 'email'>('sms');
   const [logoFailed, setLogoFailed] = useState(false);
   
   // Real SMS Flow Variables
@@ -285,7 +317,13 @@ const Auth = () => {
 
   if (isResetMode) {
     if (resetMethod === 'email') {
-      isReady = !!(formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email));
+      if (smsStep === 'phone') {
+        isReady = !!(formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email));
+      } else if (smsStep === 'otp') {
+        isReady = otpCode.length === 6;
+      } else if (smsStep === 'new-password') {
+        isReady = newResetPassword.length >= 7;
+      }
     } else {
       if (smsStep === 'phone') {
         isReady = !!(resetPhone && resetPhone.length >= 10);
@@ -373,8 +411,68 @@ To authorize it, follow these steps:
 4. Wait 1-2 minutes for changes to propagate, then reload this page and try signing in again!` 
          });
        } else {
-         setErrors({ form: `Google Sign-In failed: ${error.message || 'An error occurred.'}` });
+         setErrors({ form: getFriendlyErrorMessage(error, 'Google Sign-In failed. Please try again or use another login method.') });
        }
+    }
+  };
+
+  
+    
+    
+  const handleEmailOtpVerify = async () => {
+    if (!otpCode) {
+      setErrors({ form: 'Please enter the verification code' });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/auth/verify-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email, otp: otpCode, type: 'reset' })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Invalid OTP');
+      
+      setSmsStep('new-password');
+      setErrors({});
+    } catch (error: any) {
+      console.error("OTP verification error:", error);
+      setErrors({ form: getFriendlyErrorMessage(error, 'Invalid verification code. Please check and try again.') });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEmailUpdatePassword = async () => {
+    if (!newResetPassword || newResetPassword.length < 6) {
+      setErrors({ form: 'Password must be at least 6 characters' });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email, otp: otpCode, newPassword: newResetPassword })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to update password');
+      
+      // Success
+      setIsResetMode(false);
+      setResetSent(false);
+      setSmsStep('phone');
+      setOtpCode('');
+      setNewResetPassword('');
+      
+      // Sign in automatically
+      await signInWithEmailAndPassword(auth, formData.email, newResetPassword);
+    } catch (error: any) {
+      console.error("Password update error:", error);
+      setErrors({ form: getFriendlyErrorMessage(error, 'Failed to update password. Please check your internet connection and try again.') });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -440,112 +538,136 @@ To authorize it, follow these steps:
 
     setErrors({});
     try {
-      const cleaned = cleanPhone(formData.phoneNumber);
-      const formattedPhone = `+234${cleaned}`;
+      if (signupOtpMethod === 'email') {
+        // --- SEND EMAIL OTP ---
+        const response = await fetch('/api/auth/send-email-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: formData.email, type: 'signup' })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to send verification Email.');
+        
+        setIsPhoneVerifying(true);
+        setResendTimer(60);
+      } else {
+        // --- SEND SMS OTP ---
+        const cleaned = cleanPhone(formData.phoneNumber);
+        const formattedPhone = `+234${cleaned}`;
 
-      // Reset recaptcha if it exists
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {
-          console.warn("Error clearing existing reCAPTCHA:", e);
-        }
-        window.recaptchaVerifier = null;
-      }
-
-      // Small delay to ensure DOM element is ready
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Use normal reCAPTCHA for better reliability on dynamic domains/iframes
-      const container = recaptchaContainerRef.current || document.getElementById('recaptcha-container-signup');
-      if (!container) {
-        throw new Error("Phone verification container not ready. Please try again.");
-      }
-
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, container, {
-        size: 'invisible',
-        callback: () => {
-          // reCAPTCHA solved
-        },
-        'expired-callback': () => {
-          setErrors({ phoneNumber: 'reCAPTCHA expired. Please verify again.' });
-          if (window.recaptchaVerifier) {
-            try {
-              window.recaptchaVerifier.clear();
-            } catch (e) {}
-            window.recaptchaVerifier = null;
+        // Reset recaptcha if it exists
+        if (window.recaptchaVerifier) {
+          try {
+            window.recaptchaVerifier.clear();
+          } catch (e) {
+            console.warn("Error clearing existing reCAPTCHA:", e);
           }
+          window.recaptchaVerifier = null;
         }
-      });
-      
-      if (!navigator.onLine) {
-        throw new Error("You are offline. Please check your internet connection.");
-      }
 
-      const result = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
-      setConfirmationObj(result);
-      setIsPhoneVerifying(true);
-      setResendTimer(60);
+        // Small delay to ensure DOM element is ready
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Use normal reCAPTCHA for better reliability on dynamic domains/iframes
+        const container = recaptchaContainerRef.current || document.getElementById('recaptcha-container-signup');
+        if (!container) {
+          throw new Error("Phone verification container not ready. Please try again.");
+        }
+
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, container, {
+          size: 'invisible',
+          callback: () => {
+            // reCAPTCHA solved
+          },
+          'expired-callback': () => {
+            setErrors({ phoneNumber: 'reCAPTCHA expired. Please verify again.' });
+            if (window.recaptchaVerifier) {
+              try {
+                window.recaptchaVerifier.clear();
+              } catch (e) {}
+              window.recaptchaVerifier = null;
+            }
+          }
+        });
+        
+        if (!navigator.onLine) {
+          throw new Error("You are offline. Please check your internet connection.");
+        }
+
+        const result = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
+        setConfirmationObj(result);
+        setIsPhoneVerifying(true);
+        setResendTimer(60);
+      }
     } catch (error: any) {
-      console.error("Signup SMS Error details:", error);
+      console.error("Signup Send OTP Error details:", error);
       if (window.recaptchaVerifier) {
         try {
           window.recaptchaVerifier.clear();
         } catch (e) {}
         window.recaptchaVerifier = null;
       }
-      let message = 'Failed to send verification SMS. Please try again.';
       
-      if (error.code === 'auth/invalid-app-credential' || error.message?.toLowerCase().includes('captcha') || error.code?.includes('captcha')) {
-        message = 'Connectivity Error: Please check your internet connection or disable any VPNs/Ad-blockers and try again.';
-      } else if (error.code === 'auth/too-many-requests') {
-        message = 'Too many requests. Please try again later or use a different number.';
-      } else if (error.message?.includes('recaptcha')) {
-        message = 'reCAPTCHA verification failed. Please try again.';
+      let message = 'Failed to send verification. Please try again.';
+      if (signupOtpMethod === 'email') {
+        message = `Failed to send verification Email: ${error.message || 'Please try again.'}`;
+        setErrors({ form: message });
+      } else {
+        if (error.code === 'auth/invalid-app-credential' || error.message?.toLowerCase().includes('captcha') || error.code?.includes('captcha')) {
+          message = 'Connectivity Error: Please check your internet connection or disable any VPNs/Ad-blockers and try again.';
+        } else if (error.code === 'auth/too-many-requests') {
+          message = 'Too many requests. Please try again later or use a different number.';
+        } else if (error.message?.includes('recaptcha')) {
+          message = 'reCAPTCHA verification failed. Please try again.';
+        }
+        setErrors({ phoneNumber: message });
       }
-      
-      setErrors({ phoneNumber: message });
     } finally {
       setIsLoading(false);
     }
   };
 
   const verifySignupOTP = async () => {
-    if (!confirmationObj || !otpCode) return;
+    if (!otpCode) return;
     setIsLoading(true);
     setErrors({});
     try {
-      await confirmationObj.confirm(otpCode);
+      const isEmail = signupOtpMethod === 'email';
+      
+      if (isEmail) {
+        // --- VERIFY EMAIL OTP ---
+        const response = await fetch('/api/auth/verify-email-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: formData.email, otp: otpCode, type: 'signup' })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Invalid OTP');
+      } else {
+        // --- VERIFY PHONE OTP ---
+        if (!confirmationObj) throw new Error("Session expired.");
+        await confirmationObj.confirm(otpCode);
+      }
       
       // Success: Clear OTP UI and mark as verified
       setPhoneVerified(true);
       setIsPhoneVerifying(false);
       setOtpCode('');
-      
-      // Clear errors immediately
       setErrors(prev => {
         const next = { ...prev };
         delete next.phoneNumber;
+        delete next.email;
         delete next.form;
         return next;
       });
-
-      // Cleanup reCAPTCHA
       if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {}
+        try { window.recaptchaVerifier.clear(); } catch (e) {}
         window.recaptchaVerifier = null;
       }
       
-      console.log("Phone verified successfully");
-      
-      // Automatically attempt to finalize registration now that we are verified
       setTimeout(() => {
         const form = document.querySelector('form');
-        if (form) {
-          form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-        }
+        if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
       }, 100);
     } catch (err: any) {
       console.error("OTP Verification Error:", err);
@@ -670,29 +792,43 @@ To authorize it, follow these steps:
       }
     }
     
+    if (isResetMode && resetMethod === 'email') {
+      if (smsStep === 'otp') {
+        return handleEmailOtpVerify();
+      }
+      if (smsStep === 'new-password') {
+        return handleEmailUpdatePassword();
+      }
+    }
+
     if (isResetMode) {
       if (resetMethod === 'email') {
-        if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        if (!formData.email || !/^[^s@]+@[^s@]+.[^s@]+$/.test(formData.email)) {
           setErrors({ email: 'Please enter a valid email address' });
           return;
         }
         setIsLoading(true);
         try {
-          await sendPasswordResetEmail(auth, formData.email);
+          const response = await fetch('/api/auth/send-email-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: formData.email, type: 'reset' })
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Failed to send Email OTP');
+          
           setResetSent(true);
+          setSmsStep('otp');
           setErrors({});
+          setResendTimer(60);
         } catch (error: any) {
-          console.error("Password reset error code:", error.code);
-          console.error("Password reset error message:", error.message);
-          if (error.code === 'auth/user-not-found') {
-            setErrors({ email: 'No account registered with this email address' });
-          } else {
-            setErrors({ form: `Failed to send reset email: ${error.message || 'Please try again.'}` });
-          }
+          console.error("Password reset error:", error);
+          setErrors({ form: getFriendlyErrorMessage(error, 'Failed to send reset email. Please double check the email address and try again.') });
         } finally {
           setIsLoading(false);
         }
       } else {
+
         if (!resetPhone || resetPhone.length < 10) {
           setErrors({ phone: 'Please enter a valid phone number' });
           return;
@@ -775,7 +911,7 @@ To authorize it, follow these steps:
             message = 'Invalid phone number format.';
           }
           
-          setErrors({ form: `${message} (${error.code || 'error'})` });
+          setErrors({ form: message });
 
           if (window.recaptchaVerifier) {
             try {
@@ -1107,7 +1243,7 @@ To authorize it, follow these steps:
             {isResetMode ? 'Reset password' : (authMode === 'login' ? 'Welcome back' : (signupStep === 1 ? 'Create account' : 'Verify Identity'))}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
-            {isResetMode ? 'Enter your email to receive a password reset link' : (authMode === 'login' ? 'Sign in to access your listings' : (signupStep === 1 ? 'Fast signup to start your housing journey' : 'Provide your NIN and contact details'))}
+            {isResetMode ? 'Enter your email or phone to receive a password reset OTP' : (authMode === 'login' ? 'Sign in to access your listings' : (signupStep === 1 ? 'Fast signup to start your housing journey' : 'Provide your NIN and contact details'))}
           </p>
         </div>
 
@@ -1148,8 +1284,8 @@ To authorize it, follow these steps:
               <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
               <p className="text-sm text-green-700 dark:text-green-400 font-medium leading-relaxed">
                 {resetMethod === 'email' 
-                  ? 'Password reset link sent! Check your email inbox or spam folder.' 
-                  : 'Password reset link sent! Check your phone for an SMS.'}
+                  ? 'Password reset OTP code sent! Check your email inbox or spam folder.' 
+                  : 'Password reset OTP code sent! Check your phone for an SMS.'}
               </p>
             </motion.div>
           )}
@@ -1166,31 +1302,45 @@ To authorize it, follow these steps:
           )}
 
           {authMode === 'signup' && signupStep === 1 && (
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <button 
-                type="button" 
-                onClick={() => setRole('tenant')} 
-                className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
-                  role === 'tenant' 
-                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
-                    : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-700'
-                }`}
-              >
-                <Users className={`w-6 h-6 ${role === 'tenant' ? 'text-primary-600' : 'text-slate-400'}`} />
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${role === 'tenant' ? 'text-primary-700 dark:text-primary-400' : 'text-slate-400 dark:text-slate-600'}`}>Tenant</span>
-              </button>
-              <button 
-                type="button" 
-                onClick={() => setRole('agent')} 
-                className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
-                  role === 'agent' 
-                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
-                    : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-700'
-                }`}
-              >
-                <Handshake className={`w-6 h-6 ${role === 'agent' ? 'text-primary-600' : 'text-slate-400'}`} />
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${role === 'agent' ? 'text-primary-700 dark:text-primary-400' : 'text-slate-400 dark:text-slate-600'}`}>Agent</span>
-              </button>
+            <div className="mb-6">
+              {isLockdown && (
+                <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 dark:text-amber-400 rounded-xl flex items-start gap-2.5 text-xs">
+                  <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold uppercase tracking-wider block mb-0.5 text-[10px]">Tenant Signup Locked</span>
+                    General tenant registration is disabled during the pre-launch phase. Only landlords and agents can register.
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  type="button" 
+                  disabled={isLockdown}
+                  onClick={() => !isLockdown && setRole('tenant')} 
+                  className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
+                    isLockdown 
+                      ? 'border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-950/20 opacity-40 cursor-not-allowed'
+                      : role === 'tenant' 
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
+                        : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-700'
+                  }`}
+                >
+                  <Users className="w-6 h-6 text-slate-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">Tenant {isLockdown && '(Locked)'}</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setRole('agent')} 
+                  className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
+                    role === 'agent' 
+                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
+                      : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-700'
+                  }`}
+                >
+                  <Handshake className={`w-6 h-6 ${role === 'agent' ? 'text-primary-600' : 'text-slate-400'}`} />
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${role === 'agent' ? 'text-primary-700 dark:text-primary-400' : 'text-slate-400 dark:text-slate-600'}`}>Agent</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -1241,6 +1391,29 @@ To authorize it, follow these steps:
                   <div id="recaptcha-container-signup" ref={recaptchaContainerRef} className="mt-2 flex justify-center" />
                   <ErrorMsg name="phoneNumber" />
                   
+                  {/* Verification Channel Toggle */}
+                  {!phoneVerified && !isPhoneVerifying && (
+                    <div className="mt-4 space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Verification Channel</label>
+                      <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900 p-1 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <button 
+                          type="button"
+                          onClick={() => { setSignupOtpMethod('sms'); setErrors({}); }} 
+                          className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${signupOtpMethod === 'sms' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
+                        >
+                          <span>📱 SMS OTP</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => { setSignupOtpMethod('email'); setErrors({}); }} 
+                          className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${signupOtpMethod === 'email' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
+                        >
+                          <span>📧 Email OTP</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
                   {isPhoneVerifying && !phoneVerified && (
                     <motion.div 
                       initial={{ opacity: 0, height: 0 }}
@@ -1249,25 +1422,35 @@ To authorize it, follow these steps:
                     >
                       <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800 pb-3">
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-widest">Phone Verification</span>
-                          <span className="text-[9px] text-slate-400 font-bold">Code sent to +234 {formData.phoneNumber.replace(/^0/, '')}</span>
+                          <span className="text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-widest">
+                            {signupOtpMethod === 'email' ? 'Email Verification' : 'Phone Verification'}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-bold">
+                            {signupOtpMethod === 'email' 
+                              ? `Code sent to ${formData.email}` 
+                              : `Code sent to +234 ${formData.phoneNumber.replace(/^0/, '')}`}
+                          </span>
                         </div>
                         <button type="button" onClick={() => setIsPhoneVerifying(false)} className="text-[10px] font-bold text-slate-300 hover:text-red-500 uppercase transition-colors">Cancel</button>
                       </div>
                       
                       <div className="space-y-4 relative">
                         <div className="relative">
-                          <div className="flex justify-between gap-2 px-1">
+                          <div className="flex justify-between gap-1 px-1">
                             {[0, 1, 2, 3, 4, 5].map((index) => (
                               <div 
                                 key={`tenant-otp-${index}`}
-                                className={`w-10 h-12 flex items-center justify-center text-xl font-black rounded-xl border-2 transition-all duration-200
+                                className={`aspect-square max-w-[48px] flex-1 flex items-center justify-center text-xl font-black rounded-xl border-2 transition-all duration-200
                                   ${otpCode.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-800' : 
                                     otpCode[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
                                     'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'} 
                                   ${otpCode[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-700'}`}
                               >
-                                {otpCode[index] || '•'}
+                                {otpCode[index] ? (
+                                  otpCode[index]
+                                ) : (
+                                  <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 block" />
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1298,6 +1481,21 @@ To authorize it, follow these steps:
                           >
                             {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                             Verify & Continue
+                          </button>
+                          
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              sendSignupOTP();
+                            }}
+                            disabled={resendTimer > 0 || isLoading}
+                            className="text-[10px] font-bold text-slate-400 hover:text-primary-600 disabled:opacity-50 transition-colors uppercase py-1"
+                          >
+                            {resendTimer > 0 
+                              ? `Resend Code in ${resendTimer}s` 
+                              : (signupOtpMethod === 'email' ? 'Resend Email' : 'Resend SMS')}
                           </button>
                         </div>
                       </div>
@@ -1352,6 +1550,37 @@ To authorize it, follow these steps:
                       <ErrorMsg name="confirmPassword" />
                     </div>
                   </div>
+
+                  {formData.password && (
+                    <div className="space-y-1.5 mt-2 px-1 animate-fadeIn">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">Password Strength</span>
+                        <span className={`text-[10px] font-black uppercase tracking-wider ${
+                          getPasswordStrength(formData.password).text === 'Weak' ? 'text-rose-500' :
+                          getPasswordStrength(formData.password).text === 'Medium' ? 'text-amber-500' : 'text-emerald-500'
+                        }`}>
+                          {getPasswordStrength(formData.password).text}
+                        </span>
+                      </div>
+                      <div className="flex gap-1 h-1.5">
+                        {[1, 2, 3].map((segment) => {
+                          const strength = getPasswordStrength(formData.password);
+                          let active = false;
+                          if (strength.text === 'Weak' && segment === 1) active = true;
+                          if (strength.text === 'Medium' && segment <= 2) active = true;
+                          if (strength.text === 'Strong') active = true;
+                          return (
+                            <div 
+                              key={`signup-strength-seg-${segment}`}
+                              className={`h-full flex-1 rounded-full transition-all duration-300 ${
+                                active ? strength.barColor : 'bg-slate-200 dark:bg-slate-800'
+                              }`}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Password Criteria */}
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 px-1">
@@ -1472,29 +1701,62 @@ To authorize it, follow these steps:
                   <div id="recaptcha-container-signup" ref={recaptchaContainerRef} className="mt-2 flex justify-center" />
                   <ErrorMsg name="phoneNumber" />
                   
+                  {/* Verification Channel Toggle */}
+                  {!phoneVerified && !isPhoneVerifying && (
+                    <div className="mt-4 space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Verification Channel</label>
+                      <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900 p-1 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <button 
+                          type="button"
+                          onClick={() => { setSignupOtpMethod('sms'); setErrors({}); }} 
+                          className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${signupOtpMethod === 'sms' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
+                        >
+                          <span>📱 SMS OTP</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => { setSignupOtpMethod('email'); setErrors({}); }} 
+                          className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${signupOtpMethod === 'email' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
+                        >
+                          <span>📧 Email OTP</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
                   {isPhoneVerifying && !phoneVerified && (
                     <div className="mt-4 p-5 bg-white dark:bg-slate-900 border-2 border-primary-100 dark:border-primary-900 rounded-2xl shadow-xl space-y-4">
                       <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800 pb-3">
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-widest">Phone Verification</span>
-                          <span className="text-[9px] text-slate-400 font-bold">Code sent to +234 {formData.phoneNumber.replace(/^0/, '')}</span>
+                          <span className="text-[10px] font-black text-primary-600 dark:text-primary-400 uppercase tracking-widest">
+                            {signupOtpMethod === 'email' ? 'Email Verification' : 'Phone Verification'}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-bold">
+                            {signupOtpMethod === 'email' 
+                              ? `Code sent to ${formData.email}` 
+                              : `Code sent to +234 ${formData.phoneNumber.replace(/^0/, '')}`}
+                          </span>
                         </div>
                         <button type="button" onClick={() => setIsPhoneVerifying(false)} className="text-[10px] font-bold text-slate-300 hover:text-red-500 uppercase transition-colors">Cancel</button>
                       </div>
                       
                       <div className="space-y-4 relative">
                         <div className="relative">
-                          <div className="flex justify-between gap-2 px-1">
+                          <div className="flex justify-between gap-1 px-1">
                             {[0, 1, 2, 3, 4, 5].map((index) => (
                               <div 
                                 key={`agent-otp-${index}`}
-                                className={`w-10 h-12 flex items-center justify-center text-xl font-black rounded-xl border-2 transition-all duration-200
+                                className={`aspect-square max-w-[48px] flex-1 flex items-center justify-center text-xl font-black rounded-xl border-2 transition-all duration-200
                                   ${otpCode.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-800' : 
                                     otpCode[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
                                     'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'} 
                                   ${otpCode[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-700'}`}
                               >
-                                {otpCode[index] || '•'}
+                                {otpCode[index] ? (
+                                  otpCode[index]
+                                ) : (
+                                  <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 block" />
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1537,7 +1799,9 @@ To authorize it, follow these steps:
                             disabled={resendTimer > 0 || isLoading}
                             className="text-[10px] font-bold text-slate-400 hover:text-primary-600 disabled:opacity-50 transition-colors uppercase py-1"
                           >
-                            {resendTimer > 0 ? `Resend Code in ${resendTimer}s` : "Resend SMS"}
+                            {resendTimer > 0 
+                              ? `Resend Code in ${resendTimer}s` 
+                              : (signupOtpMethod === 'email' ? 'Resend Email' : 'Resend SMS')}
                           </button>
                         </div>
                       </div>
@@ -1608,11 +1872,144 @@ To authorize it, follow these steps:
                 </button>
               </div>
 
+              
               {resetMethod === 'email' ? (
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Registered Email</label>
-                  <input name="email" value={formData.email} onChange={handleChange} type="email" placeholder="user@example.com" className={getInputClass('email')} />
-                  <ErrorMsg name="email" />
+                <div className="space-y-4">
+                  {smsStep === 'phone' && (
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Registered Email</label>
+                      <input name="email" value={formData.email} onChange={handleChange} type="email" placeholder="user@example.com" className={getInputClass('email')} />
+                      <ErrorMsg name="email" />
+                    </div>
+                  )}
+
+                  {smsStep === 'otp' && (
+                    <div className="p-5 bg-white dark:bg-slate-900 border-2 border-primary-100 dark:border-primary-900/50 rounded-2xl shadow-xl">
+                      <div className="text-center mb-6">
+                        <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-wider">Verification</h4>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                          Enter the 6-digit code sent to <br />
+                          <span className="font-bold text-primary-600 dark:text-primary-400 text-base block mt-1">{formData.email}</span>
+                        </p>
+                      </div>
+                      <div className="relative pb-2">
+                        <div className="flex justify-between gap-1 px-1 mb-4">
+                          {[0, 1, 2, 3, 4, 5].map((index) => (
+                            <div
+                               key={`reset-otp-${index}`}
+                              className={`aspect-square max-w-[48px] flex-1 flex items-center justify-center text-2xl font-black rounded-xl border-2 transition-all duration-200
+                                ${otpCode.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-800' :
+                                   otpCode[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' :
+                                   'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'}
+                                 ${otpCode[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-700'}
+                                ${errors.form ? 'border-red-500 bg-red-50/10' : ''}`}
+                            >
+                              {otpCode[index] ? (
+                                otpCode[index]
+                              ) : (
+                                <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 block" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <input
+                           type="tel"
+                           maxLength={6}
+                          value={otpCode}
+                          onChange={(e) => {
+                            setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                            if (errors.form) setErrors({});
+                          }}
+                          className="absolute opacity-0 inset-0 w-full h-full cursor-default"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="flex justify-center mt-2">
+                        <button
+                          type="button"
+                          onClick={(e) => handleSubmit(e)}
+                          disabled={resendTimer > 0 || isLoading}
+                          className="text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline disabled:text-slate-400 disabled:no-underline transition-all"
+                        >
+                          {resendTimer > 0 ? `Resend code in ${resendTimer}s` : "Didn't receive code? Resend"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {smsStep === 'new-password' && (
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">New Password</label>
+                      <div className="relative">
+                        <input
+                           type={showPassword ? "text" : "password"}
+                           placeholder="••••••••"
+                           value={newResetPassword}
+                          onChange={(e) => setNewResetPassword(e.target.value)}
+                          className={`w-full bg-slate-50 dark:bg-slate-900 border px-4 py-3 rounded-xl outline-none transition-all text-sm text-slate-900 dark:text-white border-slate-100 dark:border-slate-800 focus:border-primary-300 dark:focus:border-primary-700 focus:bg-white dark:focus:bg-slate-800`}
+                        />
+                        <button
+                           type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+
+                      {/* Password Strength Meter */}
+                      {newResetPassword && (
+                        <div className="space-y-1.5 mt-3 px-1 animate-fadeIn">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">Password Strength</span>
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${
+                              getPasswordStrength(newResetPassword).text === 'Weak' ? 'text-rose-500' :
+                              getPasswordStrength(newResetPassword).text === 'Medium' ? 'text-amber-500' : 'text-emerald-500'
+                            }`}>
+                              {getPasswordStrength(newResetPassword).text}
+                            </span>
+                          </div>
+                          <div className="flex gap-1 h-1.5">
+                            {[1, 2, 3].map((segment) => {
+                              const strength = getPasswordStrength(newResetPassword);
+                              let active = false;
+                              if (strength.text === 'Weak' && segment === 1) active = true;
+                              if (strength.text === 'Medium' && segment <= 2) active = true;
+                              if (strength.text === 'Strong') active = true;
+                              return (
+                                <div 
+                                  key={`sms-strength-seg-${segment}`}
+                                  className={`h-full flex-1 rounded-full transition-all duration-300 ${
+                                    active ? strength.barColor : 'bg-slate-200 dark:bg-slate-800'
+                                  }`}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Password Criteria */}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 px-1">
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${newResetPassword.length >= 7 ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${newResetPassword.length >= 7 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Min 7 chars</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${/[A-Z]/.test(newResetPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[A-Z]/.test(newResetPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Uppercase</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${/[0-9]/.test(newResetPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[0-9]/.test(newResetPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Number</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                           <CheckCircle2 className={`w-3 h-3 ${/[^a-zA-Z0-9]/.test(newResetPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[^a-zA-Z0-9]/.test(newResetPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">Create a new secure password</p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1650,18 +2047,22 @@ To authorize it, follow these steps:
                         </p>
                       </div>
                       <div className="relative pb-2">
-                        <div className="flex justify-between gap-2 px-1 mb-4">
+                        <div className="flex justify-between gap-1 px-1 mb-4">
                           {[0, 1, 2, 3, 4, 5].map((index) => (
                             <div 
                               key={`reset-otp-${index}`}
-                              className={`w-10 h-14 flex items-center justify-center text-2xl font-black rounded-xl border-2 transition-all duration-200
+                              className={`aspect-square max-w-[48px] flex-1 flex items-center justify-center text-2xl font-black rounded-xl border-2 transition-all duration-200
                                 ${otpCode.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-800' : 
                                   otpCode[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
                                   'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'} 
                                 ${otpCode[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-700'}
                                 ${errors.form ? 'border-red-500 bg-red-50/10' : ''}`}
                             >
-                              {otpCode[index] || '•'}
+                              {otpCode[index] ? (
+                                otpCode[index]
+                              ) : (
+                                <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 block" />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -1711,6 +2112,38 @@ To authorize it, follow these steps:
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
+
+                      {/* Password Strength Meter */}
+                      {newResetPassword && (
+                        <div className="space-y-1.5 mt-3 px-1 animate-fadeIn">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">Password Strength</span>
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${
+                              getPasswordStrength(newResetPassword).text === 'Weak' ? 'text-rose-500' :
+                              getPasswordStrength(newResetPassword).text === 'Medium' ? 'text-amber-500' : 'text-emerald-500'
+                            }`}>
+                              {getPasswordStrength(newResetPassword).text}
+                            </span>
+                          </div>
+                          <div className="flex gap-1 h-1.5">
+                            {[1, 2, 3].map((segment) => {
+                              const strength = getPasswordStrength(newResetPassword);
+                              let active = false;
+                              if (strength.text === 'Weak' && segment === 1) active = true;
+                              if (strength.text === 'Medium' && segment <= 2) active = true;
+                              if (strength.text === 'Strong') active = true;
+                              return (
+                                <div 
+                                  key={`email-strength-seg-${segment}`}
+                                  className={`h-full flex-1 rounded-full transition-all duration-300 ${
+                                    active ? strength.barColor : 'bg-slate-200 dark:bg-slate-800'
+                                  }`}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Password Criteria */}
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 px-1">
@@ -1791,19 +2224,19 @@ To authorize it, follow these steps:
           {smsStep !== 'done' && (
             <button 
               type="submit" 
-              disabled={isLoading || resetSent}
+              disabled={isLoading || (resetSent && smsStep === 'phone')}
               className={`w-full py-4 rounded-xl font-bold mt-6 transition-all flex items-center justify-center gap-2 
-                ${isReady && !isLoading && !resetSent
+                ${isReady && !isLoading && !(resetSent && smsStep === 'phone')
                   ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-xl shadow-primary-200/50 dark:shadow-none active:scale-[0.98]' 
                   : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 opacity-80 cursor-pointer'}`}
             >
               {isLoading && <Loader2 className="w-5 h-5 animate-spin" />}
               {isLoading 
-                ? (isResetMode 
-                    ? (smsStep === 'otp' ? 'Verifying...' : (smsStep === 'new-password' ? 'Updating...' : 'Sending Link...'))
+                ? (isResetMode
+                    ? (smsStep === 'otp' ? 'Verifying...' : (smsStep === 'new-password' ? 'Updating...' : 'Sending OTP...'))
                     : (authMode === 'login' ? 'Signing In...' : (signupStep === 1 ? 'Please wait...' : 'Creating Account...'))) 
-                : (isResetMode 
-                    ? (smsStep === 'otp' ? 'Verify OTP' : (smsStep === 'new-password' ? 'Set New Password' : (resetMethod === 'email' ? 'Send Reset Link' : 'Send OTP')))
+                : (isResetMode
+                    ? (smsStep === 'otp' ? 'Verify OTP' : (smsStep === 'new-password' ? 'Set New Password' : 'Send OTP'))
                     : (authMode === 'login' 
                         ? 'Sign In' 
                         : (signupStep === 1

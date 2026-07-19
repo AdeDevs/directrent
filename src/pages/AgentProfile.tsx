@@ -765,7 +765,7 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
             <button 
               onClick={() => {
                 if (!user) {
-                  alert("Please sign in to leave feedback.");
+                  toast.error("Please sign in to leave feedback.");
                   return;
                 }
                 if (!hasCompletedTxn) return;

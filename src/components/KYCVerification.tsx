@@ -4,6 +4,7 @@ import { ShieldCheck, Camera, FileText, CheckCircle2, Loader2, AlertCircle, Uplo
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
+import { toast } from 'react-hot-toast';
 
 interface KYCVerificationProps {
   isOpen: boolean;
@@ -125,7 +126,7 @@ const KYCVerification: React.FC<KYCVerificationProps> = ({ isOpen, onClose }) =>
       setCapturedImage(null);
     } catch (error) {
       console.error("Selfie upload error:", error);
-      alert("Selfie upload failed. Please try again.");
+      toast.error("Selfie upload failed. Please try again.");
     } finally {
       setIsLoading(false);
       setUploadStatus('idle');
@@ -137,12 +138,12 @@ const KYCVerification: React.FC<KYCVerificationProps> = ({ isOpen, onClose }) =>
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-        alert('Please upload an image file (JPG, PNG).');
+        toast.error('Please upload an image file (JPG, PNG).');
         return;
     }
 
     if (type === 'govtId' && !idType) {
-      alert('Please select an ID type first.');
+      toast.error('Please select an ID type first.');
       return;
     }
 
@@ -173,7 +174,7 @@ const KYCVerification: React.FC<KYCVerificationProps> = ({ isOpen, onClose }) =>
       await updateProfile(updateData);
     } catch (error) {
       console.error("KYC Upload Error:", error);
-      alert("Failed to upload document. Please try again.");
+      toast.error("Failed to upload document. Please try again.");
     } finally {
       setIsLoading(false);
       setUploadStatus('idle');

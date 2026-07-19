@@ -2210,7 +2210,10 @@ const Approvals: React.FC<ApprovalsProps> = () => {
                       </button>
                       <button 
                         onClick={() => {
-                          if (!rejectionReason.trim()) return alert("Please provide a reason.");
+                          if (!rejectionReason.trim()) {
+                            toast.error("Please provide a reason.");
+                            return;
+                          }
                           if (activeTab === 'agents') {
                             handleRejectAgent(selectedAgent.id, (selectedAgent as any).userId, rejectionReason, (selectedAgent as any).isFromUsers);
                           } else {

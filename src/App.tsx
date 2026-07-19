@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { useEffect, useState, lazy, Suspense, useMemo } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
@@ -19,6 +20,7 @@ const Landing = lazy(() => import('./pages/Landing'));
 const Auth = lazy(() => import('./pages/Auth'));
 const ListingDetails = lazy(() => import('./pages/ListingDetails'));
 const AppLayout = lazy(() => import('./layouts/AppLayout'));
+const Lockdown = lazy(() => import('./pages/Lockdown'));
 
 const LoadingScreen = ({ message = "Initializing app..." }) => (
   <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-950 transition-colors duration-300 relative overflow-hidden">
@@ -172,8 +174,31 @@ const SuspendedScreen = ({ onLogout, userId }: { onLogout: () => void; userId: s
 };
 
 const AppContent = () => {
-  const { view, isLoading, user, logout, currentListing, selectedAgentId } = useAuth();
+  const { view, setView, isLoading, user, logout, currentListing, selectedAgentId } = useAuth();
   const path = window.location.pathname;
+
+  // Track if we explicitly bypassed the lockdown screen to access the agent portal
+  const [agentPortalActive, setAgentPortalActive] = useState(() => {
+    return sessionStorage.getItem('agent_portal_active') === 'true';
+  });
+
+  const setAgentPortalActiveWithStorage = (val: boolean) => {
+    setAgentPortalActive(val);
+    sessionStorage.setItem('agent_portal_active', String(val));
+  };
+
+  const isLockdownActive = () => {
+    const targetDate = new Date("2026-08-23T06:00:58-07:00").getTime();
+    return Date.now() < targetDate;
+  };
+
+  const isBypassedUser = user && (user.role === 'agent' || user.role === 'admin' || user.role === 'moderator');
+  const lockdownActive = isLockdownActive();
+
+  const shouldShowLockdown = lockdownActive && 
+    !isBypassedUser && 
+    view !== 'legal' && 
+    !(agentPortalActive && (view === 'auth' || view === 'admin-auth'));
 
   // Track if path is listing detail
   const isListingPath = (path.startsWith('/listings/') || path.startsWith('/property/') || path.startsWith('/properties/')) && path.split('/').length >= 3;
@@ -213,6 +238,25 @@ const AppContent = () => {
     return <SuspendedScreen onLogout={logout} userId={(user as any).id || "Unknown"} />;
   }
 
+  // Intercept lockdown mode
+  if (shouldShowLockdown) {
+    return (
+      <Suspense fallback={<LoadingScreen message="Loading private portal..." />}>
+        <Lockdown 
+          user={user}
+          onLogout={async () => {
+            await logout();
+            setAgentPortalActiveWithStorage(false);
+          }}
+          onBypass={() => {
+            setAgentPortalActiveWithStorage(true);
+            setView('auth');
+          }} 
+        />
+      </Suspense>
+    );
+  }
+
   // Priority: If path is listing detail, show it or prompt to register if not signed in
   // ONLY if not already handled by AppLayout internally (currentListing is not set)
   if (isListingPath && !currentListing && !selectedAgentId) {
@@ -241,6 +285,7 @@ function App() {
   return (
     <Router>
       <ThemeProvider>
+      <LanguageProvider>
         <AuthProvider>
           <ScrollToTop />
           <Toaster 
@@ -274,7 +319,8 @@ function App() {
           />
           <AppContent />
         </AuthProvider>
-      </ThemeProvider>
+      </LanguageProvider>
+    </ThemeProvider>
     </Router>
   );
 }

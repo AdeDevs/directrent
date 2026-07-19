@@ -123,7 +123,7 @@ const Wallet = () => {
 
     return (
       <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm shrink-0 bg-white flex items-center justify-center border border-slate-200 dark:border-slate-700/50">
-        <img
+        <img referrerPolicy="no-referrer"
           src={logoUrl}
           alt={bankName}
           className="w-8 h-8 object-contain transition-transform"
@@ -232,10 +232,11 @@ const Wallet = () => {
         setSelectedBankAccountId('');
       } else {
         console.error("Withdrawal failed:", data.message);
-        alert(data.message || "Withdrawal failed");
+        setPinError(data.message || "Withdrawal failed. Please check your balance or PIN.");
       }
     } catch (error) {
       console.error("Failed to withdraw", error);
+      setPinError("Withdrawal failed. Please check your network connection and try again.");
     } finally {
       setIsWithdrawing(false);
     }

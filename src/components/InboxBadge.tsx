@@ -7,7 +7,7 @@ interface InboxBadgeProps {
   className?: string;
 }
 
-const InboxBadge: React.FC<InboxBadgeProps> = ({ className }) => {
+const InboxBadge: React.FC<InboxBadgeProps> = React.memo(({ className }) => {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -39,6 +39,6 @@ const InboxBadge: React.FC<InboxBadgeProps> = ({ className }) => {
       {unreadCount > 9 ? '9+' : unreadCount}
     </span>
   );
-};
+});
 
 export default InboxBadge;

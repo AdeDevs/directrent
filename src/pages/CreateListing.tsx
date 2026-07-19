@@ -20,7 +20,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType, storage, getFriendlyErrorMessage } from '../lib/firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { createNotification } from '../lib/notifications';
@@ -138,7 +138,7 @@ export default function CreateListing() {
       }
     } catch (err: any) {
       console.error("AI Landmark error:", err);
-      toast.error(err.message || "Failed to generate landmarks. Please double check API keys or type one manually.");
+      toast.error("Failed to generate landmarks automatically. Please enter landmarks manually below.");
     } finally {
       setIsGeneratingLandmarks(false);
     }
@@ -453,7 +453,7 @@ export default function CreateListing() {
       setPublishingProgress(null);
       setPublishingStatus('');
       setActiveTab('create');
-      toast.error(err?.message || "Error posting property. Please check network and permissions.");
+      toast.error(getFriendlyErrorMessage(err, "Failed to submit property. Please check your network connection and try again."));
       handleFirestoreError(err, OperationType.WRITE, 'listings');
     } finally {
       setIsSubmitting(false);

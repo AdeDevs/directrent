@@ -48,7 +48,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { safeDeleteStorageFile } from "../utils/storageCleanup";
 import { doc, updateDoc, deleteField, collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, arrayUnion } from "firebase/firestore";
-import { auth, storage, db, messaging } from "../lib/firebase";
+import { auth, storage, db, messaging, getFriendlyErrorMessage } from "../lib/firebase";
 import { getToken } from "firebase/messaging";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -62,6 +62,19 @@ import HeaderPortal from "../components/HeaderPortal";
 import { toast } from 'react-hot-toast';
 
 // Compact card for Interests section to reduce weight and fit viewport better
+
+const getPasswordStrength = (pass: string) => {
+  if (!pass) return { score: 0, text: 'None', barColor: 'bg-slate-200 dark:bg-slate-800' };
+  let score = 0;
+  if (pass.length >= 7) score++;
+  if (/[A-Z]/.test(pass)) score++;
+  if (/[0-9]/.test(pass)) score++;
+  if (/[^a-zA-Z0-9]/.test(pass)) score++;
+
+  if (score <= 1) return { score, text: 'Weak', barColor: 'bg-rose-500' };
+  if (score <= 3) return { score, text: 'Medium', barColor: 'bg-amber-500' };
+  return { score, text: 'Strong', barColor: 'bg-emerald-500' };
+};
 
 const Profile = () => {
   const { user, logout, updateProfile, favorites, setActiveTab, setPublishingProgress, setPublishingStatus } = useAuth();
@@ -107,7 +120,7 @@ const Profile = () => {
             toast.error("Failed to retrieve push notification token");
           }
         } else {
-          toast.error("Permission denied for notifications");
+          toast.error("Please enable notifications in your browser settings to receive alerts.");
         }
       }
     } catch (err: any) {
@@ -115,7 +128,7 @@ const Profile = () => {
       if (window.self !== window.top) {
         toast.error("Push notifications cannot be registered within the preview iframe. Please open the app in a new tab to enable them!");
       } else {
-        toast.error(`Failed to toggle push notifications: ${err.message || err}`);
+        toast.error("Failed to enable push notifications. Please check your browser settings and try again.");
       }
     }
   };
@@ -165,6 +178,20 @@ const Profile = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [passwordResetStep, setPasswordResetStep] = useState<'none' | 'sending' | 'otp' | 'new-password'>('none');
+  const [resetOtp, setResetOtp] = useState('');
+  const [showForgotLink, setShowForgotLink] = useState(false);
+
+  useEffect(() => {
+    if (!isChangingPassword) {
+      setPasswordResetStep('none');
+      setResetOtp('');
+      setShowForgotLink(false);
+      setPasswordError("");
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    }
+  }, [isChangingPassword]);
 
   // Nigerian phone numbers are 10 digits after +234
   const NIGERIAN_PHONE_LENGTH = 10;
@@ -477,12 +504,12 @@ const Profile = () => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file.');
+      toast.error('Please upload an image file.');
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert('File size too large. Please select an image under 10MB.');
+      toast.error('File size too large. Please select an image under 10MB.');
       return;
     }
 
@@ -552,7 +579,7 @@ const Profile = () => {
       } else if (error.code === 'auth/credential-already-in-use' || error.code === 'auth/account-exists-with-different-credential') {
         setPhoneError("This phone number is already linked to another account.");
       } else {
-        setPhoneError(`Verification failed: ${error.code || 'unknown'}. Please refresh and retry.`);
+        setPhoneError(getFriendlyErrorMessage(error, "Failed to send verification code. Please check the number and try again."));
       }
 
       if (window.recaptchaVerifier) {
@@ -606,13 +633,13 @@ const Profile = () => {
     } catch (error: any) {
       console.error("OTP Error:", error);
       if (error.code === 'auth/invalid-verification-code') {
-        setPhoneError("The code you entered is incorrect. If you are using a 'Test Number', make sure you enter the exact code you set in the Firebase Console.");
+        setPhoneError("The code you entered is incorrect. Please check the code and try again.");
       } else if (error.code === 'auth/code-expired') {
         setPhoneError("This code has expired. Please request a new one.");
       } else if (error.code === 'auth/credential-already-in-use' || error.code === 'auth/account-exists-with-different-credential') {
         setPhoneError("This phone number is already verified and linked to another DirectRent account.");
       } else {
-        setPhoneError(`(${error.code}) ${error.message || "Failed to verify code."}`);
+        setPhoneError(getFriendlyErrorMessage(error, "Failed to verify code. Please try again."));
       }
     } finally {
       setIsVerifyingPhone(false);
@@ -681,14 +708,130 @@ const Profile = () => {
     } catch (error: any) {
       console.error("Password Update Error:", error);
       if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        setPasswordError("The current password you entered is incorrect. Access denied.");
+        setPasswordError("The current password you entered is incorrect. Please try again.");
+        setShowForgotLink(true);
       } else if (error.code === 'auth/weak-password') {
-        setPasswordError("New password is too weak");
+        setPasswordError("The new password is too weak. Please choose a stronger password.");
       } else if (error.code === 'auth/too-many-requests') {
         setPasswordError("Too many attempts. Please try again later.");
       } else {
-        setPasswordError(error.message || "Failed to update password");
+        setPasswordError(getFriendlyErrorMessage(error, "Failed to update password. Please check your connection and try again."));
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const userObj = auth.currentUser;
+    if (!userObj || !userObj.email) {
+      setPasswordError("User email not found");
+      return;
+    }
+    
+    setIsLoading(true);
+    setPasswordError("");
+    setPasswordResetStep('sending');
+    
+    try {
+      const response = await fetch('/api/auth/send-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userObj.email, type: 'reset' })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to send reset code');
+      
+      setPasswordResetStep('otp');
+      setResetOtp('');
+    } catch (error: any) {
+      console.error("Forgot password error in profile:", error);
+      setPasswordError(error.message || "Failed to send verification code");
+      setPasswordResetStep('none');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyResetOTP = async () => {
+    const userObj = auth.currentUser;
+    if (!userObj || !userObj.email) return;
+    if (resetOtp.length < 6) return;
+    
+    setIsLoading(true);
+    setPasswordError("");
+    
+    try {
+      const response = await fetch('/api/auth/verify-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userObj.email, otp: resetOtp, type: 'reset' })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Invalid OTP');
+      
+      setPasswordResetStep('new-password');
+    } catch (error: any) {
+      console.error("OTP verification error in profile:", error);
+      setPasswordError(error.message || "Invalid or expired verification code");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdatePasswordWithOTP = async () => {
+    const userObj = auth.currentUser;
+    if (!userObj || !userObj.email) return;
+    
+    const uppercaseRegex = /[A-Z]/;
+    const numberRegex = /[0-9]/;
+    const specialCharRegex = /[!@#$%^&*(),.?":{}|<>]/;
+    
+    if (!passwordData.newPassword || !passwordData.confirmPassword) {
+      setPasswordError("All fields are required");
+      return;
+    }
+    
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+    
+    if (passwordData.newPassword.length < 7) {
+      setPasswordError("Password must be at least 7 characters");
+      return;
+    }
+    
+    if (!uppercaseRegex.test(passwordData.newPassword) || !numberRegex.test(passwordData.newPassword) || !specialCharRegex.test(passwordData.newPassword)) {
+      setPasswordError("Password does not meet complexity requirements");
+      return;
+    }
+    
+    setIsLoading(true);
+    setPasswordError("");
+    
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userObj.email, otp: resetOtp, newPassword: passwordData.newPassword })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to update password');
+      
+      // Update Firestore flag
+      await updateProfile({ hasPassword: true });
+      
+      setIsChangingPassword(false);
+      setPasswordResetStep('none');
+      setResetOtp('');
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setSuccessMessage("Password reset successfully!");
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (error: any) {
+      console.error("Password update with OTP error in profile:", error);
+      setPasswordError(error.message || "Failed to update password");
     } finally {
       setIsLoading(false);
     }
@@ -697,11 +840,11 @@ const Profile = () => {
   const handleSave = () => {
     // Validate National Identity Number (NIN)
     if (profileData.nin && profileData.nin.length > 0 && profileData.nin.length !== 11) {
-      alert("National Identity Number (NIN) must be exactly 11 digits.");
+      toast.error("National Identity Number (NIN) must be exactly 11 digits.");
       return;
     }
     if (user?.nin && profileData.nin !== user.nin) {
-      alert("For security, your linked National Identity Number cannot be changed.");
+      toast.error("For security, your linked National Identity Number cannot be changed.");
       return;
     }
 
@@ -795,7 +938,7 @@ const Profile = () => {
 
       } catch (error: any) {
         console.error("Save failed:", error);
-        toast.error(`Failed to save profile: ${error.message || "Unknown error"}.`);
+        toast.error(getFriendlyErrorMessage(error, "Failed to save profile. Please check your internet connection and try again."));
         setPublishingProgress(null);
         setPublishingStatus('');
       }
@@ -1318,7 +1461,7 @@ const Profile = () => {
                               });
                               setShowPhoneInput(false);
                             } catch (e: any) {
-                              setPhoneError(e.message || "Failed to save NIN. Please try again.");
+                              setPhoneError(getFriendlyErrorMessage(e, "Failed to save NIN. Please try again."));
                             } finally {
                               setIsVerifyingPhone(false);
                             }
@@ -1454,7 +1597,7 @@ const Profile = () => {
                                 setNinSaved(true);
                                 setPhoneError("");
                               } catch (e: any) {
-                                setPhoneError(e.message || "Failed to save NIN. Please try again.");
+                                setPhoneError(getFriendlyErrorMessage(e, "Failed to save NIN. Please try again."));
                               } finally {
                                 setIsVerifyingPhone(false);
                               }
@@ -1499,17 +1642,21 @@ const Profile = () => {
                       </div>
                       
                       <div className="space-y-2 relative">
-                        <div className="flex justify-between gap-2 sm:gap-3">
+                        <div className="flex justify-between gap-1">
                           {[0, 1, 2, 3, 4, 5].map((index) => (
                             <div 
                               key={`profile-otp-${index}`}
-                              className={`w-10 h-12 sm:w-14 sm:h-16 flex items-center justify-center text-xl sm:text-2xl font-black rounded-xl border-2 transition-all duration-200
+                              className={`aspect-square max-w-[48px] flex-1 flex items-center justify-center text-xl sm:text-2xl font-black rounded-xl border-2 transition-all duration-200
                                 ${otp.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-900' : 
                                   otp[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
                                   'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50'} 
                                 ${otp[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-600'}`}
                             >
-                              {otp[index] || '•'}
+                              {otp[index] ? (
+                                otp[index]
+                              ) : (
+                                <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 block" />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -1928,123 +2075,366 @@ const Profile = () => {
                     </div>
 
                     <div className="space-y-3 sm:space-y-4">
-                      {user.hasPassword ? (
-                        <div className="space-y-1.5 sm:space-y-2">
-                          <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Current Password</label>
-                          <div className="relative group">
-                            <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
-                            <input
-                              type={showPassword ? "text" : "password"}
-                              value={passwordData.currentPassword}
-                              onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                              className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
-                              placeholder="••••••••"
+                      {passwordResetStep === 'sending' ? (
+                        <div className="py-12 flex flex-col items-center justify-center space-y-4 text-center">
+                          <Loader2 className="w-10 h-10 animate-spin text-primary-500" />
+                          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Sending verification code...</p>
+                        </div>
+                      ) : passwordResetStep === 'otp' ? (
+                        <div className="space-y-4">
+                          <div className="text-center space-y-2 mb-2">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                              We've sent a 6-digit verification code to your registered email <span className="font-bold text-slate-900 dark:text-white">{user.email}</span>
+                            </p>
+                          </div>
+                          
+                          <div className="relative space-y-2">
+                            <div className="flex justify-between gap-1">
+                              {[0, 1, 2, 3, 4, 5].map((index) => (
+                                <div 
+                                  key={`password-reset-otp-${index}`}
+                                  className={`aspect-square max-w-[48px] flex-1 flex items-center justify-center text-xl font-black rounded-xl border-2 transition-all duration-200
+                                    ${resetOtp.length === index ? 'border-primary-500 ring-4 ring-primary-500/10 bg-white dark:bg-slate-900' : 
+                                      resetOtp[index] ? 'border-primary-500/30 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-900/50' : 
+                                      'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50'} 
+                                    ${resetOtp[index] ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-slate-600'}`}
+                                >
+                                  {resetOtp[index] ? (
+                                    resetOtp[index]
+                                  ) : (
+                                    <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 block" />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            
+                            <input 
+                              type="tel"
+                              maxLength={6}
+                              value={resetOtp}
+                              onChange={(e) => setResetOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                              className="absolute opacity-0 inset-0 w-full h-full cursor-default"
+                              autoFocus
                             />
+                          </div>
+
+                          {passwordError && (
+                            <div className="p-2 sm:p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-lg sm:rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                              <span className="text-[9px] sm:text-[10px] font-bold">{passwordError}</span>
+                            </div>
+                          )}
+
+                          <div className="flex justify-center">
                             <button
                               type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                              onClick={handleForgotPassword}
+                              disabled={isLoading}
+                              className="text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline disabled:text-slate-400"
                             >
-                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              Didn't receive code? Resend
+                            </button>
+                          </div>
+
+                          <div className="flex gap-2.5 sm:gap-3 pt-2">
+                            <button
+                              onClick={() => setPasswordResetStep('none')}
+                              className="flex-1 py-3 sm:py-4 text-rose-500 text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl sm:rounded-2xl transition-all"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleVerifyResetOTP}
+                              disabled={isLoading || resetOtp.length < 6}
+                              className="flex-[2] bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-lg shadow-primary-500/30 hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                            >
+                              {isLoading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : "Verify OTP"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : passwordResetStep === 'new-password' ? (
+                        <div className="space-y-3 sm:space-y-4">
+                          <div className="space-y-1.5 sm:space-y-2">
+                            <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">New Password</label>
+                            <div className="relative group">
+                              <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
+                              <input
+                                type={showNewPassword ? "text" : "password"}
+                                value={passwordData.newPassword}
+                                onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                                className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
+                                placeholder="New password"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                              >
+                                {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5 sm:space-y-2">
+                            <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Confirm New Password</label>
+                            <div className="relative group">
+                              <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
+                              <input
+                                type={showConfirmPassword ? "text" : "password"}
+                                value={passwordData.confirmPassword}
+                                onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                                className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
+                                placeholder="Repeat password"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                              >
+                                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Password Strength Meter */}
+                          {passwordData.newPassword && (
+                            <div className="space-y-1.5 px-1 animate-fadeIn">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">Password Strength</span>
+                                <span className={`text-[10px] font-black uppercase tracking-wider ${
+                                  getPasswordStrength(passwordData.newPassword).text === 'Weak' ? 'text-rose-500' :
+                                  getPasswordStrength(passwordData.newPassword).text === 'Medium' ? 'text-amber-500' : 'text-emerald-500'
+                                }`}>
+                                  {getPasswordStrength(passwordData.newPassword).text}
+                                </span>
+                              </div>
+                              <div className="flex gap-1 h-1.5">
+                                {[1, 2, 3].map((segment) => {
+                                  const strength = getPasswordStrength(passwordData.newPassword);
+                                  let active = false;
+                                  if (strength.text === 'Weak' && segment === 1) active = true;
+                                  if (strength.text === 'Medium' && segment <= 2) active = true;
+                                  if (strength.text === 'Strong') active = true;
+                                  return (
+                                    <div 
+                                      key={`profile-strength-seg-reset-${segment}`}
+                                      className={`h-full flex-1 rounded-full transition-all duration-300 ${
+                                        active ? strength.barColor : 'bg-slate-200 dark:bg-slate-800'
+                                      }`}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Password Criteria */}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-1">
+                            <div className="flex items-center gap-1.5">
+                               <CheckCircle2 className={`w-3 h-3 ${passwordData.newPassword.length >= 7 ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                               <span className={`text-[9px] font-bold uppercase tracking-tight ${passwordData.newPassword.length >= 7 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Min 7 chars</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                               <CheckCircle2 className={`w-3 h-3 ${/[A-Z]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                               <span className={`text-[9px] font-bold uppercase tracking-tight ${/[A-Z]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Uppercase</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                               <CheckCircle2 className={`w-3 h-3 ${/[0-9]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                               <span className={`text-[9px] font-bold uppercase tracking-tight ${/[0-9]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Number</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                               <CheckCircle2 className={`w-3 h-3 ${/[!@#$%^&*(),.?":{}|<>]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                               <span className={`text-[9px] font-bold uppercase tracking-tight ${/[!@#$%^&*(),.?":{}|<>]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
+                            </div>
+                          </div>
+
+                          {passwordError && (
+                            <div className="p-2 sm:p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-lg sm:rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                              <span className="text-[9px] sm:text-[10px] font-bold">{passwordError}</span>
+                            </div>
+                          )}
+
+                          <div className="flex gap-2.5 sm:gap-3 pt-2.5 sm:pt-4">
+                            <button
+                              onClick={() => setIsChangingPassword(false)}
+                              className="flex-1 py-3 sm:py-4 text-rose-500 text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl sm:rounded-2xl transition-all"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleUpdatePasswordWithOTP}
+                              disabled={isLoading}
+                              className="flex-[2] bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-lg shadow-primary-500/30 hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                            >
+                              {isLoading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : "Set Password"}
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <div className="p-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800 rounded-2xl flex items-start gap-3">
-                           <ShieldCheck className="w-5 h-5 text-primary-500 shrink-0 mt-0.5" />
-                           <div>
-                              <p className="text-[10px] font-black text-primary-700 dark:text-primary-400 uppercase tracking-wider">Google Authentication</p>
-                              <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-normal font-medium">
-                                 Since you use Google, you don't have a password yet. Setting one allows you to sign in with your email directly.
-                              </p>
-                           </div>
-                        </div>
+                        <>
+                          {user.hasPassword ? (
+                            <div className="space-y-1.5 sm:space-y-2">
+                              <div className="flex justify-between items-center px-1">
+                                <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight">Current Password</label>
+                                {showForgotLink && (
+                                  <button
+                                    type="button"
+                                    onClick={handleForgotPassword}
+                                    className="text-[10px] font-black uppercase text-primary-600 dark:text-primary-400 hover:underline tracking-wider"
+                                  >
+                                    Forgot password?
+                                  </button>
+                                )}
+                              </div>
+                              <div className="relative group">
+                                <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
+                                <input
+                                  type={showPassword ? "text" : "password"}
+                                  value={passwordData.currentPassword}
+                                  onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                                  className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
+                                  placeholder="••••••••"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                >
+                                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800 rounded-2xl flex items-start gap-3">
+                               <ShieldCheck className="w-5 h-5 text-primary-500 shrink-0 mt-0.5" />
+                               <div>
+                                  <p className="text-[10px] font-black text-primary-700 dark:text-primary-400 uppercase tracking-wider">Google Authentication</p>
+                                  <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-normal font-medium">
+                                     Since you use Google, you don't have a password yet. Setting one allows you to sign in with your email directly.
+                                  </p>
+                               </div>
+                            </div>
+                          )}
+
+                          <div className="space-y-1.5 sm:space-y-2">
+                            <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">New Password</label>
+                            <div className="relative group">
+                              <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
+                              <input
+                                type={showNewPassword ? "text" : "password"}
+                                value={passwordData.newPassword}
+                                onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                                className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
+                                placeholder="New password"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                              >
+                                {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5 sm:space-y-2">
+                            <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Confirm New Password</label>
+                            <div className="relative group">
+                              <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
+                              <input
+                                type={showConfirmPassword ? "text" : "password"}
+                                value={passwordData.confirmPassword}
+                                onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                                className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
+                                placeholder="Repeat password"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                              >
+                                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Password Strength Meter */}
+                          {passwordData.newPassword && (
+                            <div className="space-y-1.5 px-1 animate-fadeIn">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">Password Strength</span>
+                                <span className={`text-[10px] font-black uppercase tracking-wider ${
+                                  getPasswordStrength(passwordData.newPassword).text === 'Weak' ? 'text-rose-500' :
+                                  getPasswordStrength(passwordData.newPassword).text === 'Medium' ? 'text-amber-500' : 'text-emerald-500'
+                                }`}>
+                                  {getPasswordStrength(passwordData.newPassword).text}
+                                </span>
+                              </div>
+                              <div className="flex gap-1 h-1.5">
+                                {[1, 2, 3].map((segment) => {
+                                  const strength = getPasswordStrength(passwordData.newPassword);
+                                  let active = false;
+                                  if (strength.text === 'Weak' && segment === 1) active = true;
+                                  if (strength.text === 'Medium' && segment <= 2) active = true;
+                                  if (strength.text === 'Strong') active = true;
+                                  return (
+                                    <div 
+                                      key={`profile-strength-seg-change-${segment}`}
+                                      className={`h-full flex-1 rounded-full transition-all duration-300 ${
+                                        active ? strength.barColor : 'bg-slate-200 dark:bg-slate-800'
+                                      }`}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Password Criteria */}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-1">
+                            <div className="flex items-center gap-1.5">
+                               <CheckCircle2 className={`w-3 h-3 ${passwordData.newPassword.length >= 7 ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                               <span className={`text-[9px] font-bold uppercase tracking-tight ${passwordData.newPassword.length >= 7 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Min 7 chars</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                               <CheckCircle2 className={`w-3 h-3 ${/[A-Z]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                               <span className={`text-[9px] font-bold uppercase tracking-tight ${/[A-Z]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Uppercase</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                               <CheckCircle2 className={`w-3 h-3 ${/[0-9]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                               <span className={`text-[9px] font-bold uppercase tracking-tight ${/[0-9]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Number</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                               <CheckCircle2 className={`w-3 h-3 ${/[!@#$%^&*(),.?":{}|<>]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
+                               <span className={`text-[9px] font-bold uppercase tracking-tight ${/[!@#$%^&*(),.?":{}|<>]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
+                            </div>
+                          </div>
+
+                          {passwordError && (
+                            <div className="p-2 sm:p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-lg sm:rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                              <span className="text-[9px] sm:text-[10px] font-bold">{passwordError}</span>
+                            </div>
+                          )}
+
+                          <div className="flex gap-2.5 sm:gap-3 pt-2.5 sm:pt-4">
+                            <button
+                              onClick={() => setIsChangingPassword(false)}
+                              className="flex-1 py-3 sm:py-4 text-rose-500 text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl sm:rounded-2xl transition-all"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleUpdatePassword}
+                              disabled={isLoading}
+                              className="flex-[2] bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-lg shadow-primary-500/30 hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                            >
+                              {isLoading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : "Update"}
+                            </button>
+                          </div>
+                        </>
                       )}
-
-                      <div className="space-y-1.5 sm:space-y-2">
-                        <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">New Password</label>
-                        <div className="relative group">
-                          <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
-                          <input
-                            type={showNewPassword ? "text" : "password"}
-                            value={passwordData.newPassword}
-                            onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
-                            className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
-                            placeholder="New password"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowNewPassword(!showNewPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                          >
-                            {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5 sm:space-y-2">
-                        <label className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-slate-200 tracking-tight ml-1">Confirm New Password</label>
-                        <div className="relative group">
-                          <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-primary-500" />
-                          <input
-                            type={showConfirmPassword ? "text" : "password"}
-                            value={passwordData.confirmPassword}
-                            onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                            className="w-full bg-slate-50 dark:bg-slate-800/50 border-0 py-3 px-4 pl-10 sm:pl-12 pr-10 sm:pr-12 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 transition-all font-mono tracking-widest placeholder:tracking-normal"
-                            placeholder="Repeat password"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                          >
-                            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Password Criteria */}
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-1">
-                        <div className="flex items-center gap-1.5">
-                           <CheckCircle2 className={`w-3 h-3 ${passwordData.newPassword.length >= 7 ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
-                           <span className={`text-[9px] font-bold uppercase tracking-tight ${passwordData.newPassword.length >= 7 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Min 7 chars</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                           <CheckCircle2 className={`w-3 h-3 ${/[A-Z]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
-                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[A-Z]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Uppercase</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                           <CheckCircle2 className={`w-3 h-3 ${/[0-9]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
-                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[0-9]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Number</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                           <CheckCircle2 className={`w-3 h-3 ${/[!@#$%^&*(),.?":{}|<>]/.test(passwordData.newPassword) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-700'}`} />
-                           <span className={`text-[9px] font-bold uppercase tracking-tight ${/[!@#$%^&*(),.?":{}|<>]/.test(passwordData.newPassword) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600'}`}>Special Char</span>
-                        </div>
-                      </div>
-
-                      {passwordError && (
-                        <div className="p-2 sm:p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-lg sm:rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400">
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                          <span className="text-[9px] sm:text-[10px] font-bold">{passwordError}</span>
-                        </div>
-                      )}
-
-                      <div className="flex gap-2.5 sm:gap-3 pt-2.5 sm:pt-4">
-                        <button
-                          onClick={() => setIsChangingPassword(false)}
-                          className="flex-1 py-3 sm:py-4 text-rose-500 text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl sm:rounded-2xl transition-all"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleUpdatePassword}
-                          disabled={isLoading}
-                          className="flex-[2] bg-primary-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-lg shadow-primary-500/30 hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-                        >
-                          {isLoading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : "Update"}
-                        </button>
-                      </div>
                     </div>
                   </div>
                 </div>

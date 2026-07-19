@@ -17,7 +17,7 @@ interface SavedListingCardProps {
   onUnsave: () => void;
 }
 
-const SavedListingCard: React.FC<SavedListingCardProps> = ({ 
+const SavedListingCard: React.FC<SavedListingCardProps> = React.memo(({ 
   listing, 
   onViewDetails, 
   onUnsave 
@@ -81,7 +81,7 @@ const SavedListingCard: React.FC<SavedListingCardProps> = ({
       </div>
     </div>
   );
-};
+});
 
 const FavoritesPage = () => {
   const { user, favorites, setActiveTab, setCurrentListing, toggleFavorite } =
@@ -90,6 +90,7 @@ const FavoritesPage = () => {
 
   const [activeChatListingIds, setActiveChatListingIds] = useState<(string | number)[]>([]);
   const [dbListings, setDbListings] = useState<Listing[]>([]);
+  const [isLoadingListings, setIsLoadingListings] = useState(true);
 
   useEffect(() => {
     const listingsRef = collection(db, 'listings');
@@ -99,8 +100,10 @@ const FavoritesPage = () => {
         id: doc.id
       } as Listing));
       setDbListings(fetched);
+      setIsLoadingListings(false);
     }, (error) => {
       console.warn("Favorites listings error:", error);
+      setIsLoadingListings(false);
     });
 
     return () => unsubscribe();
@@ -188,7 +191,21 @@ const FavoritesPage = () => {
 
       {/* Grid Content */}
       <main className="w-full max-w-none px-4 pb-[15px] mb-0 flex-1 flex flex-col" style={{ paddingTop: '15px' }}>
-        {savedListings.length > 0 ? (
+        
+        {isLoadingListings ? (
+          <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 sm:gap-6 min-h-[400px]">
+            {[...Array(4)].map((_, i) => (
+              <div key={'sk-fav-'+i} className="animate-pulse bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col h-[320px]">
+                <div className="w-full h-48 bg-slate-200 dark:bg-slate-800"></div>
+                <div className="p-4 flex flex-col gap-3">
+                  <div className="w-3/4 h-5 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                  <div className="w-1/2 h-4 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : savedListings.length > 0 ? (
+
           <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-6 sm:gap-8">
             {savedListings.map((listing) => (
               <div 

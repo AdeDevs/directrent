@@ -7,7 +7,7 @@ interface NotificationBadgeProps {
   className?: string;
 }
 
-const NotificationBadge: React.FC<NotificationBadgeProps> = ({ className }) => {
+const NotificationBadge: React.FC<NotificationBadgeProps> = React.memo(({ className }) => {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -34,6 +34,6 @@ const NotificationBadge: React.FC<NotificationBadgeProps> = ({ className }) => {
       {unreadCount > 9 ? '9+' : unreadCount}
     </span>
   );
-};
+});
 
 export default NotificationBadge;
