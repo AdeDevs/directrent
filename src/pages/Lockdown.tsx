@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Mail, ArrowRight, CheckCircle2, Home } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useLanguage } from "../context/LanguageContext";
 import LanguageSwitcher from "../components/LanguageSwitcher";
@@ -27,6 +27,7 @@ export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   useEffect(() => {
     const calculateTimeLeft = () => {
@@ -108,8 +109,21 @@ export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
       <header className="fixed top-0 left-0 w-full z-50 bg-white/70 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xl font-display font-bold tracking-tight text-slate-900">
-              Direct<span className="text-primary-600 font-extrabold">Rent</span>
+            {!logoFailed ? (
+              <img 
+                src="/logo-light.png" 
+                onError={() => setLogoFailed(true)}
+                className="h-9 w-auto object-contain max-w-[150px]"
+                alt="DirectRent"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-8 h-8 bg-primary-600 rounded-md flex items-center justify-center">
+                <Home className="text-white w-5 h-5" />
+              </div>
+            )}
+            <span className="text-xl font-display font-black tracking-tight text-slate-900">
+              Direct<span className="text-primary-600">Rent</span>
             </span>
           </div>
           <div className="flex items-center gap-2">

@@ -284,10 +284,10 @@ const AppContent = () => {
 function App() {
   return (
     <Router>
-      <ThemeProvider>
       <LanguageProvider>
-        <AuthProvider>
-          <ScrollToTop />
+        <ThemeProvider>
+          <AuthProvider>
+            <ScrollToTop />
           <Toaster 
             position="top-right" 
             containerStyle={{ zIndex: 99999, top: 40, right: 40 }}
@@ -318,9 +318,9 @@ function App() {
             }} 
           />
           <AppContent />
-        </AuthProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </LanguageProvider>
-    </ThemeProvider>
     </Router>
   );
 }
