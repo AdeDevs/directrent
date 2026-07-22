@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Mail, ArrowRight, CheckCircle2, Home } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useLanguage } from "../context/LanguageContext";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 
 
 interface LockdownProps {
@@ -12,6 +13,7 @@ interface LockdownProps {
 }
 
 export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
+  const { t, language, setLanguage } = useLanguage();
   
   // Target date: End of August 2026
   const targetTime = new Date("2026-08-31T23:59:59Z").getTime();
@@ -127,7 +129,7 @@ export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            
+            <LanguageSwitcher />
           </div>
         </div>
       </header>
@@ -145,13 +147,13 @@ export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
             variants={itemVariants}
             className="text-3xl md:text-5xl font-display font-bold tracking-tight text-slate-900 max-w-2xl leading-tight mb-4"
           >
-            {'lockdown.title'}
+            {t('lockdown.title')}
           </motion.h1>
 
           <motion.p 
             variants={itemVariants}
             className="text-sm md:text-base text-slate-600 max-w-xl leading-relaxed mb-10 text-center"
-            dangerouslySetInnerHTML={{ __html: 'lockdown.desc' }}
+            dangerouslySetInnerHTML={{ __html: t('lockdown.desc') }}
           />
 
           {/* Majestic Countdown Widget - Sharp corners, Light theme */}
@@ -164,7 +166,7 @@ export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
               <span className="text-4xl md:text-5xl font-mono font-medium tracking-tight text-slate-900 mb-1">
                 {String(timeLeft.days).padStart(2, '0')}
               </span>
-              <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">{'lockdown.days'}</span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">{t('lockdown.days')}</span>
             </div>
 
             {/* Hours block */}
@@ -172,7 +174,7 @@ export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
               <span className="text-4xl md:text-5xl font-mono font-medium tracking-tight text-slate-900 mb-1">
                 {String(timeLeft.hours).padStart(2, '0')}
               </span>
-              <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">{'lockdown.hours'}</span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">{t('lockdown.hours')}</span>
             </div>
 
             {/* Minutes block */}
@@ -180,7 +182,7 @@ export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
               <span className="text-4xl md:text-5xl font-mono font-medium tracking-tight text-slate-900 mb-1">
                 {String(timeLeft.minutes).padStart(2, '0')}
               </span>
-              <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">{'lockdown.mins'}</span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">{t('lockdown.mins')}</span>
             </div>
 
             {/* Seconds block */}
@@ -188,7 +190,7 @@ export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
               <span className="text-4xl md:text-5xl font-mono font-medium tracking-tight text-amber-600 mb-1">
                 {String(timeLeft.seconds).padStart(2, '0')}
               </span>
-              <span className="text-[10px] uppercase tracking-[0.2em] text-amber-600/70 font-bold">{'lockdown.secs'}</span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-amber-600/70 font-bold">{t('lockdown.secs')}</span>
             </div>
           </motion.div>
 
@@ -210,7 +212,7 @@ export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder={'lockdown.placeholder'}
+                      placeholder={t('lockdown.placeholder')}
                       className="w-full pl-10 pr-4 py-3.5 bg-white border border-slate-200 focus:outline-none focus:border-slate-300 text-sm font-medium text-slate-900 placeholder:text-slate-400 transition-all font-sans rounded-none"
                       disabled={isSubmitting}
                       required
@@ -221,7 +223,7 @@ export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
                     disabled={isSubmitting}
                     className="py-3.5 px-6 bg-slate-900 hover:bg-slate-800 text-white font-bold uppercase text-[10px] tracking-widest transition-all duration-300 flex items-center justify-center gap-1.5 min-w-[130px] rounded-none border border-slate-900"
                   >
-                    {isSubmitting ? '...' : 'lockdown.notify'}
+                    {isSubmitting ? '...' : t('lockdown.notify')}
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </motion.form>
@@ -250,25 +252,25 @@ export default function Lockdown({ onBypass, user, onLogout }: LockdownProps) {
             {user ? (
               <>
                 <p className="text-xs text-slate-600">
-                  {'lockdown.tenant'} ({user.email})
+                  {t('lockdown.tenant')} ({user.email})
                 </p>
                 {onLogout && (
                   <button 
                     onClick={onLogout}
                     className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline decoration-rose-600/30 underline-offset-4"
                   >
-                    {'lockdown.disconnect'}
+                    {t('lockdown.disconnect')}
                   </button>
                 )}
               </>
             ) : (
               <p className="text-sm text-slate-600">
-                {'lockdown.authorized'}{' '}
+                {t('lockdown.authorized')}{' '}
                 <button 
                   onClick={onBypass}
                   className="font-semibold text-primary-600 hover:text-primary-700 underline decoration-primary-600/30 underline-offset-4 transition-colors"
                 >
-                  {'lockdown.loginNow'}
+                  {t('lockdown.loginNow')}
                 </button>
               </p>
             )}

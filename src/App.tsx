@@ -189,10 +189,8 @@ const AppContent = () => {
   };
 
   const isLockdownActive = () => {
-    // TEMPORARILY DISABLED: uncomment the targetDate logic below to re-enable
-    return false; 
-    // const targetDate = new Date("2026-08-23T06:00:58-07:00").getTime();
-    // return Date.now() < targetDate;
+    const targetDate = new Date("2026-08-23T06:00:58-07:00").getTime();
+    return Date.now() < targetDate;
   };
 
   const isBypassedUser = user && (user.role === 'agent' || user.role === 'admin' || user.role === 'moderator');
