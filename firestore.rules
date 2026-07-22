@@ -176,7 +176,7 @@ service cloud.firestore {
 
     // Public Listings
     match /listings/{listingId} {
-      allow list, get: if true;
+      allow list, get: if isSignedIn();
       allow create: if isSignedIn() && !isUserSuspended() && isValidId(listingId) && isValidListing(incoming()) && (
         isAdmin() || (
           incoming().agent.id == request.auth.uid && (
@@ -240,7 +240,7 @@ service cloud.firestore {
 
     // Reviews
     match /reviews/{reviewId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && !isUserSuspended() && incoming().tenantId == request.auth.uid;
       allow delete: if isAdmin();
     }

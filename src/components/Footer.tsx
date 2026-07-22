@@ -38,7 +38,7 @@ const Footer = () => {
               <li><a href="#faq" className="hover:text-primary-400">FAQs</a></li>
               <li><button onClick={() => setView('legal')} className="hover:text-primary-400 text-left">Terms of Use</button></li>
               <li><button onClick={() => setView('legal')} className="hover:text-primary-400 text-left">Privacy Policy</button></li>
-              <li><a href="mailto:support@directrent.com" className="hover:text-primary-400 transition-colors">Support</a></li>
+              <li><a href="mailto:adeyemiakinyemi01@gmail.com" className="hover:text-primary-400 transition-colors">Support</a></li>
             </ul>
           </div>
         </div>

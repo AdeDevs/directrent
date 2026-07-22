@@ -3,15 +3,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Home, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { useLanguage } from '../context/LanguageContext';
-import LanguageSwitcher from './LanguageSwitcher';
+
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  
   const { setView, setAuthMode, setPreselectedRole } = useAuth();
   
   useEffect(() => {
@@ -73,39 +72,37 @@ const Navbar = () => {
                 href="#how-it-works" 
                 className="text-sm font-medium text-slate-600 hover:text-primary-600 transition-colors duration-300 relative py-1.5 after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:origin-bottom-right after:scale-x-0 after:bg-primary-600 after:transition-transform after:duration-300 hover:after:origin-bottom-left hover:after:scale-x-100"
               >
-                {t('nav.howItWorks')}
+                How it Works
               </a>
               <a 
                 href="#listings" 
                 className="text-sm font-medium text-slate-600 hover:text-primary-600 transition-colors duration-300 relative py-1.5 after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:origin-bottom-right after:scale-x-0 after:bg-primary-600 after:transition-transform after:duration-300 hover:after:origin-bottom-left hover:after:scale-x-100"
               >
-                {t('nav.spaces')}
+                Spaces
               </a>
               <a 
                 href="#faq" 
                 className="text-sm font-medium text-slate-600 hover:text-primary-600 transition-colors duration-300 relative py-1.5 after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:origin-bottom-right after:scale-x-0 after:bg-primary-600 after:transition-transform after:duration-300 hover:after:origin-bottom-left hover:after:scale-x-100"
               >
-                {t('nav.faqs')}
+                FAQs
               </a>
               <div className="flex items-center gap-3">
-                <LanguageSwitcher />
                 <button 
                   onClick={handleSignIn}
                   className="text-sm font-medium text-slate-600 hover:text-primary-600 transition-colors duration-300 px-3 py-1.5 relative after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:origin-bottom-right after:scale-x-0 after:bg-primary-600 after:transition-transform after:duration-300 hover:after:origin-bottom-left hover:after:scale-x-100"
                 >
-                  {t('btn.login')}
+                  Login
                 </button>
                 <button 
                   onClick={() => { setAuthMode('signup'); setView('auth'); }}
                   className="text-sm font-medium bg-primary-600 text-white px-5 py-2 rounded-full hover:bg-primary-700 hover:shadow-md hover:shadow-primary-500/10 transition-all active:scale-95"
                 >
-                  {t('btn.signup')}
+                  Sign Up
                 </button>
               </div>
             </div>
 
             <div className="md:hidden flex items-center gap-2">
-              <LanguageSwitcher />
               <button onClick={() => setIsOpen(!isOpen)} className="p-2 active:scale-90 transition-all duration-300 text-slate-600">
                 {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>

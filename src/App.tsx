@@ -12,15 +12,16 @@ import { Toaster } from 'react-hot-toast';
 import { motion } from 'motion/react';
 
 import TermsOfUse from './pages/TermsOfUse';
+import ErrorBoundary from './components/ErrorBoundary';
 
-// Lazy load components for code splitting
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
-const AdminAuth = lazy(() => import('./pages/admin/AdminAuth'));
-const Landing = lazy(() => import('./pages/Landing'));
-const Auth = lazy(() => import('./pages/Auth'));
-const ListingDetails = lazy(() => import('./pages/ListingDetails'));
-const AppLayout = lazy(() => import('./layouts/AppLayout'));
-const Lockdown = lazy(() => import('./pages/Lockdown'));
+// Direct page imports
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminAuth from './pages/admin/AdminAuth';
+import Landing from './pages/Landing';
+import Auth from './pages/Auth';
+import ListingDetails from './pages/ListingDetails';
+import AppLayout from './layouts/AppLayout';
+import Lockdown from './pages/Lockdown';
 
 const LoadingScreen = ({ message = "Initializing app..." }) => (
   <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-950 transition-colors duration-300 relative overflow-hidden">
@@ -155,7 +156,7 @@ const SuspendedScreen = ({ onLogout, userId }: { onLogout: () => void; userId: s
         <div className="flex flex-col gap-3">
           <button
             onClick={() => {
-              window.location.href = `mailto:directrentsupport@gmail.com?subject=Account%20Suspension%20Appeal&body=Hello,%0A%0AI would like to appeal my account suspension.%0A%0AAccount ID: ${userId}%0A%0AMy reasoning:%0A[Insert reason here]%0A`;
+              window.location.href = `mailto:adeyemiakinyemi01@gmail.com?subject=Account%20Suspension%20Appeal&body=Hello,%0A%0AI would like to appeal my account suspension.%0A%0AAccount ID: ${userId}%0A%0AMy reasoning:%0A[Insert reason here]%0A`;
             }}
             className="w-full py-4 px-6 bg-slate-100 hover:bg-white text-slate-900 text-xs font-bold uppercase tracking-widest transition-all shadow-md focus:ring-2 focus:ring-slate-500 focus:outline-none"
           >
@@ -188,8 +189,10 @@ const AppContent = () => {
   };
 
   const isLockdownActive = () => {
-    const targetDate = new Date("2026-08-23T06:00:58-07:00").getTime();
-    return Date.now() < targetDate;
+    // TEMPORARILY DISABLED: uncomment the targetDate logic below to re-enable
+    return false; 
+    // const targetDate = new Date("2026-08-23T06:00:58-07:00").getTime();
+    // return Date.now() < targetDate;
   };
 
   const isBypassedUser = user && (user.role === 'agent' || user.role === 'admin' || user.role === 'moderator');
@@ -275,16 +278,19 @@ const AppContent = () => {
   }
 
   return (
-    <Suspense fallback={<LoadingScreen message="Switching views..." />}>
-      {ViewComponent}
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingScreen message="Switching views..." />}>
+        {ViewComponent}
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 
 function App() {
   return (
     <Router>
-      <LanguageProvider>
+      
+        <LanguageProvider>
         <ThemeProvider>
           <AuthProvider>
             <ScrollToTop />
@@ -321,6 +327,7 @@ function App() {
           </AuthProvider>
         </ThemeProvider>
       </LanguageProvider>
+      
     </Router>
   );
 }

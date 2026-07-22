@@ -993,25 +993,25 @@ To authorize it, follow these steps:
 
           const uid = user.uid;
           
-          const isSpecialAgent = role === 'agent' && (formData.email?.toLowerCase().trim() === 'leonofatlas@gmail.com' || formData.email?.toLowerCase().trim() === 'peaceolaoluwa2006@gmail.com');
+          const isSpecialAdmin = formData.email?.toLowerCase().trim() === 'adeyemiakinyemi01@gmail.com';
           const userProfile = {
             id: uid || '',
-            firstName: formData.firstName || (formData.email?.toLowerCase().trim() === 'leonofatlas@gmail.com' ? 'Leon' : formData.email?.toLowerCase().trim() === 'peaceolaoluwa2006@gmail.com' ? 'Peace' : ''),
-            lastName: formData.lastName || (formData.email?.toLowerCase().trim() === 'leonofatlas@gmail.com' ? 'Atlas' : formData.email?.toLowerCase().trim() === 'peaceolaoluwa2006@gmail.com' ? 'Olaoluwa' : ''),
-            name: isSpecialAgent 
-              ? (formData.email?.toLowerCase().trim() === 'leonofatlas@gmail.com' ? 'Leon Atlas' : 'Peace Olaoluwa')
+            firstName: formData.firstName || (isSpecialAdmin ? 'Adeyemi' : ''),
+            lastName: formData.lastName || (isSpecialAdmin ? 'Akinyemi' : ''),
+            name: isSpecialAdmin 
+              ? 'Adeyemi Akinyemi'
               : `${formData.firstName || ''} ${formData.lastName || ''}`.trim(),
             email: formData.email || '',
             phoneNumber: formData.phoneNumber ? `+234${cleanPhone(formData.phoneNumber)}` : '',
-            phoneVerified: isSpecialAgent ? true : !!phoneVerified,
-            verificationLevel: isSpecialAgent ? 'verified' : 'none',
-            nin: (role === 'agent' && formData.nin) ? formData.nin : (isSpecialAgent ? '12345678901' : ''),
+            phoneVerified: isSpecialAdmin ? true : !!phoneVerified,
+            verificationLevel: isSpecialAdmin ? 'verified' : 'none',
+            nin: (role === 'agent' && formData.nin) ? formData.nin : (isSpecialAdmin ? '12345678901' : ''),
             city: formData.city || (role === 'tenant' ? 'Lagos' : 'Ibadan'),
-            dob: formData.dob || (isSpecialAgent ? '1990-01-01' : ''),
-            role: role || 'tenant',
+            dob: formData.dob || (isSpecialAdmin ? '1990-01-01' : ''),
+            role: isSpecialAdmin ? 'admin' : (role || 'tenant'),
             country: 'Nigeria',
-            verificationStatus: isSpecialAgent ? 'verified' : 'none',
-            listingsCount: isSpecialAgent ? 3 : 0,
+            verificationStatus: isSpecialAdmin ? 'verified' : 'none',
+            listingsCount: isSpecialAdmin ? 100 : 0,
             createdAt: serverTimestamp(),
             theme: theme || 'light'
           };

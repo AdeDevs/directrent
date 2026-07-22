@@ -32,6 +32,7 @@ interface ChatModalProps {
   listing: Listing;
   currentUser: AppUser;
   overrideConversationId?: string;
+  initialAction?: 'schedule_tour';
 }
 
 type ConversationStatus = 'inquiry' | 'tour_requested' | 'tour_confirmed' | 'contract_sent' | 'escrow_locked' | 'disputed' | 'completed';
@@ -161,7 +162,7 @@ const AudioPlayer: React.FC<{ src: string; isOwn: boolean }> = ({ src, isOwn }) 
   );
 };
 
-export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, currentUser, overrideConversationId }) => {
+export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, currentUser, overrideConversationId, initialAction }) => {
   const { setSelectedAgentId, setCurrentListing } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [pendingMessages, setPendingMessages] = useState<Message[]>([]);
@@ -202,6 +203,19 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
   const [realtimeListingStatus, setRealtimeListingStatus] = useState<string | null>(null);
   const [realtimePriceValue, setRealtimePriceValue] = useState<number | null>(null);
   const [realtimePriceString, setRealtimePriceString] = useState<string | null>(null);
+  const [initialActionTriggered, setInitialActionTriggered] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && initialAction === 'schedule_tour' && convData && !initialActionTriggered) {
+      if (convStatus === 'inquiry') {
+        setIsTourFormOpen(true);
+      }
+      setInitialActionTriggered(true);
+    }
+    if (!isOpen) {
+      setInitialActionTriggered(false);
+    }
+  }, [isOpen, initialAction, convData, convStatus, initialActionTriggered]);
 
   const loadPaystack = () => {
     return new Promise<void>((resolve, reject) => {
@@ -2062,7 +2076,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, listing, 
                           type="button"
                           onClick={handleRequestTour}
                           disabled={!tourDate || !tourTime || isSending}
-                          className="px-4 py-2 rounded-lg text-xs font-black bg-indigo-650 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-1.5 uppercase tracking-wider disabled:opacity-50 transition-all cursor-pointer"
+                          className="px-4 py-2 rounded-lg text-xs font-black bg-primary-600 hover:bg-primary-700 text-white shadow-sm flex items-center gap-1.5 uppercase tracking-wider disabled:opacity-50 transition-all cursor-pointer"
                         >
                           {isSending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                           Send Tour Proposal

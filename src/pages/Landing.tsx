@@ -451,10 +451,10 @@ const FeaturedListings = () => {
             whileInView="visible"
             viewport={{ once: true }}
             variants={staggerContainer}
-            className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-8"
+            className="flex flex-col md:flex-row gap-8 items-stretch justify-center"
           >
             {featured.map((listing) => (
-              <motion.div key={`featured-listing-${listing.id}`} variants={fadeUpVariant} className="flex w-full flex-col">
+              <motion.div key={`featured-listing-${listing.id}`} variants={fadeUpVariant} className="flex-1 w-full min-w-0 flex flex-col">
                 <ListingCard 
                   listing={listing} 
                   onViewDetails={handleAction} 

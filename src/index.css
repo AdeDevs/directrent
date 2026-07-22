@@ -124,6 +124,47 @@ div[style*="fixed"] > div[style*="z-index"][style*="2000000000"] {
   @apply font-bold text-primary-400;
 }
 
+/* Google Maps InfoWindow Container Overrides */
+.gm-style-iw-c {
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 1rem !important; /* 16px */
+  overflow: hidden !important;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
+  max-width: none !important;
+}
+
+.gm-style-iw-d {
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  max-height: none !important;
+}
+
+.gm-style-iw-a {
+  padding: 0 !important;
+}
+
+/* Close button positioning for InfoWindow */
+button.gm-ui-hover-effect {
+  top: 6px !important;
+  right: 6px !important;
+  z-index: 40 !important;
+  background-color: rgba(15, 23, 42, 0.6) !important;
+  border-radius: 50% !important;
+  width: 26px !important;
+  height: 26px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+button.gm-ui-hover-effect span {
+  background-color: #ffffff !important;
+  margin: 0 !important;
+}
+
 /* Dark mode overrides for Google Maps InfoWindows */
 html.dark .gm-style-iw-c {
   background-color: #0f172a !important; /* slate-900 */
@@ -140,21 +181,4 @@ html.dark .gm-style-iw {
   color: #f8fafc !important; /* slate-50 */
 }
 
-html.dark .gm-style-iw h4 {
-  color: #f1f5f9 !important; /* slate-100 */
-}
-
-html.dark .gm-style-iw p {
-  color: #94a3b8 !important; /* slate-400 */
-}
-
-html.dark .gm-ui-hover-effect {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  border-radius: 50% !important;
-  margin: 6px !important;
-}
-
-html.dark .gm-ui-hover-effect span {
-  background-color: #ffffff !important;
-}
 html { scroll-behavior: smooth; }

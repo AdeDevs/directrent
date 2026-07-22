@@ -16,6 +16,7 @@ interface ListingCardProps {
   hideHeart?: boolean;
   hideAgent?: boolean;
   isAgentView?: boolean;
+  disableHover?: boolean;
 }
 
 const ListingCard: React.FC<ListingCardProps> = React.memo(({ 
@@ -25,7 +26,8 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
   onDelete, 
   hideHeart, 
   hideAgent, 
-  isAgentView 
+  isAgentView,
+  disableHover
 }) => {
   const { user, favorites, toggleFavorite } = useAuth();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -90,7 +92,11 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
     >
       <div 
       onClick={onViewDetails}
-      className="bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-sm hover:shadow-2xl hover:shadow-slate-200/45 dark:hover:shadow-black/25 transition-all duration-300 flex flex-col h-full group cursor-pointer relative"
+      className={`bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border-[0.5px] border-slate-200 dark:border-[#0f172b] shadow-sm flex flex-col h-full cursor-pointer relative ${
+        disableHover 
+          ? '' 
+          : 'hover:border-slate-400 dark:hover:border-slate-800 hover:shadow-2xl hover:shadow-slate-200/45 dark:hover:shadow-black/25 transition-all duration-300 group'
+      }`}
     >
       <div className="relative aspect-[2/1] sm:aspect-[4/3] overflow-hidden group/image">
         <AnimatePresence mode="wait">
@@ -104,7 +110,9 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
             <SafeImage 
               src={images[currentImageIndex]} 
               alt={listing.title} 
-              className="w-full h-full object-cover group-hover/image:scale-[1.04] transition-transform duration-700 ease-out"
+              className={`w-full h-full object-cover transition-transform duration-700 ease-out ${
+                disableHover ? '' : 'group-hover/image:scale-[1.04]'
+              }`}
             />
           </motion.div>
         </AnimatePresence>
@@ -115,13 +123,13 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
           <>
             <button 
               onClick={prevImage}
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-white/95 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 rounded-full backdrop-blur-md opacity-0 group-hover/image:opacity-100 shadow-md transition-all hover:bg-white hover:scale-105 z-10"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-white/95 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 rounded-full backdrop-blur-md opacity-0 group-hover/image:opacity-100 shadow-md transition-all hover:bg-white dark:hover:bg-slate-900 hover:scale-105 z-10"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button 
               onClick={nextImage}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-white/95 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 rounded-full backdrop-blur-md opacity-0 group-hover/image:opacity-100 shadow-md transition-all hover:bg-white hover:scale-105 z-10"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-white/95 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 rounded-full backdrop-blur-md opacity-0 group-hover/image:opacity-100 shadow-md transition-all hover:bg-white dark:hover:bg-slate-900 hover:scale-105 z-10"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -200,14 +208,12 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
             <div className="flex flex-wrap items-center gap-1 sm:gap-2">
               <span className="text-slate-900 dark:text-white font-sans font-black text-sm sm:text-lg leading-none tracking-tight break-all">
                 {listing.initialPayment || listing.price}
-                {!listing.initialPayment && (
-                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500 ml-0.5 uppercase">
-                    /{listing.paymentPeriod === 'monthly' ? 'mo' :
-                      listing.paymentPeriod === 'quarterly' ? 'qt' :
-                      listing.paymentPeriod === 'bi-annually' ? '6mo' :
-                      listing.paymentPeriod === 'custom' ? 'term' : 'yr'}
-                  </span>
-                )}
+                <span className="text-xs font-bold text-slate-400 dark:text-slate-500 ml-0.5 uppercase">
+                  /{listing.paymentPeriod === 'monthly' ? 'mo' :
+                    listing.paymentPeriod === 'quarterly' ? 'qt' :
+                    listing.paymentPeriod === 'bi-annually' ? '6mo' :
+                    listing.paymentPeriod === 'custom' ? 'term' : 'yr'}
+                </span>
               </span>
               
               {(!isAgentView && listing.verified) && (
@@ -217,14 +223,9 @@ const ListingCard: React.FC<ListingCardProps> = React.memo(({
                 </div>
               )}
             </div>
-            {listing.initialPayment && (
+            {listing.leaseDuration && (
               <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-tight mt-1 leading-none">
-                Subseq: <span className="text-slate-700 dark:text-slate-300 font-extrabold">{listing.subsequentPayment}</span>/
-                {listing.paymentPeriod === 'monthly' ? 'mo' :
-                 listing.paymentPeriod === 'quarterly' ? 'qt' :
-                 listing.paymentPeriod === 'bi-annually' ? '6mo' :
-                 listing.paymentPeriod === 'custom' ? 'term' : 'yr'}
-                {listing.leaseDuration && ` | ${listing.leaseDuration}`}
+                Stay Period: <span className="text-slate-700 dark:text-slate-300 font-extrabold">{listing.leaseDuration}</span>
               </span>
             )}
           </div>

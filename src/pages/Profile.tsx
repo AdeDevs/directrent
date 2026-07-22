@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import HamburgerButton from '../components/HamburgerButton';
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -105,6 +106,7 @@ const Profile = () => {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          await registration.update();
           await navigator.serviceWorker.ready;
           const token = await getToken(msg, { 
             vapidKey: 'BOPY_19AIXAx6Db1zKISMjdF8emGfEO-T6N1yrJuCPwad6tLY3iVBDrSMgKUYBS6pMMLT4VIpfIFF7xiWeB3Jfs',
@@ -2591,92 +2593,95 @@ const Profile = () => {
           )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {showLogoutConfirm && (
-            <motion.div 
-              key="logout-modal"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
-              onClick={() => setShowLogoutConfirm(false)}
-            >
+        {typeof document !== 'undefined' && createPortal(
+          <AnimatePresence>
+            {showLogoutConfirm && (
               <motion.div 
-                initial={{ y: 100 }}
-                animate={{ y: 0 }}
-                exit={{ y: 100 }}
-                className="bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 pb-safe sm:pb-0"
-                onClick={(e) => e.stopPropagation()}
+                key="logout-modal"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+                onClick={() => setShowLogoutConfirm(false)}
               >
-                <div className="p-6">
-                  <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center text-rose-500 mb-4 mx-auto">
-                    <LogOut className="w-6 h-6" />
+                <motion.div 
+                  initial={{ y: 100 }}
+                  animate={{ y: 0 }}
+                  exit={{ y: 100 }}
+                  className="bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 pb-safe sm:pb-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="p-6">
+                    <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center text-rose-500 mb-4 mx-auto">
+                      <LogOut className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center">Log Out</h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm text-center">Are you sure you want to log out of your account?</p>
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center">Log Out</h3>
-                  <p className="text-slate-500 dark:text-slate-400 text-sm text-center">Are you sure you want to log out of your account?</p>
-                </div>
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
-                  <button 
-                    onClick={() => setShowLogoutConfirm(false)}
-                    className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 font-semibold rounded-xl text-sm transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setShowLogoutConfirm(false);
-                      logout();
-                    }}
-                    className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-sm transition-colors"
-                  >
-                    Log Out
-                  </button>
-                </div>
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+                    <button 
+                      onClick={() => setShowLogoutConfirm(false)}
+                      className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 font-semibold rounded-xl text-sm transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setShowLogoutConfirm(false);
+                        logout();
+                      }}
+                      className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-sm transition-colors"
+                    >
+                      Log Out
+                    </button>
+                  </div>
+                </motion.div>
               </motion.div>
-            </motion.div>
-          )}
+            )}
 
-          {showDeletePhotoConfirm && (
-            <motion.div 
-              key="delete-photo-modal"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
-              onClick={() => setShowDeletePhotoConfirm(false)}
-            >
+            {showDeletePhotoConfirm && (
               <motion.div 
-                initial={{ y: 100 }}
-                animate={{ y: 0 }}
-                exit={{ y: 100 }}
-                className="bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 pb-safe sm:pb-0"
-                onClick={(e) => e.stopPropagation()}
+                key="delete-photo-modal"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+                onClick={() => setShowDeletePhotoConfirm(false)}
               >
-                <div className="p-6">
-                  <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center text-rose-500 mb-4 mx-auto">
-                    <Trash2 className="w-6 h-6" />
+                <motion.div 
+                  initial={{ y: 100 }}
+                  animate={{ y: 0 }}
+                  exit={{ y: 100 }}
+                  className="bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 pb-safe sm:pb-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="p-6">
+                    <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center text-rose-500 mb-4 mx-auto">
+                      <Trash2 className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center">Delete Photo</h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm text-center">Are you sure you want to delete your profile photo?</p>
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center">Delete Photo</h3>
-                  <p className="text-slate-500 dark:text-slate-400 text-sm text-center">Are you sure you want to delete your profile photo?</p>
-                </div>
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
-                  <button 
-                    onClick={() => setShowDeletePhotoConfirm(false)}
-                    className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 font-semibold rounded-xl text-sm transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={() => handleAvatarDelete()}
-                    className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-sm transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+                    <button 
+                      onClick={() => setShowDeletePhotoConfirm(false)}
+                      className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 font-semibold rounded-xl text-sm transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={() => handleAvatarDelete()}
+                      className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-sm transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </motion.div>
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
       </main>
     </div>
   );

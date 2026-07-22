@@ -85,6 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Only setup if already granted to prevent annoying popups on mount
       if (Notification.permission === 'granted') {
         const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        await registration.update();
         await navigator.serviceWorker.ready;
         const token = await getToken(msg, { 
           vapidKey: 'BOPY_19AIXAx6Db1zKISMjdF8emGfEO-T6N1yrJuCPwad6tLY3iVBDrSMgKUYBS6pMMLT4VIpfIFF7xiWeB3Jfs',
@@ -529,55 +530,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  // Automatically reconcile temporary agent IDs for Leon Atlas and Peace Olaoluwa
-  useEffect(() => {
-    if (user?.role === 'agent' && (user.email === 'leonofatlas@gmail.com' || user.email === 'peaceolaoluwa2006@gmail.com')) {
-      const email = user.email;
-      const targetAgentId = email === 'leonofatlas@gmail.com' ? 'agent_leon' : 'agent_peace';
-      
-      const reconcileAgentListings = async () => {
-        try {
-          const { collection, getDocs, query, where, updateDoc, doc } = await import('firebase/firestore');
-          
-          // 1. Reconcile Listings
-          const qListings = query(collection(db, 'listings'), where('agent.id', '==', targetAgentId));
-          const snapListings = await getDocs(qListings);
-          
-          if (!snapListings.empty) {
-            console.log(`Reconciling ${snapListings.size} listings for agent ${email}...`);
-            const promises = snapListings.docs.map(listingDoc => {
-              const currentAgent = listingDoc.data().agent || {};
-              return updateDoc(doc(db, 'listings', listingDoc.id), {
-                'agent.id': user.id,
-                'agent.name': user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || currentAgent.name,
-                'agent.avatarUrl': user.avatarUrl || currentAgent.avatarUrl || null,
-                'agent.isVerified': true
-              });
-            });
-            await Promise.all(promises);
-          }
-
-          // 2. Reconcile Conversations
-          const qConvs = query(collection(db, 'conversations'), where('agentId', '==', targetAgentId));
-          const snapConvs = await getDocs(qConvs);
-          
-          if (!snapConvs.empty) {
-            console.log(`Reconciling ${snapConvs.size} conversations for agent ${email}...`);
-            const pConvs = snapConvs.docs.map(convDoc => {
-              return updateDoc(doc(db, 'conversations', convDoc.id), {
-                agentId: user.id,
-                agentName: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim()
-              });
-            });
-            await Promise.all(pConvs);
-          }
-        } catch (error) {
-          console.error("Reconciliation error:", error);
-        }
-      };
-      reconcileAgentListings();
-    }
-  }, [user]);
+  // Hardcoded agent ID reconciliation removed for security
 
   const login = (role: UserRole, userData: Partial<User>) => {
     // Local state will be updated by the onSnapshot listener automatically

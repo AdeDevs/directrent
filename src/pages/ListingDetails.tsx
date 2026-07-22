@@ -369,7 +369,7 @@ const DirectionsModal = ({ isOpen, onClose, destination }: { isOpen: boolean, on
               <GoogleMap
                 defaultCenter={destination}
                 defaultZoom={13}
-                mapId="DIRECTIONS_MAP"
+                mapId={((import.meta as any).env?.VITE_GOOGLE_MAPS_MAP_ID as string) || ''}
                 internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
                 className="w-full h-full"
               >
@@ -422,12 +422,12 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
 
   const [activeMedia, setActiveMedia] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInitialAction, setChatInitialAction] = useState<'schedule_tour' | undefined>(undefined);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showTourModal, setShowTourModal] = useState(false);
   const [showDirectionsModal, setShowDirectionsModal] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [realStats, setRealStats] = useState({ 
@@ -511,16 +511,13 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
           </div>
           <div className="overflow-hidden">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg font-bold text-slate-900 dark:text-white truncate w-full">{listing.agent.name}</span>
+              <span className="text-lg font-bold text-slate-900 dark:text-white truncate">{listing.agent.name}</span>
               {listing.agent.isVerified && <ShieldCheck className="w-5 h-5 text-blue-500 flex-shrink-0" />}
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-400/10 px-2.5 py-1 rounded-lg">
                 <Star className="w-3 h-3 fill-current" />
                 <span className="text-[10px] uppercase tracking-wider font-bold">{listing.agent.rating}</span>
-              </div>
-              <div className="bg-emerald-50 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-lg">
-                <span className="text-[10px] uppercase tracking-wider font-bold font-sans">Verified Agent</span>
               </div>
             </div>
           </div>
@@ -759,7 +756,8 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
       setView('auth');
       return;
     }
-    setShowTourModal(true);
+    setChatInitialAction('schedule_tour');
+    setIsChatOpen(true);
   };
 
   const toggleFavoriteWithAnalytics = async (listingId: string) => {
@@ -768,52 +766,10 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
       setView('auth');
       return;
     }
-
     try {
       await toggleFavorite(listingId, listing.agent?.id);
     } catch (e) {
       console.error("Error toggling favorite with analytics:", e);
-    }
-  };
-
-  const handleTourRequest = async (data: { date: string; time: string }) => {
-    if (!user) return;
-
-    try {
-      await addDoc(collection(db, 'tours'), {
-        listingId: listing.id,
-        listingTitle: listing.title,
-        listingImage: listing.image,
-        agentId: listing.agent.id,
-        tenantId: user.id,
-        date: data.date,
-        time: data.time,
-        status: 'pending',
-        createdAt: serverTimestamp()
-      });
-      
-      // Record inquiry analytics
-      const { setDoc, doc, increment, serverTimestamp: fsServerTimestamp } = await import('firebase/firestore');
-      const listingIdStr = listing.id.toString();
-      const listingRef = doc(db, 'listings', listingIdStr);
-      
-      await setDoc(listingRef, {
-        inquiryCount: increment(1),
-        updatedAt: fsServerTimestamp()
-      }, { merge: true }).catch(err => console.warn("Failed to increment inquiryCount:", err));
-
-      await addDoc(collection(db, 'analytics'), {
-        listingId: listingIdStr,
-        type: 'inquiry',
-        userId: user.id,
-        agentId: listing.agent?.id || null,
-        createdAt: serverTimestamp()
-      });
-
-      toast.success('Tour request sent successfully!');
-      setShowTourModal(false);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'tours');
     }
   };
 
@@ -953,9 +909,13 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
       {user && (
         <ChatModal 
           isOpen={isChatOpen} 
-          onClose={() => setIsChatOpen(false)} 
+          onClose={() => {
+            setIsChatOpen(false);
+            setChatInitialAction(undefined);
+          }} 
           listing={listing} 
           currentUser={user} 
+          initialAction={chatInitialAction}
         />
       )}
 
@@ -967,16 +927,6 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
           listingId={listing.id} 
           userId={user.id} 
           agentId={listing.agent?.id || (listing as any).agentId}
-        />
-      )}
-
-      {/* Schedule Tour Modal */}
-      {user && (
-        <ScheduleTourModal 
-          isOpen={showTourModal} 
-          onClose={() => setShowTourModal(false)} 
-          listing={listing} 
-          userId={user.id} 
         />
       )}
 
@@ -1386,33 +1336,9 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
           )}
 
           {/* Property Specific Specifications Overview */}
-          <div className="py-2 my-2">
-            <div className="flex flex-wrap items-center gap-x-5 sm:gap-x-8 gap-y-4 sm:gap-y-6">
-              {!!listing.type && (
-                <div className="flex items-center gap-2.5 sm:gap-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
-                    <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                    <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Property Type</div>
-                    <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wide">{listing.type}</div>
-                  </div>
-                </div>
-              )}
-
-              {listing.amenities && listing.amenities.length > 0 && (
-                <div className="flex items-center gap-2.5 sm:gap-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
-                    <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div>
-                    <div className="text-[8px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none mb-1">Amenities</div>
-                    <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wide">{listing.amenities.length} Features Included</div>
-                  </div>
-                </div>
-              )}
-
-              {!!listing.area && (
+          {!!listing.area && (
+            <div className="py-2 my-2">
+              <div className="flex flex-wrap items-center gap-x-5 sm:gap-x-8 gap-y-4 sm:gap-y-6">
                 <div className="flex items-center gap-2.5 sm:gap-3">
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0">
                     <Maximize className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1422,9 +1348,9 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
                     <div className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white leading-none uppercase tracking-wide">{listing.area}</div>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* New Insight Tiles Section (Commented out until we start actively checking these items)
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -1494,99 +1420,20 @@ const ListingDetails: React.FC<ListingDetailsProps> = ({ listing: initialListing
 
           {/* Lease & Payment Terms Breakdown */}
           {!!(listing.paymentPeriod || listing.initialPayment || listing.leaseDuration) && (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-[15px] space-y-6 shadow-sm hover:shadow-md transition-all">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-150 dark:border-slate-800">
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 leading-none">Financial Structure</span>
-                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider mt-1">Lease & Payment Terms</h2>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-[20px] space-y-4 shadow-sm">
+              <h2 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">Financial Structure</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                  <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Billing Period</div>
+                  <div className="text-sm font-black text-slate-900 dark:text-white capitalize">{listing.paymentPeriod || 'Annually'}</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wider rounded-lg border border-emerald-100 dark:border-emerald-900/30">
-                    {listing.initialPayment ? 'Upfront Deposit Plan' : 'Standard Rate Plan'}
-                  </span>
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                  <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Stay Period</div>
+                  <div className="text-sm font-black text-slate-900 dark:text-white">{listing.leaseDuration || '1 Year'}</div>
                 </div>
-              </div>
-
-              {/* Grid Content for Desktop/Tablet */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-                {/* Column 1: Core Terms */}
-                <div className="space-y-4">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-450 dark:text-slate-500">Core Agreement</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-[13px] bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-150/40 dark:border-slate-900/40">
-                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Billing Period</span>
-                      <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 uppercase">
-                        {listing.paymentPeriod === 'monthly' ? 'Monthly' :
-                         listing.paymentPeriod === 'quarterly' ? 'Quarterly' :
-                         listing.paymentPeriod === 'bi-annually' ? 'Every 6 Months' :
-                         listing.paymentPeriod === 'custom' ? 'Custom Lease' : 'Annually'}
-                      </span>
-                    </div>
-
-                    <div className="p-[13px] bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-150/40 dark:border-slate-900/40">
-                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Min Stay Lease</span>
-                      <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">
-                        {listing.leaseDuration || '1 Year'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-[13px] bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-150/40 dark:border-slate-900/40 flex justify-between items-center text-xs">
-                    <div>
-                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Ongoing Subsequent Rate</span>
-                      <span className="text-[10px] text-slate-500 mt-0.5 block">Renewal rate post deposit</span>
-                    </div>
-                    <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                      {listing.subsequentPayment || listing.initialPayment || listing.price}/
-                      {listing.paymentPeriod === 'monthly' ? 'mo' :
-                       listing.paymentPeriod === 'quarterly' ? 'qt' :
-                       listing.paymentPeriod === 'bi-annually' ? '6mo' :
-                       listing.paymentPeriod === 'custom' ? 'term' : 'yr'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Column 2: Financial Timeline Breakdown */}
-                <div className="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-800/60 rounded-2xl p-[15px] flex flex-col justify-between space-y-4">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-450 dark:text-slate-500">Payment Schedule</h3>
-                  <div className="relative border-l-2 border-primary-500/30 ml-3 pl-5 space-y-6 py-1">
-                    {/* Move In Step */}
-                    <div className="relative">
-                      <span className="absolute -left-[27px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary-600 ring-4 ring-white dark:ring-slate-950">
-                        <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                      </span>
-                      <div className="flex justify-between items-start gap-4">
-                        <div>
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Day 1: Move-In Secure</h4>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Includes Rent deposit + administrative fees</p>
-                        </div>
-                        <span className="text-xs sm:text-sm font-black text-primary-650 dark:text-primary-400 text-right whitespace-nowrap">
-                          {listing.initialPayment || listing.price}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Subsequent Period Step */}
-                    <div className="relative">
-                      <span className="absolute -left-[27px] top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-300 dark:bg-slate-800 ring-4 ring-white dark:ring-slate-950">
-                        <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
-                      </span>
-                      <div className="flex justify-between items-start gap-4">
-                        <div>
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-300 font-bold">Ongoing billing cycles</h4>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Recurring schedule payments</p>
-                        </div>
-                        <span className="text-xs font-black text-slate-800 dark:text-slate-350 text-right whitespace-nowrap">
-                          {listing.subsequentPayment || listing.initialPayment || listing.price} / {
-                            listing.paymentPeriod === 'monthly' ? 'mo' :
-                            listing.paymentPeriod === 'quarterly' ? 'qt' :
-                            listing.paymentPeriod === 'bi-annually' ? '6mo' :
-                            listing.paymentPeriod === 'custom' ? 'term' : 'yr'
-                          }
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                <div className="p-4 bg-primary-50 dark:bg-primary-900/10 rounded-2xl col-span-2 md:col-span-1">
+                  <div className="text-[10px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-widest mb-1">Total Package</div>
+                  <div className="text-sm font-black text-primary-700 dark:text-primary-300">{listing.initialPayment || listing.price}</div>
                 </div>
               </div>
             </div>

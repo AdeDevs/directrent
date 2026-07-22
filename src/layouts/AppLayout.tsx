@@ -7,19 +7,20 @@ import { db } from '../lib/firebase';
 import BottomNav from "../components/BottomNav";
 import MobileDrawer from "../components/MobileDrawer";
 import DesktopSidebar from "../components/DesktopSidebar";
+import ErrorBoundary from "../components/ErrorBoundary";
 
-const HomePage = lazy(() => import("../pages/Home"));
-const ChatPage = lazy(() => import("../pages/Chat"));
-const ProfilePage = lazy(() => import("../pages/Profile"));
-const FavoritesPage = lazy(() => import("../pages/Favorites"));
-const ListingDetails = lazy(() => import("../pages/ListingDetails"));
-const AgentProfile = lazy(() => import("../pages/AgentProfile"));
-const CreateListing = lazy(() => import("../pages/CreateListing"));
-const MyListings = lazy(() => import("../pages/MyListings"));
-const NotificationsPage = lazy(() => import("../pages/Notifications"));
-const FAQPage = lazy(() => import("../pages/FAQ"));
-const WalletPage = lazy(() => import("../pages/Wallet"));
-const TermsOfUsePage = lazy(() => import("../pages/TermsOfUse"));
+import HomePage from "../pages/Home";
+import ChatPage from "../pages/Chat";
+import ProfilePage from "../pages/Profile";
+import FavoritesPage from "../pages/Favorites";
+import ListingDetails from "../pages/ListingDetails";
+import AgentProfile from "../pages/AgentProfile";
+import CreateListing from "../pages/CreateListing";
+import MyListings from "../pages/MyListings";
+import NotificationsPage from "../pages/Notifications";
+import FAQPage from "../pages/FAQ";
+import WalletPage from "../pages/Wallet";
+import TermsOfUsePage from "../pages/TermsOfUse";
 
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -231,56 +232,58 @@ const AppLayout = () => {
             </div>
           )}
 
-          <Suspense fallback={<PageLoader />}>
-            <AnimatePresence mode="wait">
-            {(currentListing && activeTab !== "create") ? (
-              <motion.div
-                key={`listing-${currentListing.id}`}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <ListingDetails
-                  listing={currentListing}
-                  onBack={() => setCurrentListing(null)}
-                />
-              </motion.div>
-            ) : selectedAgentId ? (
-              <motion.div
-                key={`agent-${selectedAgentId}`}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <AgentProfile
-                  agentId={selectedAgentId}
-                  onBack={() => setSelectedAgentId(null)}
-                />
-              </motion.div>
-            ) : (
-              <motion.div
-                key={`dashboard-${user.role}-${activeTab}`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                {activeTab === "home" && <HomePage key={`home-${user.role}`} />}
-                {activeTab === "chat" && <ChatPage key={`chat-${user.role}`} />}
-                {activeTab === "profile" && <ProfilePage key={`profile-${user.role}`} />}
-                {activeTab === "favorites" && <FavoritesPage key={`favorites-${user.role}`} />}
-                {activeTab === "create" && <CreateListing key={`create-${user.role}`} />}
-                {activeTab === "mylistings" && <MyListings key={`mylistings-${user.role}`} />}
-                {activeTab === "notifications" && <NotificationsPage key={`notifications-${user.role}`} />}
-                {activeTab === "terms" && <TermsOfUsePage key={`terms-${user.role}`} />}
-                {activeTab === "faq" && <FAQPage key={`faq-${user.role}`} />}
-                {activeTab === "wallet" && <WalletPage key={`wallet-${user.role}`} />}
-              </motion.div>
-            )}
-            </AnimatePresence>
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <AnimatePresence mode="wait">
+              {(currentListing && activeTab !== "create") ? (
+                <motion.div
+                  key={`listing-${currentListing.id}`}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <ListingDetails
+                    listing={currentListing}
+                    onBack={() => setCurrentListing(null)}
+                  />
+                </motion.div>
+              ) : selectedAgentId ? (
+                <motion.div
+                  key={`agent-${selectedAgentId}`}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <AgentProfile
+                    agentId={selectedAgentId}
+                    onBack={() => setSelectedAgentId(null)}
+                  />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key={`dashboard-${user.role}-${activeTab}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {activeTab === "home" && <HomePage key={`home-${user.role}`} />}
+                  {activeTab === "chat" && <ChatPage key={`chat-${user.role}`} />}
+                  {activeTab === "profile" && <ProfilePage key={`profile-${user.role}`} />}
+                  {activeTab === "favorites" && <FavoritesPage key={`favorites-${user.role}`} />}
+                  {activeTab === "create" && <CreateListing key={`create-${user.role}`} />}
+                  {activeTab === "mylistings" && <MyListings key={`mylistings-${user.role}`} />}
+                  {activeTab === "notifications" && <NotificationsPage key={`notifications-${user.role}`} />}
+                  {activeTab === "terms" && <TermsOfUsePage key={`terms-${user.role}`} />}
+                  {activeTab === "faq" && <FAQPage key={`faq-${user.role}`} />}
+                  {activeTab === "wallet" && <WalletPage key={`wallet-${user.role}`} />}
+                </motion.div>
+              )}
+              </AnimatePresence>
+            </Suspense>
+          </ErrorBoundary>
       </main>
       </div>
 

@@ -1,5 +1,6 @@
-import React from 'react';
-import { motion } from 'motion/react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Home as HomeIcon, 
   MessageCircleMore, 
@@ -31,6 +32,7 @@ interface DesktopSidebarProps {
 }
 
 const DesktopSidebar: React.FC<DesktopSidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const { 
     user, 
     activeTab, 
@@ -169,7 +171,7 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({ isCollapsed, onToggleCo
 
             {/* Logout Quick Button */}
             <button
-              onClick={() => logout()}
+              onClick={() => setShowLogoutConfirm(true)}
               className="w-full flex items-center justify-center gap-2 py-3 border border-red-200/50 dark:border-red-950/20 hover:border-red-200/80 text-red-600 bg-red-50/30 dark:bg-red-950/5 hover:bg-red-50 dark:hover:bg-red-950/15 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm active:scale-98"
             >
               <LogOut className="w-3.5 h-3.5 text-red-600" />
@@ -186,7 +188,7 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({ isCollapsed, onToggleCo
               {theme === 'dark' ? <Moon className="w-4 h-4 text-primary-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
             </button>
             <button
-              onClick={() => logout()}
+              onClick={() => setShowLogoutConfirm(true)}
               title="Logout"
               className="w-11 h-11 mx-auto flex items-center justify-center text-red-600 bg-red-50/30 hover:bg-red-50 dark:bg-red-950/5 dark:hover:bg-red-950/15 border border-red-200/50 dark:border-red-950/20 hover:border-red-200/80 rounded-xl transition-all active:scale-95 relative group cursor-pointer"
             >
@@ -195,6 +197,55 @@ const DesktopSidebar: React.FC<DesktopSidebarProps> = ({ isCollapsed, onToggleCo
           </div>
         )}
       </div>
+
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showLogoutConfirm && (
+            <motion.div 
+              key="logout-modal-sidebar"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+              onClick={() => setShowLogoutConfirm(false)}
+            >
+              <motion.div 
+                initial={{ y: 100 }}
+                animate={{ y: 0 }}
+                exit={{ y: 100 }}
+                className="bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 pb-safe sm:pb-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6">
+                  <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center text-rose-500 mb-4 mx-auto">
+                    <LogOut className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center">Log Out</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm text-center">Are you sure you want to log out of your account?</p>
+                </div>
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+                  <button 
+                    onClick={() => setShowLogoutConfirm(false)}
+                    className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 font-semibold rounded-xl text-sm transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowLogoutConfirm(false);
+                      logout();
+                    }}
+                    className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-sm transition-colors"
+                  >
+                    Log Out
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
     </aside>
   );

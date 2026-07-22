@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import HamburgerButton from '../components/HamburgerButton';
 import { AnimatePresence, motion } from 'motion/react';
-import { Search, Settings2, MapPin, FilterX, Home as HomeIcon, Trash2, Bell, Map, LayoutGrid, Navigation, Info, Compass, RotateCcw, Building2, Layers, Globe } from 'lucide-react';
+import { Search, Settings2, MapPin, FilterX, Home as HomeIcon, Trash2, Bell, Map, LayoutGrid, Navigation, Info, Compass, RotateCcw, Building2, Layers, Globe, Heart, MoreHorizontal, ChevronLeft, ChevronRight, Bookmark, Locate, Car, Bus, Plus, Minus } from 'lucide-react';
 import { APIProvider, Map as GoogleMap, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef, useMap } from '@vis.gl/react-google-maps';
 import ListingCard from '../components/ListingCard';
 import SafeImage from '../components/SafeImage';
@@ -16,96 +16,88 @@ import { GoogleMapsGuard } from '../components/GoogleMapsGuard';
 import { HeaderPortal } from '../components/HeaderPortal';
 import toast from 'react-hot-toast';
 
-// Ultra-minimal high-end light styling - hides schools, shops, transit clutter
-const LIGHT_MAP_STYLE = [
-  {
-    "featureType": "poi",
-    "elementType": "all",
-    "stylers": [{ "visibility": "off" }]
-  },
-  {
-    "featureType": "transit",
-    "elementType": "all",
-    "stylers": [{ "visibility": "off" }]
-  },
-  {
-    "featureType": "road",
-    "elementType": "labels.icon",
-    "stylers": [{ "visibility": "off" }]
-  },
-  {
-    "featureType": "administrative.land_parcel",
-    "elementType": "labels",
-    "stylers": [{ "visibility": "off" }]
-  },
-  {
-    "featureType": "water",
-    "elementType": "geometry.fill",
-    "stylers": [{ "color": "#e0f2fe" }]
-  },
-  {
-    "featureType": "landscape",
-    "elementType": "geometry",
-    "stylers": [{ "color": "#f8fafc" }]
-  },
-  {
-    "featureType": "road",
-    "elementType": "geometry",
-    "stylers": [{ "color": "#f1f5f9" }]
-  },
-  {
-    "featureType": "road.highway",
-    "elementType": "geometry.fill",
-    "stylers": [{ "color": "#e2e8f0" }]
-  }
-];
+// Standard Google Maps style - light mode uses native full-featured Google Maps vector styling
+const LIGHT_MAP_STYLE = undefined;
 
-// Dark Space minimal map style matching DirectRent layout
+// Official Google Maps Dark theme - rich feature depth, parks, rivers, roads, labels
 const DARK_MAP_STYLE = [
+  { "elementType": "geometry", "stylers": [{ "color": "#242f3e" }] },
+  { "elementType": "labels.text.stroke", "stylers": [{ "color": "#242f3e" }] },
+  { "elementType": "labels.text.fill", "stylers": [{ "color": "#746855" }] },
   {
-    "featureType": "all",
+    "featureType": "administrative.locality",
     "elementType": "labels.text.fill",
-    "stylers": [{ "color": "#94a3b8" }]
-  },
-  {
-    "featureType": "all",
-    "elementType": "labels.text.stroke",
-    "stylers": [{ "visibility": "off" }]
-  },
-  {
-    "featureType": "administrative",
-    "elementType": "geometry.stroke",
-    "stylers": [{ "color": "#1e293b" }]
-  },
-  {
-    "featureType": "landscape",
-    "elementType": "geometry",
-    "stylers": [{ "color": "#020617" }]
+    "stylers": [{ "color": "#d59563" }]
   },
   {
     "featureType": "poi",
-    "elementType": "all",
-    "stylers": [{ "visibility": "off" }]
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#d59563" }]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "geometry",
+    "stylers": [{ "color": "#263c3f" }]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#6b9a76" }]
   },
   {
     "featureType": "road",
     "elementType": "geometry",
-    "stylers": [{ "color": "#0f172a" }]
+    "stylers": [{ "color": "#38414e" }]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry.stroke",
+    "stylers": [{ "color": "#212a37" }]
+  },
+  {
+    "featureType": "road",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#9ca5b3" }]
   },
   {
     "featureType": "road.highway",
     "elementType": "geometry",
-    "stylers": [{ "color": "#1e293b" }]
+    "stylers": [{ "color": "#746855" }]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry.stroke",
+    "stylers": [{ "color": "#1f2835" }]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#f3d19c" }]
   },
   {
     "featureType": "transit",
-    "elementType": "all",
-    "stylers": [{ "visibility": "off" }]
+    "elementType": "geometry",
+    "stylers": [{ "color": "#2f3948" }]
+  },
+  {
+    "featureType": "transit.station",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#d59563" }]
   },
   {
     "featureType": "water",
     "elementType": "geometry",
-    "stylers": [{ "color": "#090d16" }]
+    "stylers": [{ "color": "#17263c" }]
+  },
+  {
+    "featureType": "water",
+    "elementType": "labels.text.fill",
+    "stylers": [{ "color": "#515c6d" }]
+  },
+  {
+    "featureType": "water",
+    "elementType": "labels.text.stroke",
+    "stylers": [{ "color": "#17263c" }]
   }
 ];
 
@@ -120,30 +112,56 @@ const getMarkerIcon = (type: string) => {
   }
 };
 
-const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing) => void }> = React.memo(({ listing, onClick }) => {
+const MapMarkerWithInfoWindow: React.FC<{ 
+  listing: Listing; 
+  onClick: (l: Listing) => void;
+  isHovered?: boolean;
+  activeInfoWindowId?: string | number | null;
+  setActiveInfoWindowId?: (id: string | number | null) => void;
+  onHover?: (id: string | number | null) => void;
+}> = React.memo(({ listing, onClick, isHovered, activeInfoWindowId, setActiveInfoWindowId, onHover }) => {
   const [markerRef, marker] = useAdvancedMarkerRef();
-  const [infoWindowShown, setInfoWindowShown] = useState(false);
-
-  // If no lat/lng, we don't render it (though we should have it for all new listings)
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const { favorites, toggleFavorite } = useAuth();
+  
   if (!listing.latitude || !listing.longitude) return null;
+
+  const infoWindowShown = activeInfoWindowId === listing.id;
+  const active = isHovered || infoWindowShown;
+  const images = listing.images?.length ? listing.images : [listing.image];
+  const isFav = favorites.includes(listing.id);
+
+  const nextImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
 
   return (
     <>
       <AdvancedMarker
         ref={markerRef}
         position={{ lat: listing.latitude, lng: listing.longitude }}
-        onClick={() => setInfoWindowShown(true)}
+        onClick={() => {
+          setActiveInfoWindowId?.(listing.id);
+        }}
       >
-        <div className="group cursor-pointer flex flex-col items-center">
-          {/* Stunning Property Tag */}
-          <div className="bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-full text-xs font-black shadow-xl shadow-primary-500/30 transform -translate-y-full mb-1 flex items-center gap-1.5 group-hover:scale-110 group-hover:bg-indigo-600 transition-all duration-300 border-2 border-white dark:border-slate-900">
-            {getMarkerIcon(listing.type)}
+        <div 
+          onMouseEnter={() => onHover?.(listing.id)}
+          onMouseLeave={() => onHover?.(null)}
+          className={`group cursor-pointer flex flex-col items-center transition-all duration-300 ${active ? 'z-50 scale-110' : 'z-10'}`}
+        >
+          {/* Property Price Pill */}
+          <div className={`px-3 py-1.5 rounded-full text-xs font-black shadow-xl flex items-center justify-center transition-all duration-300 border-2 ${
+            active 
+              ? 'bg-primary-600 text-white scale-110 shadow-primary-500/50 border-white dark:border-slate-900 ring-4 ring-primary-500/30' 
+              : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 hover:bg-primary-600 hover:text-white hover:border-white dark:hover:border-slate-900'
+          }`}>
             <span>₦{listing.priceValue >= 1000000 ? `${(listing.priceValue / 1000000).toFixed(1)}M` : `${(listing.priceValue / 1000).toFixed(0)}k`}</span>
-          </div>
-          {/* Glowing pulse marker point */}
-          <div className="relative flex items-center justify-center -translate-y-2">
-            <div className="absolute w-6 h-6 bg-primary-500/40 rounded-full animate-ping pointer-events-none" />
-            <div className="w-3.5 h-3.5 bg-primary-600 border-2 border-white dark:border-slate-900 rounded-full shadow-lg relative z-10 group-hover:scale-125 transition-all duration-300" />
           </div>
         </div>
       </AdvancedMarker>
@@ -151,32 +169,94 @@ const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing
       {infoWindowShown && (
         <InfoWindow
           anchor={marker}
-          onCloseClick={() => setInfoWindowShown(false)}
+          onCloseClick={() => setActiveInfoWindowId?.(null)}
+          headerDisabled={true}
+          style={{ padding: 0 }}
         >
           <div 
-            className="p-0.5 overflow-hidden group/card max-w-[220px] cursor-pointer"
+            className="w-[280px] cursor-pointer group/card bg-white dark:bg-slate-900 overflow-hidden relative"
             onClick={() => onClick(listing)}
           >
-            <div className="relative overflow-hidden rounded-xl mb-3">
-              <SafeImage src={listing.image} fallbackType="house" className="w-full h-28 object-cover group-hover/card:scale-110 transition-transform duration-500" />
-              <div className="absolute top-2 left-2">
-                <span className="bg-white/90 backdrop-blur-md dark:bg-slate-900/90 px-2 py-0.5 rounded-lg text-[9px] font-black text-primary-600 uppercase tracking-tighter border border-slate-200 dark:border-slate-800">
-                  {listing.type}
-                </span>
+            <div className="relative overflow-hidden h-40">
+              <SafeImage src={images[currentImageIndex]} fallbackType="house" className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500" />
+              
+              {images.length > 1 && (
+                <>
+                  <button 
+                    onClick={prevImage}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center bg-white/95 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 rounded-full backdrop-blur-md opacity-0 group-hover/card:opacity-100 shadow-md transition-all hover:bg-white dark:hover:bg-slate-900 hover:scale-105 z-10"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    onClick={nextImage}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center bg-white/95 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 rounded-full backdrop-blur-md opacity-0 group-hover/card:opacity-100 shadow-md transition-all hover:bg-white dark:hover:bg-slate-900 hover:scale-105 z-10"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+
+              <div className="absolute top-2.5 right-2.5 z-20">
+                <button 
+                  className={`p-1.5 rounded-full backdrop-blur-xl shadow-md transition-all cursor-pointer active:scale-95 ${isFav ? 'bg-primary-600 text-white border border-primary-500' : 'bg-white/70 hover:bg-white dark:hover:bg-slate-800 text-slate-800 border border-white/20'}`}
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    toggleFavorite(listing.id, listing.agent?.id);
+                  }}
+                >
+                  <Bookmark className={`w-4 h-4 transition-colors ${isFav ? 'fill-current text-white' : 'text-slate-850 dark:text-slate-200'}`} />
+                </button>
               </div>
-            </div>
-            <div className="px-1.5 pb-2">
-              <h4 className="font-black text-sm text-slate-900 dark:text-white line-clamp-1 mb-1 tracking-tight">{listing.title}</h4>
-              <div className="flex items-center gap-1.5 text-slate-500 mb-2">
-                <MapPin className="w-3 h-3 flex-shrink-0" />
-                <p className="text-[10px] font-medium line-clamp-1">{listing.location}</p>
-              </div>
-              <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-800">
-                <p className="text-primary-600 font-black text-sm">{listing.price}</p>
-                <div className="flex items-center gap-1 bg-primary-50 dark:bg-primary-900/20 px-1.5 py-0.5 rounded-md">
-                   <div className="w-1 h-1 rounded-full bg-primary-600 animate-pulse" />
-                   <span className="text-[8px] font-black text-primary-600 uppercase tracking-widest">Active</span>
+
+              {images.length > 1 && (
+                <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10" onClick={e => e.stopPropagation()}>
+                  {images.map((_, i) => (
+                    <div 
+                      key={`dot-${i}`} 
+                      onClick={() => setCurrentImageIndex(i)}
+                      className={`h-1.5 rounded-full cursor-pointer transition-all ${i === currentImageIndex ? 'w-3 bg-white' : 'w-1.5 bg-white/60 hover:bg-white/80'}`}
+                    />
+                  ))}
                 </div>
+              )}
+            </div>
+
+            <div className="p-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+              {/* Line 1: Price and Period Label */}
+              <div className="flex flex-col">
+                <span className="text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">
+                  {listing.initialPayment ? '1st Pay / Deposit' : (
+                    listing.paymentPeriod === 'monthly' ? 'Monthly Rent' :
+                    listing.paymentPeriod === 'quarterly' ? 'Quarterly Rent' :
+                    listing.paymentPeriod === 'bi-annually' ? 'Semi-Annual Rent' :
+                    listing.paymentPeriod === 'custom' ? 'Custom Lease' : 'Annual Rent'
+                  )}
+                </span>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-900 dark:text-white font-sans font-black text-sm sm:text-base leading-none tracking-tight">
+                    {listing.initialPayment || listing.price}
+                    <span className="text-xs font-bold text-slate-400 dark:text-slate-500 ml-0.5 uppercase">
+                      /{listing.paymentPeriod === 'monthly' ? 'mo' :
+                        listing.paymentPeriod === 'quarterly' ? 'qt' :
+                        listing.paymentPeriod === 'bi-annually' ? '6mo' :
+                        listing.paymentPeriod === 'custom' ? 'term' : 'yr'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Line 2: Name / Title */}
+              <h3 className="text-slate-900 dark:text-white text-xs sm:text-sm font-display font-extrabold leading-snug tracking-tight line-clamp-1">
+                {listing.title}
+              </h3>
+
+              {/* Line 3: Location */}
+              <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                <MapPin className="w-3.5 h-3.5 text-primary-500 shrink-0" />
+                <span className="text-[10px] sm:text-[11px] font-bold tracking-wide uppercase truncate">
+                  {listing.location}
+                </span>
               </div>
             </div>
           </div>
@@ -186,21 +266,148 @@ const MapMarkerWithInfoWindow: React.FC<{ listing: Listing, onClick: (l: Listing
   );
 });
 
-// Custom interactive dashboard overlays for rotation, elevation tilt (3D), and zooming controls
-const MapControlsOverlay: React.FC = () => {
+const MapSearchBoundary: React.FC<{ listings: Listing[]; searchQuery: string }> = ({ listings, searchQuery }) => {
   const map = useMap();
-  const [currentTilt, setCurrentTilt] = useState(0);
-  const [currentHeading, setCurrentHeading] = useState(0);
-  const [mapType, setMapType] = useState('roadmap');
+
+  useEffect(() => {
+    if (!map || !searchQuery || listings.length === 0) return;
+
+    const bounds = new google.maps.LatLngBounds();
+    let hasValidPoints = false;
+    listings.forEach(l => {
+      if (l.latitude && l.longitude) {
+        bounds.extend({ lat: l.latitude, lng: l.longitude });
+        hasValidPoints = true;
+      }
+    });
+
+    if (!hasValidPoints) return;
+
+    const center = bounds.getCenter();
+    const ne = bounds.getNorthEast();
+    const R = 6371e3; // metres
+    const φ1 = center.lat() * Math.PI/180;
+    const φ2 = ne.lat() * Math.PI/180;
+    const Δφ = (ne.lat()-center.lat()) * Math.PI/180;
+    const Δλ = (ne.lng()-center.lng()) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+
+    const circle = new google.maps.Circle({
+      map,
+      center,
+      radius: Math.max(distance * 1.2, 1000), // add 20% padding, minimum 1km
+      strokeColor: '#3b82f6',
+      strokeOpacity: 0.8,
+      strokeWeight: 2,
+      fillColor: '#3b82f6',
+      fillOpacity: 0.1,
+    });
+
+    // Optionally fit bounds
+    // map.fitBounds(bounds);
+
+    return () => {
+      circle.setMap(null);
+    };
+  }, [map, listings, searchQuery]);
+
+  return null;
+};
+
+// Custom interactive dashboard overlays for rotation, elevation tilt (3D), and zooming controls
+const MapLayersController: React.FC<{
+  showTraffic: boolean;
+  showTransit: boolean;
+}> = ({ showTraffic, showTransit }) => {
+  const map = useMap();
+  const trafficLayerRef = useRef<google.maps.TrafficLayer | null>(null);
+  const transitLayerRef = useRef<google.maps.TransitLayer | null>(null);
 
   useEffect(() => {
     if (!map) return;
-    setCurrentTilt(map.getTilt() || 0);
-    setCurrentHeading(map.getHeading() || 0);
+    if (showTraffic) {
+      if (!trafficLayerRef.current) {
+        trafficLayerRef.current = new google.maps.TrafficLayer();
+      }
+      trafficLayerRef.current.setMap(map);
+    } else {
+      if (trafficLayerRef.current) {
+        trafficLayerRef.current.setMap(null);
+      }
+    }
+  }, [map, showTraffic]);
 
+  useEffect(() => {
+    if (!map) return;
+    if (showTransit) {
+      if (!transitLayerRef.current) {
+        transitLayerRef.current = new google.maps.TransitLayer();
+      }
+      transitLayerRef.current.setMap(map);
+    } else {
+      if (transitLayerRef.current) {
+        transitLayerRef.current.setMap(null);
+      }
+    }
+  }, [map, showTransit]);
+
+  return null;
+};
+
+const UserLocationMarker: React.FC<{ userPos: { lat: number; lng: number } | null }> = ({ userPos }) => {
+  if (!userPos) return null;
+
+  return (
+    <AdvancedMarker position={userPos}>
+      <div className="relative flex items-center justify-center z-50">
+        <div className="w-8 h-8 bg-blue-500/30 rounded-full animate-ping absolute" />
+        <div className="w-5 h-5 bg-blue-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center">
+          <div className="w-2 h-2 bg-white rounded-full" />
+        </div>
+      </div>
+    </AdvancedMarker>
+  );
+};
+
+const MapControlsOverlay: React.FC<{
+  onRecenter?: () => void;
+  isMapExpanded?: boolean;
+  onToggleExpand?: () => void;
+  mapType: string;
+  setMapType: (type: string) => void;
+  showTraffic: boolean;
+  setShowTraffic: React.Dispatch<React.SetStateAction<boolean>>;
+  showTransit: boolean;
+  setShowTransit: React.Dispatch<React.SetStateAction<boolean>>;
+  userPos: { lat: number; lng: number } | null;
+  setUserPos: (pos: { lat: number; lng: number } | null) => void;
+}> = ({
+  onRecenter,
+  isMapExpanded,
+  onToggleExpand,
+  mapType,
+  setMapType,
+  showTraffic,
+  setShowTraffic,
+  showTransit,
+  setShowTransit,
+  userPos,
+  setUserPos,
+}) => {
+  const map = useMap();
+  const [showLayersMenu, setShowLayersMenu] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [is3D, setIs3D] = useState(false);
+
+  useEffect(() => {
+    if (!map) return;
+    
     const listener = map.addListener('idle', () => {
-      setCurrentTilt(map.getTilt() || 0);
-      setCurrentHeading(map.getHeading() || 0);
       const type = map.getMapTypeId() || 'roadmap';
       setMapType(type);
     });
@@ -208,38 +415,12 @@ const MapControlsOverlay: React.FC = () => {
     return () => {
       if (listener) listener.remove();
     };
-  }, [map]);
+  }, [map, setMapType]);
 
   const handleMapTypeChange = (type: string) => {
     if (!map) return;
     map.setMapTypeId(type);
     setMapType(type);
-  };
-
-  const toggleTilt = () => {
-    if (!map) return;
-    const nextTilt = currentTilt > 10 ? 0 : 45;
-    map.setTilt(nextTilt);
-    setCurrentTilt(nextTilt);
-    if (nextTilt > 10) {
-      const currentZoom = map.getZoom() || 12;
-      if (currentZoom < 15.5) {
-        map.setZoom(16.5);
-      }
-    }
-  };
-
-  const handleRotate = (degrees: number) => {
-    if (!map) return;
-    const newHeading = (currentHeading + degrees + 360) % 360;
-    map.setHeading(newHeading);
-    setCurrentHeading(newHeading);
-  };
-
-  const resetNorth = () => {
-    if (!map) return;
-    map.setHeading(0);
-    setCurrentHeading(0);
   };
 
   const handleZoom = (amount: number) => {
@@ -248,38 +429,169 @@ const MapControlsOverlay: React.FC = () => {
     map.setZoom(zoom + amount);
   };
 
+  const handleToggle3D = () => {
+    if (!map) return;
+    const next3D = !is3D;
+    setIs3D(next3D);
+    map.setTilt(next3D ? 45 : 0);
+    if (next3D && (map.getZoom() || 0) < 15) {
+      map.setZoom(16);
+    }
+  };
+
+  const handleMyLocation = () => {
+    if (!navigator.geolocation || !map) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
+        setUserPos(pos);
+        map.panTo(pos);
+        map.setZoom(15);
+        setIsLocating(false);
+        toast.success('Centered on your current location');
+      },
+      () => {
+        setIsLocating(false);
+        toast.error('Unable to retrieve your location');
+      },
+      { enableHighAccuracy: true, timeout: 6000 }
+    );
+  };
+
   return (
     <>
-      {/* 1. minimal, satellite, 3d hybrid map toggle centered at the bottom */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex gap-1 transition-all duration-300">
-          {[
-            { id: 'roadmap', label: 'Minimal', icon: <Map className="w-3.5 h-3.5" /> },
-            { id: 'satellite', label: 'Satellite', icon: <Globe className="w-3.5 h-3.5" /> },
-            { id: 'hybrid', label: '3D Hybrid', icon: <Layers className="w-3.5 h-3.5" /> },
-          ].map((type) => (
-            <button
-              key={type.id}
-              onClick={() => handleMapTypeChange(type.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${mapType === type.id ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/20 scale-[1.03]' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-              title={`Switch to ${type.label}`}
-            >
-              {type.icon}
-              <span className="hidden sm:inline">{type.label}</span>
-            </button>
-          ))}
+      {/* Google Maps Style Bottom-Left Layers Button & Flyout Panel */}
+      <div className="absolute bottom-4 left-4 z-30 pointer-events-auto">
+        <div className="relative">
+          {/* Flyout Menu */}
+          <AnimatePresence>
+            {showLayersMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className="absolute bottom-14 left-0 w-72 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl p-3.5 shadow-2xl border border-slate-200/90 dark:border-slate-800/90 space-y-3 z-40 text-slate-900 dark:text-white"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Map Type</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { id: 'roadmap', label: 'Default / Street', icon: Map },
+                      { id: 'satellite', label: 'Satellite', icon: Globe },
+                      { id: 'terrain', label: 'Terrain', icon: Layers },
+                      { id: 'hybrid', label: 'Hybrid', icon: Building2 },
+                    ].map((type) => {
+                      const IconComponent = type.icon;
+                      const active = mapType === type.id;
+                      return (
+                        <button
+                          key={type.id}
+                          onClick={() => handleMapTypeChange(type.id)}
+                          className={`flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            active
+                              ? 'bg-primary-600 text-white shadow-md shadow-primary-500/20'
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <IconComponent className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{type.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/80 dark:border-slate-800/80">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-2">Map Details</span>
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => setShowTraffic(!showTraffic)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        showTraffic
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Car className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Real-Time Traffic</span>
+                      </div>
+                      <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md font-black ${showTraffic ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                        {showTraffic ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setShowTransit(!showTransit)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        showTransit
+                          ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Bus className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Public Transit</span>
+                      </div>
+                      <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md font-black ${showTransit ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                        {showTransit ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={handleToggle3D}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        is3D
+                          ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>3D Buildings & Tilt</span>
+                      </div>
+                      <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md font-black ${is3D ? 'bg-indigo-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                        {is3D ? '45°' : '2D'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Trigger Button */}
+          <button
+            onClick={() => setShowLayersMenu(!showLayersMenu)}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-full shadow-xl backdrop-blur-md border transition-all cursor-pointer font-extrabold text-xs ${
+              showLayersMenu
+                ? 'bg-primary-600 text-white border-primary-500 shadow-primary-500/20'
+                : 'bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Layers className="w-4 h-4 text-primary-500" />
+            <span>Map Details</span>
+          </button>
         </div>
       </div>
 
-      {/* 2. zoom buttons vertically centered on the left of the map */}
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 z-30 pointer-events-auto">
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 flex flex-col gap-1 items-center transition-all duration-300">
+      {/* Floating Tool Controls Stack on Right Side */}
+      <div className="absolute right-4 bottom-20 sm:bottom-4 z-30 pointer-events-auto flex flex-col gap-2">
+        {/* Zoom Controls */}
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 flex flex-col gap-1 items-center transition-all duration-300">
           <button 
             onClick={() => handleZoom(1)}
             className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             title="Zoom In"
           >
-            ＋
+            <Plus className="w-4 h-4" />
           </button>
           <div className="w-5 h-px bg-slate-200 dark:bg-slate-800" />
           <button 
@@ -287,9 +599,49 @@ const MapControlsOverlay: React.FC = () => {
             className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             title="Zoom Out"
           >
-            －
+            <Minus className="w-4 h-4" />
           </button>
         </div>
+
+        {/* My Location GPS Button */}
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 flex flex-col gap-1 items-center transition-all duration-300">
+          <button
+            onClick={handleMyLocation}
+            disabled={isLocating}
+            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+              userPos ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+            title="Center on My Location"
+          >
+            <Locate className={`w-4 h-4 ${isLocating ? 'animate-spin text-primary-500' : ''}`} />
+          </button>
+        </div>
+
+        {/* 3D Tilt Toggle */}
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 flex flex-col gap-1 items-center transition-all duration-300">
+          <button
+            onClick={handleToggle3D}
+            className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black transition-colors cursor-pointer ${
+              is3D ? 'bg-primary-600 text-white shadow-md' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+            title="Toggle 3D View"
+          >
+            3D
+          </button>
+        </div>
+
+        {/* Recenter All Spaces Button */}
+        {onRecenter && (
+          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 flex flex-col gap-1 items-center transition-all duration-300">
+            <button
+              onClick={onRecenter}
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Fit All Spaces"
+            >
+              <Compass className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
@@ -330,6 +682,13 @@ const Home = () => {
   const [dbListings, setDbListings] = useState<Listing[]>([]);
   const [isLoadingListings, setIsLoadingListings] = useState(true);
   const [isMapView, setIsMapView] = useState(false);
+  const [hoveredListingId, setHoveredListingId] = useState<string | number | null>(null);
+  const [activeInfoWindowId, setActiveInfoWindowId] = useState<string | number | null>(null);
+  const [isMapExpanded, setIsMapExpanded] = useState(false);
+  const [mapType, setMapType] = useState('roadmap');
+  const [showTraffic, setShowTraffic] = useState(false);
+  const [showTransit, setShowTransit] = useState(false);
+  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const { user, setCurrentListing, setActiveTab } = useAuth();
   const [logoFailed, setLogoFailed] = useState(false);
   const [itemsLoaded, setItemsLoaded] = useState(12);
@@ -692,69 +1051,153 @@ const Home = () => {
         {isMapView && !isAgent ? (
           <motion.div 
             key="map-view"
-            initial={{ opacity: 0, scale: 0.98 }}
+            initial={{ opacity: 0, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            className="w-full h-[calc(100vh-200px)] flex flex-col lg:flex-row gap-4"
+            exit={{ opacity: 0, scale: 0.99 }}
+            className="w-full h-[calc(100vh-170px)] sm:h-[calc(100vh-180px)] flex flex-col lg:flex-row gap-4 relative overflow-hidden"
           >
-            {/* Map Section */}
-            <div className="flex-1 rounded-3xl overflow-hidden border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-xl relative min-h-[300px] transition-all duration-300">
+            {/* Map Canvas Container */}
+            <div className={`relative rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800/80 shadow-2xl transition-all duration-300 flex-1 ${isMapExpanded ? 'w-full lg:w-full' : 'w-full lg:flex-1'}`}>
+              
+              {/* Glass Top Overlay Bar */}
+              <div className="absolute top-3 left-3 right-3 z-30 pointer-events-auto flex items-center justify-between gap-2 overflow-x-auto scrollbar-none">
+                {/* Spaces Badge */}
+                <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl px-4 py-2.5 rounded-full border border-slate-200/80 dark:border-slate-800/80 shadow-lg flex items-center justify-center shrink-0">
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white leading-none text-center">
+                      {filteredListings.length} {filteredListings.length === 1 ? 'Space' : 'Spaces'}
+                    </h4>
+                    {searchQuery && (
+                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mt-1 text-center">
+                        "{searchQuery}"
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Expand / Collapse Button */}
+                <button
+                  onClick={() => setIsMapExpanded(!isMapExpanded)}
+                  className="hidden lg:flex items-center gap-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl px-4 py-2 rounded-full border border-slate-200/80 dark:border-slate-800/80 shadow-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold transition-all cursor-pointer shrink-0"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5 text-primary-600" />
+                  <span>{isMapExpanded ? 'Show Sidebar' : 'Full Map'}</span>
+                </button>
+              </div>
+
+              {/* Google Map Instance */}
               <GoogleMapsGuard>
                 <GoogleMap 
-                  defaultCenter={{ lat: 6.4311, lng: 3.4158 }} // Lekki Phase 1 center
+                  defaultCenter={{ lat: 6.4311, lng: 3.4158 }}
                   defaultZoom={13}
-                  defaultTilt={45} // 3D View
+                  defaultTilt={45}
                   defaultHeading={0}
                   gestureHandling={'cooperative'}
                   disableDefaultUI={true}
-                  styles={isDark ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
-                  mapId="DEMO_MAP_ID"
+                  styles={mapType === 'roadmap' ? (isDark ? DARK_MAP_STYLE : LIGHT_MAP_STYLE) : undefined}
+                  mapId={((import.meta as any).env?.VITE_GOOGLE_MAPS_MAP_ID as string) || ''}
                   internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
-                  className="w-full h-full"
+                  className="w-full h-full min-h-[350px]"
+                  onClick={() => setActiveInfoWindowId(null)}
                 >
+                  <MapLayersController showTraffic={showTraffic} showTransit={showTransit} />
+                  <UserLocationMarker userPos={userPos} />
+                  <MapSearchBoundary listings={filteredListings} searchQuery={searchQuery} />
                   {filteredListings.map((listing) => (
                     <MapMarkerWithInfoWindow 
                       key={`map-marker-${listing.id}`} 
                       listing={listing}
                       onClick={setCurrentListing}
+                      isHovered={hoveredListingId === listing.id}
+                      activeInfoWindowId={activeInfoWindowId}
+                      setActiveInfoWindowId={setActiveInfoWindowId}
+                      onHover={setHoveredListingId}
                     />
                   ))}
-                  <MapControlsOverlay />
+                  <MapControlsOverlay 
+                    onToggleExpand={() => setIsMapExpanded(!isMapExpanded)}
+                    isMapExpanded={isMapExpanded}
+                    mapType={mapType}
+                    setMapType={setMapType}
+                    showTraffic={showTraffic}
+                    setShowTraffic={setShowTraffic}
+                    showTransit={showTransit}
+                    setShowTransit={setShowTransit}
+                    userPos={userPos}
+                    setUserPos={setUserPos}
+                  />
                   <MapCenteringController listings={filteredListings} />
                 </GoogleMap>
               </GoogleMapsGuard>
-              <div className="absolute top-4 left-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-3 rounded-xl border-[0.5px] border-slate-200 dark:border-[#0f172b] hover:border-slate-400 dark:hover:border-slate-800 shadow-lg flex items-center gap-2 transition-all duration-300">
-                <div className="w-8 h-8 bg-primary-50 dark:bg-primary-900/20 rounded-lg flex items-center justify-center text-primary-600">
-                  <Navigation className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black text-slate-900 dark:text-white">Area Discovery</h4>
+
+              {/* Mobile Bottom Swipeable Cards (< lg) */}
+              <div className="lg:hidden absolute bottom-16 left-3 right-3 z-30 pointer-events-auto">
+                <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2 snap-x snap-mandatory">
+                  {visibleListings.map((listing) => (
+                    <div 
+                      key={`mobile-map-card-${listing.id}`}
+                      onClick={() => setCurrentListing(listing)}
+                      className="min-w-[260px] max-w-[280px] snap-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl p-2.5 border border-slate-200 dark:border-slate-800 shadow-xl flex gap-3 cursor-pointer"
+                    >
+                      <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 relative">
+                        <SafeImage src={listing.image} fallbackType="house" className="w-full h-full object-cover" />
+                        <span className="absolute top-1 left-1 bg-slate-900/80 backdrop-blur-xs text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase">
+                          {listing.type}
+                        </span>
+                      </div>
+                      <div className="flex flex-col justify-between overflow-hidden py-0.5">
+                        <div>
+                          <h4 className="font-bold text-xs text-slate-900 dark:text-white line-clamp-1">{listing.title}</h4>
+                          <p className="text-[10px] text-slate-500 line-clamp-1 flex items-center gap-1 mt-0.5">
+                            <MapPin className="w-3 h-3 text-primary-500 shrink-0" />
+                            {listing.location}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+                          <p className="text-primary-600 dark:text-primary-400 font-extrabold text-xs">{listing.price}</p>
+                          <span className="text-[9px] font-bold text-primary-600">View →</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-            
-            {/* Listing List Section */}
-            <div className="hidden lg:block w-full lg:w-[400px] xl:w-[450px] overflow-y-auto pr-2 space-y-4">
-                
+
+            {/* Desktop Listing List Sidebar */}
+            {!isMapExpanded && (
+              <div className="hidden lg:flex flex-col w-full lg:w-[400px] xl:w-[680px] 2xl:w-[740px] bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-3xl p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xl overflow-hidden shrink-0 transition-all duration-300">
+                <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200 dark:border-slate-800">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                      Area Properties
+                    </h3>
+                    <p className="text-[10px] font-medium text-slate-400">
+                      Browse available properties in view
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full text-[10px] font-black">
+                    {visibleListings.length} Listed
+                  </span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 xl:grid-cols-2 gap-3.5 scrollbar-thin">
                   {isLoadingListings ? (
                     [...Array(4)].map((_, i) => (
                       <div key={'sk-list-'+i} className="animate-pulse flex flex-col gap-3 pb-4">
-                        <div className="w-full h-40 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
-                        <div className="w-2/3 h-5 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
-                        <div className="w-1/2 h-4 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                        <div className="w-full h-36 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+                        <div className="w-2/3 h-4 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
                       </div>
                     ))
                   ) : visibleListings.length > 0 ? (
-
-                  visibleListings.map((listing, index) => {
-                    const isLast = index === visibleListings.length - 1;
-                    return (
+                    visibleListings.map((listing) => (
                       <div 
-                        key={`sidebar-listing-${listing.id}`} 
-                        className={isLast ? "" : "border-b border-slate-200 dark:border-slate-800 pb-4"}
+                        key={`sidebar-listing-${listing.id}`}
+                        className="rounded-2xl h-full"
                       >
                         <ListingCard 
                           listing={listing} 
+                          disableHover={true}
                           onViewDetails={() => setCurrentListing(listing)}
                           isAgentView={isAgent}
                           onEdit={() => {
@@ -764,15 +1207,25 @@ const Home = () => {
                           onDelete={() => handleDelete(listing.id)}
                         />
                       </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-center text-slate-500 py-10">No listings found in this area.</p>
-                )}
-                {filteredListings.length > itemsLoaded && (
-                  <div ref={sentinelRef} className="h-0 w-0 pointer-events-none" style={{ margin: '0px' }} />
-                )}
-            </div>
+                    ))
+                  ) : (
+                    <div className="col-span-full text-center py-12 px-4">
+                      <MapPin className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400">No properties match criteria</p>
+                      <button 
+                        onClick={clearFilters}
+                        className="mt-3 text-[10px] font-black text-primary-600 uppercase tracking-widest hover:underline cursor-pointer"
+                      >
+                        Reset Search Filters
+                      </button>
+                    </div>
+                  )}
+                  {filteredListings.length > itemsLoaded && (
+                    <div ref={sentinelRef} className="col-span-full h-0 w-0 pointer-events-none" style={{ margin: '0px' }} />
+                  )}
+                </div>
+              </div>
+            )}
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-4 sm:gap-6 lg:gap-8 min-h-[400px]">

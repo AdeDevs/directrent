@@ -4,6 +4,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import * as reactRouterDom from 'react-router-dom';
 const { MemoryRouter, Routes, Route } = (reactRouterDom as any).default || reactRouterDom;
 import { ThemeProvider } from '../context/ThemeContext';
+import { LanguageProvider } from '../context/LanguageContext';
 import { AuthProvider } from '../context/AuthContext';
 
 export interface RenderInput {
@@ -35,6 +36,7 @@ export async function renderRoute(input: RenderInput): Promise<RenderOutput> {
   try {
     const bodyHtml = renderToString(
       <HelmetProvider context={helmetContext}>
+        <LanguageProvider>
         <ThemeProvider>
           <AuthProvider>
             <MemoryRouter initialEntries={[input.path]}>
@@ -44,6 +46,7 @@ export async function renderRoute(input: RenderInput): Promise<RenderOutput> {
             </MemoryRouter>
           </AuthProvider>
         </ThemeProvider>
+      </LanguageProvider>
       </HelmetProvider>
     );
 

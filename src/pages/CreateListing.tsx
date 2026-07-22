@@ -26,6 +26,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { createNotification } from '../lib/notifications';
 import { compressImage } from '../lib/storage';
 import { LocationPicker } from '../components/LocationPicker';
+import { GoogleMapsGuard } from '../components/GoogleMapsGuard';
 import { HeaderPortal } from '../components/HeaderPortal';
 
 const SUGGESTED_PROPERTY_TYPES = [
@@ -88,7 +89,6 @@ export default function CreateListing() {
     leaseDuration: currentListing?.leaseDuration || '1 Year',
     hasSplitPayment: !!currentListing?.initialPaymentValue,
     initialPaymentValue: currentListing?.initialPaymentValue ? currentListing.initialPaymentValue.toLocaleString() : '',
-    subsequentPaymentValue: currentListing?.subsequentPaymentValue ? currentListing.subsequentPaymentValue.toLocaleString() : '',
     location: currentListing?.location || '',
     latitude: currentListing?.latitude || null,
     longitude: currentListing?.longitude || null,
@@ -366,9 +366,6 @@ export default function CreateListing() {
 
       const rawInitialPrice = formData.initialPaymentValue.replace(/\D/g, '');
       const initialPriceNum = parseInt(rawInitialPrice) || 0;
-
-      const rawSubsequentPrice = formData.subsequentPaymentValue.replace(/\D/g, '');
-      const subsequentPriceNum = parseInt(rawSubsequentPrice) || 0;
       
       const listingData: any = {
         title: formData.title,
@@ -378,8 +375,6 @@ export default function CreateListing() {
         leaseDuration: formData.leaseDuration || '1 Year',
         initialPayment: (formData.hasSplitPayment && initialPriceNum) ? `₦${initialPriceNum.toLocaleString()}` : null,
         initialPaymentValue: (formData.hasSplitPayment && initialPriceNum) ? initialPriceNum : null,
-        subsequentPayment: (formData.hasSplitPayment && subsequentPriceNum) ? `₦${subsequentPriceNum.toLocaleString()}` : null,
-        subsequentPaymentValue: (formData.hasSplitPayment && subsequentPriceNum) ? subsequentPriceNum : null,
         location: formData.location,
         latitude: formData.latitude,
         longitude: formData.longitude,
@@ -748,7 +743,7 @@ export default function CreateListing() {
                 </div>
               </div>
 
-            {/* Split payments / Initial deposit difference */}
+            {/* Total Package Difference */}
             <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-white/5 w-full">
                 <label className={`flex items-start gap-3 ${isEditMode ? 'cursor-not-allowed opacity-70' : 'cursor-pointer group'}`}>
                   <input 
@@ -759,15 +754,15 @@ export default function CreateListing() {
                     className={`mt-1 rounded border-slate-350 dark:border-slate-750 text-primary-600 focus:ring-primary-500/10 w-4 h-4 ${isEditMode ? 'cursor-not-allowed' : ''}`}
                   />
                   <div className="flex flex-col">
-                    <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide group-hover:text-primary-600 transition-colors">Setup Initial / Subsequent Payment structure?</span>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium w-full max-w-none">Enable this if the direct first-time rent is different from ongoing recurring renewals (e.g. including caution deposits, upfront payments, agent fees, etc.).</span>
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide group-hover:text-primary-600 transition-colors">Total package is different from rent amount?</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium w-full max-w-none">Enable this if the total move-in cost includes caution deposits, agent fees, or upfront payments.</span>
                   </div>
                 </label>
 
                 {formData.hasSplitPayment && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-950/50 border border-dashed border-slate-200 dark:border-slate-800/80 w-full animate-fadeIn">
+                  <div className="grid grid-cols-1 gap-5 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-950/50 border border-dashed border-slate-200 dark:border-slate-800/80 w-full animate-fadeIn">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Initial/1st Payment Total (₦)</label>
+                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Total Package (₦)</label>
                       <div className="relative font-sans">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-350 font-bold">₦</span>
                         <input 
@@ -785,25 +780,6 @@ export default function CreateListing() {
                         />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Subsequent Rent Amount (₦)</label>
-                      <div className="relative font-sans">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-350 font-bold">₦</span>
-                        <input 
-                          type="text" 
-                          inputMode="numeric"
-                          placeholder="E.g. 350,050"
-                          value={formData.subsequentPaymentValue}
-                          onChange={(e) => {
-                            const rawValue = e.target.value.replace(/\D/g, '');
-                            const formattedValue = rawValue ? parseInt(rawValue).toLocaleString() : '';
-                            setFormData(prev => ({ ...prev, subsequentPaymentValue: formattedValue }));
-                          }}
-                          disabled={isEditMode}
-                          className={`w-full border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-10 pr-4 text-sm font-medium outline-none transition-all dark:text-white ${isEditMode ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-white dark:bg-slate-800 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500'}`}
-                        />
-                      </div>
-                    </div>
                   </div>
                 )}
               </div>
@@ -814,11 +790,13 @@ export default function CreateListing() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="space-y-2 col-span-1 sm:col-span-2">
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Search Property Address</label>
-                <LocationPicker 
-                  initialValue={formData.location}
-                  onLocationSelect={handleLocationSelect}
-                  disabled={isEditMode}
-                />
+                <GoogleMapsGuard>
+                  <LocationPicker 
+                    initialValue={formData.location}
+                    onLocationSelect={handleLocationSelect}
+                    disabled={isEditMode}
+                  />
+                </GoogleMapsGuard>
               </div>
 
               <div className="space-y-2 col-span-1 sm:col-span-2">

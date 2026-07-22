@@ -562,12 +562,6 @@ const AgentProfile: React.FC<AgentProfileProps> = ({ agentId, onBack }) => {
             <div className="flex-1 text-center md:text-left space-y-4">
               <div className="flex flex-col md:flex-row md:items-center gap-3">
                 <h1 className="text-2xl md:text-3xl font-display font-black tracking-tight text-slate-900 dark:text-white">{fullName}</h1>
-                {isVerified && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-500/20 rounded-full text-[10px] font-bold uppercase tracking-wider self-center mx-auto md:mx-0">
-                    <CheckCircle2 className="w-3.5 h-3.5 fill-current" />
-                    Verified Broker
-                  </span>
-                )}
                 {isActive && (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-bold uppercase tracking-wider self-center mx-auto md:mx-0 shadow-sm shadow-emerald-500/10">
                     <span className="relative flex h-2 w-2">

@@ -7,8 +7,6 @@ export interface Listing {
   leaseDuration?: string;
   initialPayment?: string;
   initialPaymentValue?: number;
-  subsequentPayment?: string;
-  subsequentPaymentValue?: number;
   location: string;
   type: string;
   image: string;
